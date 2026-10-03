@@ -85,7 +85,7 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 - [x] R1 rigour: `--seed`, plain U-Net and per-pixel MLP baselines, multi-seed runner, block-bootstrap intervals and paired comparisons (`oceanembed research r1`, `r1-report`); results in `docs/research/r1_rigour.md`
 - [x] R4 external benchmark: ARMOR3D against Argo and GLORYS on the same matchups (`oceanembed research r4`); results in `docs/research/r4_armor3d.md`
 - [x] R5 physical metrics: thermocline depth, 0–300 m heat content, skill by monsoon season, eddy regime and Bay of Bengal salinity (`oceanembed research r5`); results in `docs/research/r5_physical.md`
-- [ ] R2 more training years and a second test year
+- [x] R2 more training years and a second test year (`oceanembed research r2`, run `poc_long`: train 2011–2021, test 2023 and 2024); results in `docs/research/r2_long_period.md` — 0.975 ± 0.007 °C (2023) and 1.004 ± 0.014 °C (2024) over 50–200 m against 1.519 and 1.394 for climatology; 11 years beat 5 by 0.05 °C; the per-pixel MLP is within 0.015 °C overall, better in the Arabian Sea and worse in the Bay of Bengal; still no skill below ~300 m
 - [x] R3 input-variable attribution by depth; several days of surface history as input (`oceanembed research r3`); results in `docs/research/r3_attribution.md` — sea level is the one indispensable input for the thermocline, SST + sea level reproduce the full seven-variable result, salinity and currents add nothing (dropping them improves the model by 0.027 °C), and 3 or 7 days of history do not help or reach below 300 m
 - [ ] R6 Argo-aware correction; R7 manuscript
 

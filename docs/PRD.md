@@ -1,0 +1,93 @@
+# PRD — OceanEmbed
+
+## Problem Statement
+
+**ID:** 26066
+
+**Title:** OceanEmbed - Satellite Embedding-Based Deep Learning Framework for Reconstruction of Subsurface Ocean Temperature from Surface Satellite Observations.
+
+## Description
+
+Background
+
+Subsurface ocean temperature is a fundamental variable for understanding ocean circulation, upper-ocean heat content, stratification, climate variability, air-sea interaction and marine ecosystems. Accurate representation of the vertical ocean temperature is essential for applications such as marine heatwave monitoring, fisheries, and data assimilation, etc.
+
+However, direct measurements of subsurface temperature remain sparse because they rely primarily on in-situ observing systems such as ARGO profiling floats, moored buoys, gliders, and ship observations. While these observations provide valuable vertical information, their spatial and temporal coverage is insufficient for generating continuous, basin-scale subsurface fields.
+
+In contrast, satellite observations provide continuous, large-scale monitoring of surface ocean conditions at relatively high spatial and temporal resolution. Surface variables such as Sea Surface Temperature (SST), Sea Surface Salinity (SSS), Sea Surface Height (SSH) / Sea Level Anomaly (SLA), surface currents, and surface winds contain indirect signatures of subsurface ocean processes through physical mechanisms including thermocline displacement, mesoscale eddies, vertical mixing, transport, and ocean-atmosphere coupling.
+
+Recent advances in Artificial Intelligence (AI), Deep Learning (DL), and representation learning enable the generation of satellite embeddings, where multidimensional surface observations are transformed into compact latent representations that capture hidden ocean dynamics. Such embeddings offer the potential to learn nonlinear relationships between surface observations and subsurface ocean structure more effectively than conventional machine learning approaches.
+
+Detailed Description
+
+The current problem statement proposes the development of a Satellite Embedding-Based Deep Learning Framework to reconstruct depth-wise subsurface temperature from daily surface satellite observations at 0.25° spatial resolution for North Indian Ocean (5°N to 30°N and 45°E to 105°E). The objective is to estimate the three-dimensional ocean temperature using only surface satellite observations.
+
+The proposed system shall:
+
+Develop a preprocessing and harmonization pipeline for multi-source satellite and ocean datasets.
+Standardize all datasets to:
+Spatial Resolution: 0.25° × 0.25°
+Temporal Resolution: Daily
+Use surface observations as input variables:
+Sea Surface Temperature (SST)
+Sea Surface Salinity (SSS)
+Sea Surface Height (SSH) / Sea Level Anomaly (SLA)
+Surface ocean currents (U, V)
+Surface Winds (U, V)
+Generate compact satellite embeddings using DL architectures such as:
+Convolutional Neural Networks (CNN)
+Vision Transformers (ViT)
+Autoencoders
+Graph Neural Networks (GNN)
+Attention-based hybrid architectures
+Train reconstruction models that learn the relationship between surface ocean state to temperature profiles.
+Reconstruct:
+Temperature at standard depth levels.
+Standard depths in meters: (0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000)
+Evaluate the reconstruction using independent observations and standard skill metrics like correlation, RMSE, Bias, etc.
+If a dataset is not available at required resolution, the team may select the openly available product and perform appropriate spatial and temporal interpolation/regridding.
+
+Training Input Datasets
+
+The following datasets are recommended for building the training and evaluation pipeline.
+
+(Insert table here)
+
+Training Target Dataset (Subsurface Temperature)
+
+GLORYS Global Ocean Reanalysis
+https://doi.org/10.48670/moi-00021
+
+Variables: Temperature
+
+In-situ Observations Dataset
+
+Gridded ARGO
+INCOIS Live Access Server (LAS) – Gridded ARGO
+Expected Solution
+
+End-to-end preprocessing pipeline for satellite and ocean datasets.
+Satellite embedding engine capable of learning latent ocean representations from surface observations.
+Deep learning reconstruction model for estimating subsurface temperature.
+Standardized output at daily temporal resolution and 0.25° spatial resolution.
+Validation framework using independent ARGO observations.
+Demonstration of a working Proof-of-Concept (PoC) over the Bay of Bengal / Arabian Sea.
+Variable
+Product & Resolution
+Details
+SST
+OSTIA: 0.05° , daily
+https://doi.org/10.48670/moi-00168
+SSS
+SMAP, SMOS: 0.125° , daily
+https://doi.org/10.48670/moi-00051
+SSH
+DUACS: 0.25° , daily
+https://doi.org/10.48670/moi-00145
+Currents
+0.25° , daily
+https://podaac.jpl.nasa.gov/dataset/OSCAR_L4_OC_FINAL_V2.0
+Winds
+0.25° , daily
+https://podaac.jpl.nasa.gov/dataset/ASCATC-L2-Coastal
+https://podaac.jpl.nasa.gov/dataset/CCMP_WINDS_10M6HR_L4_V3.1

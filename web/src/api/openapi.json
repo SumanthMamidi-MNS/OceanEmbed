@@ -1,0 +1,5563 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "OceanEmbed data API",
+  "description": "Read-only JSON / binary API over the finished runs in `outputs/`: subsurface temperature reconstructed from surface satellite fields (15 depths, 0-1000 m, North Indian Ocean). NaN is always `null`. Errors are `{\"detail\": ...}` with 400 (bad parameter) or 404 (unknown run / missing artefact / no data). See docs/api.md.",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/health": {
+   "get": {
+    "summary": "Liveness and basic facts",
+    "operationId": "health_api_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Health"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs": {
+   "get": {
+    "summary": "List runs with a summary",
+    "operationId": "list_runs_api_runs_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunsResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}": {
+   "get": {
+    "summary": "Full description of a run: grid, basins, dates, methods, config, data products",
+    "operationId": "run_detail_api_runs__run__get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunDetail"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/dates": {
+   "get": {
+    "summary": "Days with a prediction, a GLORYS target and an embedding",
+    "operationId": "dates_api_runs__run__dates_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DatesResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/mask": {
+   "get": {
+    "summary": "Ocean mask per depth (bit-packed)",
+    "description": "Cells where the prediction product is finite (the static ocean / above-sea-floor mask). Decode with `atob` -> bytes -> unpack bits MSB first, row-major (lat, lon), per depth.",
+    "operationId": "mask_api_runs__run__mask_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MaskResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/training": {
+   "get": {
+    "summary": "Pretraining / training curves from the JSONL logs (including tagged ablations)",
+    "operationId": "training_api_runs__run__training_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TrainingResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/experiments": {
+   "get": {
+    "summary": "Comparison table across all methods and ablations of a run",
+    "operationId": "experiments_api_runs__run__experiments_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExperimentsResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/compare": {
+   "get": {
+    "summary": "Headline experiment tables of several runs side by side",
+    "operationId": "compare_api_compare_get",
+    "parameters": [
+     {
+      "name": "runs",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "description": "Comma-separated run names, at most 8.",
+       "title": "Runs"
+      },
+      "description": "Comma-separated run names, at most 8."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CompareResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/report": {
+   "get": {
+    "summary": "Generated report.md and the list of figure files",
+    "description": "Figure links inside the markdown are relative (`figures/<name>.png`); fetch them from `/api/runs/{run}/figures/{name}`.",
+    "operationId": "report_api_runs__run__report_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReportResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/figures/{name}": {
+   "get": {
+    "summary": "One report figure (PNG)",
+    "operationId": "figure_api_runs__run__figures__name__get",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Name"
+      }
+     },
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "PNG figure",
+      "content": {
+       "application/json": {
+        "schema": {}
+       },
+       "image/png": {}
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/product": {
+   "get": {
+    "summary": "Prediction NetCDF files of the run (the data product), plus ridge / ablation products",
+    "description": "`files` is the main model's product. `extra_products` lists the ridge baseline and tagged ablations (each with `method`, `label` and its own files); their download URLs carry `?method=<key>` because the monthly file names repeat.",
+    "operationId": "product_api_runs__run__product_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProductResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/product/{file}": {
+   "get": {
+    "summary": "Download one prediction NetCDF file",
+    "operationId": "product_file_api_runs__run__product__file__get",
+    "parameters": [
+     {
+      "name": "file",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "File"
+      }
+     },
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "model (default), ridge or an ablation model_<tag>",
+       "default": "model",
+       "title": "Method"
+      },
+      "description": "model (default), ridge or an ablation model_<tag>"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "NetCDF file",
+      "content": {
+       "application/json": {
+        "schema": {}
+       },
+       "application/x-netcdf": {}
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/fields": {
+   "get": {
+    "summary": "One 2-D field (with depth) or the full 15-level volume (without) for a day",
+    "operationId": "fields_api_runs__run__fields_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "YYYY-MM-DD, a predicted day",
+       "title": "Date"
+      },
+      "description": "YYYY-MM-DD, a predicted day"
+     },
+     {
+      "name": "kind",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "prediction|target|climatology|difference|anomaly_pred|anomaly_target",
+       "default": "prediction",
+       "title": "Kind"
+      },
+      "description": "prediction|target|climatology|difference|anomaly_pred|anomaly_target"
+     },
+     {
+      "name": "depth",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Metres; must equal a grid depth",
+       "title": "Depth"
+      },
+      "description": "Metres; must equal a grid depth"
+     },
+     {
+      "name": "depth_index",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "0-based level index (alternative to depth)",
+       "title": "Depth Index"
+      },
+      "description": "0-based level index (alternative to depth)"
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "json (default) or f32 (binary)",
+       "title": "Format"
+      },
+      "description": "json (default) or f32 (binary)"
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail.",
+       "default": "model",
+       "title": "Method"
+      },
+      "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "JSON, or with `format=f32` / `Accept: application/octet-stream` a raw little-endian float32 array (NaN preserved, C order). Shape, colour range and the other metadata are in the `X-*` response headers (see docs/api.md).",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FieldResponse"
+        }
+       },
+       "application/octet-stream": {}
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/ranges": {
+   "get": {
+    "summary": "Period-wide colour ranges per depth (for a 'hold range' that needs no day volumes)",
+    "description": "Per-depth colour limits over the whole prediction period, estimated once per run from `samples` evenly spaced days and cached in memory per run version (nothing is written to the run folder). `temperature` is the 1st-99th percentile of the main model's prediction united with the GLORYS target; per method, `difference` and `anomaly` are symmetric about zero (99th percentile of the absolute value). See `method_note` in the response.",
+    "operationId": "ranges_api_runs__run__ranges_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "samples",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 60,
+       "minimum": 2,
+       "description": "Days sampled over the prediction period",
+       "default": 24,
+       "title": "Samples"
+      },
+      "description": "Days sampled over the prediction period"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RangesResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/surface": {
+   "get": {
+    "summary": "The 7 surface input fields of a day in physical units",
+    "operationId": "surface_api_runs__run__surface_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "YYYY-MM-DD",
+       "title": "Date"
+      },
+      "description": "YYYY-MM-DD"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SurfaceResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/profile": {
+   "get": {
+    "summary": "Vertical profiles (prediction, target, climatology) at the nearest cell",
+    "description": "`method` picks the prediction (model, ridge or an ablation); target and climatology do not depend on it. The ridge profile of Argo locations is also in `/argo/profiles/{id}`.",
+    "operationId": "profile_api_runs__run__profile_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Date"
+      }
+     },
+     {
+      "name": "lat",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "description": "degrees north, inside the grid",
+       "title": "Lat"
+      },
+      "description": "degrees north, inside the grid"
+     },
+     {
+      "name": "lon",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "description": "degrees east, inside the grid",
+       "title": "Lon"
+      },
+      "description": "degrees east, inside the grid"
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail.",
+       "default": "model",
+       "title": "Method"
+      },
+      "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProfileResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/section": {
+   "get": {
+    "summary": "Depth x distance section along a latitude or a longitude",
+    "operationId": "section_api_runs__run__section_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Date"
+      }
+     },
+     {
+      "name": "lat",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "zonal section along this latitude",
+       "title": "Lat"
+      },
+      "description": "zonal section along this latitude"
+     },
+     {
+      "name": "lon",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "meridional section along this longitude",
+       "title": "Lon"
+      },
+      "description": "meridional section along this longitude"
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail.",
+       "default": "model",
+       "title": "Method"
+      },
+      "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SectionResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/timeseries": {
+   "get": {
+    "summary": "Time x depth (Hovmoeller) of prediction, target and climatology at a point, plus per-day error",
+    "operationId": "timeseries_api_runs__run__timeseries_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "lat",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "title": "Lat"
+      }
+     },
+     {
+      "name": "lon",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "title": "Lon"
+      }
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail.",
+       "default": "model",
+       "title": "Method"
+      },
+      "description": "Prediction product to serve: `model` (default), `ridge` or an ablation such as `model_scratch`; the ones available are `field_methods` of the run detail."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TimeseriesResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/embeddings/dates": {
+   "get": {
+    "summary": "Days that have an embedding map (the test split)",
+    "operationId": "embedding_dates_api_runs__run__embeddings_dates_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EmbeddingDatesResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/embeddings": {
+   "get": {
+    "summary": "PCA components of the embedding map as an (n, y, x) array scaled 0..1",
+    "description": "Components 1-3 (the default) are the R, G, B channels. The PCA is fitted once per run on a sample of days, so colours are comparable between days; `n_components` (up to 8) returns more components, each scaled 0..1 on its own, with their explained variance.",
+    "operationId": "embeddings_api_runs__run__embeddings_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "YYYY-MM-DD, one of /embeddings/dates",
+       "title": "Date"
+      },
+      "description": "YYYY-MM-DD, one of /embeddings/dates"
+     },
+     {
+      "name": "n_components",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 8,
+       "minimum": 1,
+       "description": "PCA components, 1..8",
+       "default": 3,
+       "title": "N Components"
+      },
+      "description": "PCA components, 1..8"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EmbeddingResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/embeddings/similar": {
+   "get": {
+    "summary": "Cosine similarity of one embedding cell to every cell, over all embedding features",
+    "description": "The reference is the embedding cell nearest to (`lat`, `lon`). The similarity uses the full embedding vector (`emb_dim` features), not the PCA components. With `center=true` the run's mean embedding (the PCA sample mean) is subtracted first, which removes the component common to all cells and spreads the values over -1..1. Land cells (`ocean` = 0) are `null`; the range covers the other ocean cells.",
+    "operationId": "embeddings_similar_api_runs__run__embeddings_similar_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "YYYY-MM-DD, one of /embeddings/dates",
+       "title": "Date"
+      },
+      "description": "YYYY-MM-DD, one of /embeddings/dates"
+     },
+     {
+      "name": "lat",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "description": "degrees north, inside the grid",
+       "title": "Lat"
+      },
+      "description": "degrees north, inside the grid"
+     },
+     {
+      "name": "lon",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "description": "degrees east, inside the grid",
+       "title": "Lon"
+      },
+      "description": "degrees east, inside the grid"
+     },
+     {
+      "name": "center",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "subtract the run's mean embedding first",
+       "default": false,
+       "title": "Center"
+      },
+      "description": "subtract the run's mean embedding first"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EmbeddingSimilarityResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/metrics/glorys": {
+   "get": {
+    "summary": "Metrics vs GLORYS: overall, pooled 50-200 m, per depth, per basin, daily RMSE",
+    "description": "Metric-major reshape of `metrics_glorys.json`: `per_depth[metric][method]` is a list over `depths`. Metrics: n, rmse, bias (method minus reference), mae, corr_raw, corr_anom, skill_vs_clim. NaN is `null`.",
+    "operationId": "metrics_glorys_api_runs__run__metrics_glorys_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MetricsResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/metrics/argo": {
+   "get": {
+    "summary": "Metrics vs Argo: model, ridge, climatology, GLORYS; per depth and basin",
+    "description": "Same structure as the GLORYS metrics. `metadata` holds profile counts, the interpolation rule and the `independence_note`: GLORYS assimilates Argo and the model is trained on GLORYS, so this is not independent of the training target.",
+    "operationId": "metrics_argo_api_runs__run__metrics_argo_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MetricsResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/metrics/maps/index": {
+   "get": {
+    "summary": "Which metric / method combinations have an error map",
+    "operationId": "maps_index_api_runs__run__metrics_maps_index_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MapsIndex"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/metrics/maps": {
+   "get": {
+    "summary": "2-D error map (per grid point, over the evaluated period) at one depth",
+    "operationId": "metrics_map_api_runs__run__metrics_maps_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "metric",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "rmse | bias | corr_anom | corr_raw | skill_vs_clim",
+       "default": "rmse",
+       "title": "Metric"
+      },
+      "description": "rmse | bias | corr_anom | corr_raw | skill_vs_clim"
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "model",
+       "title": "Method"
+      }
+     },
+     {
+      "name": "depth",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Metres; must equal a grid depth",
+       "title": "Depth"
+      },
+      "description": "Metres; must equal a grid depth"
+     },
+     {
+      "name": "depth_index",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Depth Index"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MapResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/argo/matchups": {
+   "get": {
+    "summary": "Argo-vs-prediction matchups, columnar, deterministically down-sampled",
+    "description": "One row per (profile, depth). When there are more rows than `max_points`, rows are taken at evenly spaced positions of the stored order (same request -> same rows).",
+    "operationId": "argo_matchups_api_runs__run__argo_matchups_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "max_points",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 1000000,
+       "minimum": 100,
+       "description": "Row limit",
+       "default": 20000,
+       "title": "Max Points"
+      },
+      "description": "Row limit"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MatchupsResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/argo/profiles": {
+   "get": {
+    "summary": "Argo profiles with location and per-method RMSE (filter, sort, paginate)",
+    "description": "Filters: `basin`, `start` / `end` (inclusive days). `sort` is `time` (default) or `rmse` (per-profile RMSE of `method`, default `model`; profiles without a value come last) with `order` asc / desc. At most `limit` profiles are returned (default 5000, maximum 50000); `n_profiles` counts all matches and `has_more` says whether `offset + limit` stops short of them. Equal keys keep time order, so a page is reproducible. `lat_min` / `lat_max` / `lon_min` / `lon_max` (inclusive, any subset) filter by a bounding box. `around=<profile_id>` returns the page that contains that profile under the current filter and sort (`offset` is then ignored) and reports its position as `around_index`; 404 when the profile is unknown or filtered out. Each profile's `rmse` has the climatology under `climatology` (and the older `clim`).",
+    "operationId": "argo_profiles_api_runs__run__argo_profiles_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     },
+     {
+      "name": "basin",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "arabian_sea | bay_of_bengal",
+       "title": "Basin"
+      },
+      "description": "arabian_sea | bay_of_bengal"
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "first day, YYYY-MM-DD",
+       "title": "Start"
+      },
+      "description": "first day, YYYY-MM-DD"
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "last day, YYYY-MM-DD (inclusive)",
+       "title": "End"
+      },
+      "description": "last day, YYYY-MM-DD (inclusive)"
+     },
+     {
+      "name": "sort",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "time | rmse",
+       "default": "time",
+       "title": "Sort"
+      },
+      "description": "time | rmse"
+     },
+     {
+      "name": "order",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "asc | desc",
+       "default": "asc",
+       "title": "Order"
+      },
+      "description": "asc | desc"
+     },
+     {
+      "name": "method",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "description": "method column used by sort=rmse",
+       "default": "model",
+       "title": "Method"
+      },
+      "description": "method column used by sort=rmse"
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 50000,
+       "minimum": 1,
+       "default": 5000,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     },
+     {
+      "name": "lat_min",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "bounding box, degrees north (inclusive)",
+       "title": "Lat Min"
+      },
+      "description": "bounding box, degrees north (inclusive)"
+     },
+     {
+      "name": "lat_max",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Lat Max"
+      }
+     },
+     {
+      "name": "lon_min",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "bounding box, degrees east (inclusive)",
+       "title": "Lon Min"
+      },
+      "description": "bounding box, degrees east (inclusive)"
+     },
+     {
+      "name": "lon_max",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Lon Max"
+      }
+     },
+     {
+      "name": "around",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "profile_id: return the page containing it (offset is ignored)",
+       "title": "Around"
+      },
+      "description": "profile_id: return the page containing it (offset is ignored)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ArgoProfilesResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run}/argo/profiles/{profile_id}": {
+   "get": {
+    "summary": "One Argo profile: observation vs model / ridge / climatology / GLORYS by depth",
+    "operationId": "argo_profile_api_runs__run__argo_profiles__profile_id__get",
+    "parameters": [
+     {
+      "name": "profile_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Profile Id"
+      }
+     },
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ArgoProfileDetail"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "ArgoProfileDetail": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "profile_id": {
+      "type": "string",
+      "title": "Profile Id"
+     },
+     "time": {
+      "type": "string",
+      "title": "Time"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat"
+     },
+     "lon": {
+      "type": "number",
+      "title": "Lon"
+     },
+     "grid_lat": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Grid Lat"
+     },
+     "grid_lon": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Grid Lon"
+     },
+     "basin": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Basin"
+     },
+     "depth": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depth"
+     },
+     "obs": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Obs"
+     },
+     "series": {
+      "additionalProperties": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "object",
+      "title": "Series",
+      "description": "method column -> values at the same depths"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units",
+      "default": "degC"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "profile_id",
+     "time",
+     "lat",
+     "lon",
+     "grid_lat",
+     "grid_lon",
+     "basin",
+     "depth",
+     "obs",
+     "series"
+    ],
+    "title": "ArgoProfileDetail"
+   },
+   "ArgoProfileSummary": {
+    "properties": {
+     "profile_id": {
+      "type": "string",
+      "title": "Profile Id"
+     },
+     "time": {
+      "type": "string",
+      "title": "Time"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat"
+     },
+     "lon": {
+      "type": "number",
+      "title": "Lon"
+     },
+     "basin": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Basin"
+     },
+     "n_levels": {
+      "type": "integer",
+      "title": "N Levels"
+     },
+     "rmse": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Rmse",
+      "description": "Per-profile RMSE vs Argo for every method column."
+     }
+    },
+    "type": "object",
+    "required": [
+     "profile_id",
+     "time",
+     "lat",
+     "lon",
+     "basin",
+     "n_levels",
+     "rmse"
+    ],
+    "title": "ArgoProfileSummary"
+   },
+   "ArgoProfilesResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "n_profiles": {
+      "type": "integer",
+      "title": "N Profiles",
+      "description": "Profiles matching the filters (all when none is given)."
+     },
+     "n_total": {
+      "type": "integer",
+      "title": "N Total",
+      "description": "Profiles of the run, before filtering.",
+      "default": 0
+     },
+     "n_returned": {
+      "type": "integer",
+      "title": "N Returned",
+      "description": "Length of `profiles` (the requested page).",
+      "default": 0
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset",
+      "default": 0
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit",
+      "default": 0
+     },
+     "has_more": {
+      "type": "boolean",
+      "title": "Has More",
+      "description": "True when more matching profiles follow the page.",
+      "default": false
+     },
+     "around": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Around",
+      "description": "Echo of the `around` parameter."
+     },
+     "around_index": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Around Index",
+      "description": "Position of `around` in the filtered, sorted list (0-based)."
+     },
+     "profiles": {
+      "items": {
+       "$ref": "#/components/schemas/ArgoProfileSummary"
+      },
+      "type": "array",
+      "title": "Profiles"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "n_profiles",
+     "profiles"
+    ],
+    "title": "ArgoProfilesResponse"
+   },
+   "Artefacts": {
+    "properties": {
+     "predictions": {
+      "type": "boolean",
+      "title": "Predictions"
+     },
+     "metrics_glorys": {
+      "type": "boolean",
+      "title": "Metrics Glorys"
+     },
+     "metrics_argo": {
+      "type": "boolean",
+      "title": "Metrics Argo"
+     },
+     "argo_matchups": {
+      "type": "boolean",
+      "title": "Argo Matchups"
+     },
+     "maps": {
+      "type": "boolean",
+      "title": "Maps"
+     },
+     "embeddings": {
+      "type": "boolean",
+      "title": "Embeddings"
+     },
+     "report": {
+      "type": "boolean",
+      "title": "Report"
+     },
+     "training_logs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Training Logs",
+      "description": "Log stems, e.g. pretrain, train, train_scratch."
+     },
+     "n_figures": {
+      "type": "integer",
+      "title": "N Figures"
+     },
+     "n_product_files": {
+      "type": "integer",
+      "title": "N Product Files"
+     }
+    },
+    "type": "object",
+    "required": [
+     "predictions",
+     "metrics_glorys",
+     "metrics_argo",
+     "argo_matchups",
+     "maps",
+     "embeddings",
+     "report",
+     "training_logs",
+     "n_figures",
+     "n_product_files"
+    ],
+    "title": "Artefacts"
+   },
+   "Basin": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "box": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Box",
+      "description": "lat_min, lat_max, lon_min, lon_max in degrees"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "label",
+     "box"
+    ],
+    "title": "Basin"
+   },
+   "ColourRange": {
+    "properties": {
+     "vmin": {
+      "type": "number",
+      "title": "Vmin"
+     },
+     "vmax": {
+      "type": "number",
+      "title": "Vmax"
+     },
+     "diverging": {
+      "type": "boolean",
+      "title": "Diverging",
+      "description": "True: symmetric about zero (use a diverging colormap)."
+     }
+    },
+    "type": "object",
+    "required": [
+     "vmin",
+     "vmax",
+     "diverging"
+    ],
+    "title": "ColourRange"
+   },
+   "CompareResponse": {
+    "properties": {
+     "runs": {
+      "items": {
+       "$ref": "#/components/schemas/CompareRun"
+      },
+      "type": "array",
+      "title": "Runs"
+     }
+    },
+    "type": "object",
+    "required": [
+     "runs"
+    ],
+    "title": "CompareResponse"
+   },
+   "CompareRun": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "data_source": {
+      "type": "string",
+      "title": "Data Source"
+     },
+     "test_period": {
+      "$ref": "#/components/schemas/Span"
+     },
+     "n_days": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Days"
+     },
+     "n_argo_profiles": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Argo Profiles"
+     },
+     "experiments": {
+      "$ref": "#/components/schemas/ExperimentsResponse"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "data_source",
+     "test_period",
+     "n_days",
+     "n_argo_profiles",
+     "experiments"
+    ],
+    "title": "CompareRun"
+   },
+   "DataProduct": {
+    "properties": {
+     "variable": {
+      "type": "string",
+      "title": "Variable"
+     },
+     "role": {
+      "type": "string",
+      "enum": [
+       "input",
+       "target",
+       "validation"
+      ],
+      "title": "Role"
+     },
+     "long_name": {
+      "type": "string",
+      "title": "Long Name"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units"
+     },
+     "product": {
+      "type": "string",
+      "title": "Product"
+     },
+     "dataset_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Dataset Ids"
+     },
+     "native_resolution": {
+      "type": "string",
+      "title": "Native Resolution"
+     },
+     "regridding": {
+      "type": "string",
+      "title": "Regridding"
+     }
+    },
+    "type": "object",
+    "required": [
+     "variable",
+     "role",
+     "long_name",
+     "units",
+     "product",
+     "dataset_ids",
+     "native_resolution",
+     "regridding"
+    ],
+    "title": "DataProduct"
+   },
+   "DatesResponse": {
+    "properties": {
+     "dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Dates",
+      "description": "Days with a prediction"
+     },
+     "target_dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Target Dates",
+      "description": "Subset that also has a GLORYS target"
+     },
+     "embedding_dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Embedding Dates"
+     },
+     "first": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First"
+     },
+     "last": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last"
+     }
+    },
+    "type": "object",
+    "required": [
+     "dates",
+     "target_dates",
+     "embedding_dates",
+     "first",
+     "last"
+    ],
+    "title": "DatesResponse"
+   },
+   "EmbeddingDatesResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Dates"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "dates"
+    ],
+    "title": "EmbeddingDatesResponse"
+   },
+   "EmbeddingResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "shape": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Shape",
+      "description": "[n_components, y, x]"
+     },
+     "data": {
+      "items": {
+       "items": {
+        "items": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "array"
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Data",
+      "description": "PCA components scaled to 0..1 (1-3 are R, G, B)"
+     },
+     "explained_variance_ratio": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Explained Variance Ratio",
+      "description": "One value per component."
+     },
+     "lat": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lat",
+      "description": "Cell-centre latitude of each embedding row (y)"
+     },
+     "lon": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lon"
+     },
+     "cell_size": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Cell Size",
+      "description": "[dlat, dlon] of one embedding cell in degrees"
+     },
+     "ocean": {
+      "items": {
+       "items": {
+        "type": "integer"
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Ocean",
+      "description": "1 where any 0.25 degree surface ocean cell maps here"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "date",
+     "shape",
+     "data",
+     "explained_variance_ratio",
+     "lat",
+     "lon",
+     "cell_size",
+     "ocean"
+    ],
+    "title": "EmbeddingResponse"
+   },
+   "EmbeddingSimilarityResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "requested": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Requested"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat",
+      "description": "Snapped embedding-cell centre latitude"
+     },
+     "lon": {
+      "type": "number",
+      "title": "Lon"
+     },
+     "y_index": {
+      "type": "integer",
+      "title": "Y Index"
+     },
+     "x_index": {
+      "type": "integer",
+      "title": "X Index"
+     },
+     "emb_dim": {
+      "type": "integer",
+      "title": "Emb Dim",
+      "description": "Features used (all of them, not the PCA components)."
+     },
+     "centered": {
+      "type": "boolean",
+      "title": "Centered",
+      "description": "True when the run's mean embedding was subtracted first."
+     },
+     "reference_is_ocean": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reference Is Ocean",
+      "description": "False when the reference cell is land: its own value is then null as well (always present in responses; optional in the schema so older fixtures stay valid)."
+     },
+     "shape": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Shape",
+      "description": "[y, x]"
+     },
+     "data": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Data",
+      "description": "Cosine similarity to the reference cell, -1..1 (1 = itself); null on land cells (`ocean` = 0)"
+     },
+     "similarity_range": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Similarity Range",
+      "description": "min / max over the other ocean cells (land is excluded)"
+     },
+     "lat_values": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lat Values",
+      "description": "Cell-centre latitudes (y)"
+     },
+     "lon_values": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lon Values"
+     },
+     "cell_size": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Cell Size"
+     },
+     "ocean": {
+      "items": {
+       "items": {
+        "type": "integer"
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Ocean"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "date",
+     "requested",
+     "lat",
+     "lon",
+     "y_index",
+     "x_index",
+     "emb_dim",
+     "centered",
+     "shape",
+     "data",
+     "similarity_range",
+     "lat_values",
+     "lon_values",
+     "cell_size",
+     "ocean"
+    ],
+    "title": "EmbeddingSimilarityResponse"
+   },
+   "ErrorResponse": {
+    "properties": {
+     "detail": {
+      "type": "string",
+      "title": "Detail",
+      "description": "Human-readable reason; never a stack trace."
+     }
+    },
+    "type": "object",
+    "required": [
+     "detail"
+    ],
+    "title": "ErrorResponse"
+   },
+   "ExperimentRow": {
+    "properties": {
+     "method": {
+      "type": "string",
+      "title": "Method"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "pretrained": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pretrained"
+     },
+     "epoch": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Epoch"
+     },
+     "val_rmse": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Val Rmse"
+     },
+     "glorys_overall": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Glorys Overall"
+     },
+     "glorys_pooled": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Glorys Pooled"
+     },
+     "glorys_depths": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "additionalProperties": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "type": "object"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Glorys Depths",
+      "description": "'<depth m>' -> metric block at that depth"
+     },
+     "argo_overall": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Argo Overall"
+     },
+     "pooled_rmse_gain_vs_climatology_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pooled Rmse Gain Vs Climatology Pct"
+     },
+     "pooled_rmse_gain_vs_ridge_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pooled Rmse Gain Vs Ridge Pct"
+     }
+    },
+    "type": "object",
+    "required": [
+     "method",
+     "label",
+     "kind"
+    ],
+    "title": "ExperimentRow"
+   },
+   "ExperimentsResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "data_source": {
+      "type": "string",
+      "title": "Data Source"
+     },
+     "pooled_range_m": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Pooled Range M"
+     },
+     "selected_depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Selected Depths"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/ExperimentRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "data_source",
+     "pooled_range_m",
+     "selected_depths",
+     "rows",
+     "notes"
+    ],
+    "title": "ExperimentsResponse"
+   },
+   "ExtraProduct": {
+    "properties": {
+     "method": {
+      "type": "string",
+      "title": "Method",
+      "description": "`ridge` or an ablation `model_<tag>`"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind",
+      "description": "baseline (ridge) | ablation (tagged model_<tag>)"
+     },
+     "files": {
+      "items": {
+       "$ref": "#/components/schemas/ProductFile"
+      },
+      "type": "array",
+      "title": "Files"
+     },
+     "total_size": {
+      "type": "integer",
+      "title": "Total Size"
+     }
+    },
+    "type": "object",
+    "required": [
+     "method",
+     "label",
+     "kind",
+     "files",
+     "total_size"
+    ],
+    "title": "ExtraProduct"
+   },
+   "FieldMethod": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key",
+      "description": "Value of the `method` query parameter."
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind",
+      "description": "model | baseline (ridge) | ablation (model_<tag>)"
+     },
+     "tag": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag",
+      "description": "Ablation tag (model_<tag>), else null."
+     },
+     "n_days": {
+      "type": "integer",
+      "title": "N Days"
+     },
+     "first": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First"
+     },
+     "last": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "label",
+     "kind",
+     "n_days",
+     "first",
+     "last"
+    ],
+    "title": "FieldMethod"
+   },
+   "FieldResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "method": {
+      "type": "string",
+      "title": "Method",
+      "description": "Prediction method used by the prediction kinds.",
+      "default": "model"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units"
+     },
+     "depth": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Depth",
+      "description": "Metres; null for a full volume."
+     },
+     "depth_index": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Depth Index"
+     },
+     "shape": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Shape",
+      "description": "[lat, lon] or [depth, lat, lon]"
+     },
+     "data": {
+      "anyOf": [
+       {
+        "items": {
+         "items": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "type": "array"
+        },
+        "type": "array"
+       },
+       {
+        "items": {
+         "items": {
+          "items": {
+           "anyOf": [
+            {
+             "type": "number"
+            },
+            {
+             "type": "null"
+            }
+           ]
+          },
+          "type": "array"
+         },
+         "type": "array"
+        },
+        "type": "array"
+       }
+      ],
+      "title": "Data"
+     },
+     "color_range": {
+      "$ref": "#/components/schemas/ColourRange",
+      "description": "Hint for the requested slice / the whole volume."
+     },
+     "color_range_per_depth": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ColourRange"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Color Range Per Depth",
+      "description": "Volumes only: one hint per depth level."
+     },
+     "stats": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/FieldStats"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Single-depth responses only."
+     },
+     "has_target": {
+      "type": "boolean",
+      "title": "Has Target"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "date",
+     "kind",
+     "label",
+     "units",
+     "depth",
+     "depth_index",
+     "shape",
+     "data",
+     "color_range",
+     "has_target"
+    ],
+    "title": "FieldResponse"
+   },
+   "FieldStats": {
+    "properties": {
+     "n_valid": {
+      "type": "integer",
+      "title": "N Valid"
+     },
+     "min": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Min"
+     },
+     "max": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max"
+     },
+     "mean": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mean"
+     },
+     "std": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Std"
+     },
+     "rmse": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rmse"
+     },
+     "bias": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bias"
+     },
+     "mae": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mae"
+     }
+    },
+    "type": "object",
+    "required": [
+     "n_valid",
+     "min",
+     "max",
+     "mean",
+     "std"
+    ],
+    "title": "FieldStats"
+   },
+   "FigureInfo": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "size": {
+      "type": "integer",
+      "title": "Size"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "url",
+     "size"
+    ],
+    "title": "FigureInfo"
+   },
+   "GridDetail": {
+    "properties": {
+     "resolution": {
+      "type": "number",
+      "title": "Resolution"
+     },
+     "n_lat": {
+      "type": "integer",
+      "title": "N Lat"
+     },
+     "n_lon": {
+      "type": "integer",
+      "title": "N Lon"
+     },
+     "n_depth": {
+      "type": "integer",
+      "title": "N Depth"
+     },
+     "lat": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lat",
+      "description": "[first, last] cell-centre latitude"
+     },
+     "lon": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lon",
+      "description": "[first, last] cell-centre longitude"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "lat_values": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lat Values"
+     },
+     "lon_values": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lon Values"
+     },
+     "depth_values": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depth Values"
+     },
+     "lat_edges": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lat Edges"
+     },
+     "lon_edges": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lon Edges"
+     }
+    },
+    "type": "object",
+    "required": [
+     "resolution",
+     "n_lat",
+     "n_lon",
+     "n_depth",
+     "lat",
+     "lon",
+     "depths",
+     "lat_values",
+     "lon_values",
+     "depth_values",
+     "lat_edges",
+     "lon_edges"
+    ],
+    "title": "GridDetail"
+   },
+   "GridSummary": {
+    "properties": {
+     "resolution": {
+      "type": "number",
+      "title": "Resolution"
+     },
+     "n_lat": {
+      "type": "integer",
+      "title": "N Lat"
+     },
+     "n_lon": {
+      "type": "integer",
+      "title": "N Lon"
+     },
+     "n_depth": {
+      "type": "integer",
+      "title": "N Depth"
+     },
+     "lat": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lat",
+      "description": "[first, last] cell-centre latitude"
+     },
+     "lon": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Lon",
+      "description": "[first, last] cell-centre longitude"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     }
+    },
+    "type": "object",
+    "required": [
+     "resolution",
+     "n_lat",
+     "n_lon",
+     "n_depth",
+     "lat",
+     "lon",
+     "depths"
+    ],
+    "title": "GridSummary"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "Health": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "const": "ok",
+      "title": "Status",
+      "default": "ok"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     },
+     "n_runs": {
+      "type": "integer",
+      "title": "N Runs"
+     },
+     "ui_built": {
+      "type": "boolean",
+      "title": "Ui Built",
+      "description": "True when web/dist/index.html exists and is served at /."
+     }
+    },
+    "type": "object",
+    "required": [
+     "version",
+     "n_runs",
+     "ui_built"
+    ],
+    "title": "Health"
+   },
+   "MapResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "metric": {
+      "type": "string",
+      "title": "Metric"
+     },
+     "method": {
+      "type": "string",
+      "title": "Method"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "depth": {
+      "type": "number",
+      "title": "Depth"
+     },
+     "depth_index": {
+      "type": "integer",
+      "title": "Depth Index"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units"
+     },
+     "shape": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Shape"
+     },
+     "data": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Data"
+     },
+     "color_range": {
+      "$ref": "#/components/schemas/ColourRange",
+      "description": "Shared by every method at this depth."
+     },
+     "range_info": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RangeInfo"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Data extremes and how many points fall outside color_range."
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "metric",
+     "method",
+     "label",
+     "depth",
+     "depth_index",
+     "units",
+     "shape",
+     "data",
+     "color_range"
+    ],
+    "title": "MapResponse"
+   },
+   "MapsIndex": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "metrics": {
+      "additionalProperties": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "type": "object",
+      "title": "Metrics",
+      "description": "metric -> methods that have a map"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "has_n_valid": {
+      "type": "boolean",
+      "title": "Has N Valid"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "metrics",
+     "depths",
+     "has_n_valid"
+    ],
+    "title": "MapsIndex"
+   },
+   "MaskResponse": {
+    "properties": {
+     "shape": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Shape",
+      "description": "[n_depth, n_lat, n_lon]"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "encoding": {
+      "type": "string",
+      "const": "packbits-base64",
+      "title": "Encoding",
+      "default": "packbits-base64"
+     },
+     "order": {
+      "type": "string",
+      "title": "Order",
+      "description": "Bits are the C-order (lat, lon) mask of one depth, MSB first.",
+      "default": "C"
+     },
+     "data": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Data",
+      "description": "One base64 string per depth; bit 1 = ocean (finite)."
+     },
+     "n_ocean": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "N Ocean"
+     }
+    },
+    "type": "object",
+    "required": [
+     "shape",
+     "depths",
+     "data",
+     "n_ocean"
+    ],
+    "title": "MaskResponse"
+   },
+   "MatchupsResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "n_total": {
+      "type": "integer",
+      "title": "N Total"
+     },
+     "n_returned": {
+      "type": "integer",
+      "title": "N Returned"
+     },
+     "downsampled": {
+      "type": "boolean",
+      "title": "Downsampled"
+     },
+     "methods": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Methods",
+      "description": "Prediction columns present (model, ridge, clim, ...)."
+     },
+     "columns": {
+      "additionalProperties": {
+       "items": {},
+       "type": "array"
+      },
+      "type": "object",
+      "title": "Columns",
+      "description": "Columnar rows: profile_id, time, lat, lon, depth, basin, obs, glorys, + methods"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "n_total",
+     "n_returned",
+     "downsampled",
+     "methods",
+     "columns"
+    ],
+    "title": "MatchupsResponse"
+   },
+   "MethodInfo": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind",
+      "description": "model | baseline | reanalysis"
+     },
+     "tag": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag"
+     },
+     "pretrained": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pretrained"
+     },
+     "epoch": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Epoch"
+     },
+     "val_rmse": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Val Rmse"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "in_glorys_metrics": {
+      "type": "boolean",
+      "title": "In Glorys Metrics"
+     },
+     "in_argo_metrics": {
+      "type": "boolean",
+      "title": "In Argo Metrics"
+     },
+     "has_day_fields": {
+      "type": "boolean",
+      "title": "Has Day Fields",
+      "description": "True when /fields, /profile, ... can serve this method (`method=`).",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "label",
+     "kind",
+     "in_glorys_metrics",
+     "in_argo_metrics"
+    ],
+    "title": "MethodInfo"
+   },
+   "MethodRanges": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind",
+      "description": "model | baseline | ablation"
+     },
+     "difference": {
+      "anyOf": [
+       {
+        "items": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/ColourRange"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Difference",
+      "description": "[depth] symmetric limits of prediction minus target (null: no target)"
+     },
+     "anomaly": {
+      "anyOf": [
+       {
+        "items": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/ColourRange"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Anomaly",
+      "description": "[depth] symmetric limit shared by anomaly_pred and anomaly_target (null: no climatology)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "label",
+     "kind"
+    ],
+    "title": "MethodRanges"
+   },
+   "MetricsResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "reference": {
+      "type": "string",
+      "title": "Reference"
+     },
+     "metadata": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Metadata"
+     },
+     "methods": {
+      "items": {
+       "$ref": "#/components/schemas/MethodInfo"
+      },
+      "type": "array",
+      "title": "Methods"
+     },
+     "metric_names": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Metric Names"
+     },
+     "overall": {
+      "additionalProperties": {
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Overall",
+      "description": "method -> metric block"
+     },
+     "pooled": {
+      "additionalProperties": {
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Pooled",
+      "description": "method -> pooled 50-200 m block"
+     },
+     "pooled_range_m": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Pooled Range M"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "per_depth": {
+      "additionalProperties": {
+       "additionalProperties": {
+        "items": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "array"
+       },
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Per Depth",
+      "description": "metric -> method -> [depth]"
+     },
+     "per_basin": {
+      "additionalProperties": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Per Basin",
+      "description": "basin -> {overall, pooled, per_depth} with the same structure as above"
+     },
+     "daily_rmse": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Daily Rmse",
+      "description": "{dates, depths, methods: {method: [time][depth]}} (vs GLORYS only)"
+     },
+     "daily": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Daily",
+      "description": "Daily series vs GLORYS: {dates, depths, pooled_range_m, rmse, bias, corr_anom: {method: [time][depth]}, pooled_rmse / pooled_bias / pooled_corr_anom: {method: [time]} over pooled_range_m}; corr_anom is the spatial anomaly correlation of that day. Keys missing from older runs are absent (re-run `evaluate`)."
+     },
+     "extra": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Extra",
+      "description": "e.g. gridded_argo (vs Argo)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "reference",
+     "metadata",
+     "methods",
+     "metric_names",
+     "overall",
+     "pooled",
+     "pooled_range_m",
+     "depths",
+     "per_depth",
+     "per_basin"
+    ],
+    "title": "MetricsResponse"
+   },
+   "ProductFile": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "size": {
+      "type": "integer",
+      "title": "Size"
+     },
+     "month": {
+      "type": "string",
+      "title": "Month"
+     },
+     "start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start"
+     },
+     "end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End"
+     },
+     "n_days": {
+      "type": "integer",
+      "title": "N Days"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url",
+      "description": "Download URL; extra products carry `?method=<key>`."
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "size",
+     "month",
+     "start",
+     "end",
+     "n_days",
+     "url"
+    ],
+    "title": "ProductFile"
+   },
+   "ProductResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "files": {
+      "items": {
+       "$ref": "#/components/schemas/ProductFile"
+      },
+      "type": "array",
+      "title": "Files",
+      "description": "The main model's monthly files (method=model)."
+     },
+     "total_size": {
+      "type": "integer",
+      "title": "Total Size"
+     },
+     "extra_products": {
+      "items": {
+       "$ref": "#/components/schemas/ExtraProduct"
+      },
+      "type": "array",
+      "title": "Extra Products",
+      "description": "Ridge and ablation products, clearly labelled."
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "files",
+     "total_size"
+    ],
+    "title": "ProductResponse"
+   },
+   "ProfileResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "method": {
+      "type": "string",
+      "title": "Method",
+      "description": "Method of the `prediction` array.",
+      "default": "model"
+     },
+     "method_label": {
+      "type": "string",
+      "title": "Method Label",
+      "default": ""
+     },
+     "requested": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Requested"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat",
+      "description": "Snapped cell-centre latitude"
+     },
+     "lon": {
+      "type": "number",
+      "title": "Lon"
+     },
+     "lat_index": {
+      "type": "integer",
+      "title": "Lat Index"
+     },
+     "lon_index": {
+      "type": "integer",
+      "title": "Lon Index"
+     },
+     "is_ocean": {
+      "type": "boolean",
+      "title": "Is Ocean"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "prediction": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Prediction"
+     },
+     "target": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Target"
+     },
+     "climatology": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Climatology"
+     },
+     "has_target": {
+      "type": "boolean",
+      "title": "Has Target"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units",
+      "default": "degC"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "date",
+     "requested",
+     "lat",
+     "lon",
+     "lat_index",
+     "lon_index",
+     "is_ocean",
+     "depths",
+     "prediction",
+     "target",
+     "climatology",
+     "has_target"
+    ],
+    "title": "ProfileResponse"
+   },
+   "RangeInfo": {
+    "properties": {
+     "n_valid": {
+      "type": "integer",
+      "title": "N Valid"
+     },
+     "data_min": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data Min"
+     },
+     "data_max": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data Max"
+     },
+     "n_below": {
+      "type": "integer",
+      "title": "N Below",
+      "description": "Valid points below color_range.vmin (they saturate)"
+     },
+     "n_above": {
+      "type": "integer",
+      "title": "N Above",
+      "description": "Valid points above color_range.vmax"
+     },
+     "fraction_outside": {
+      "type": "number",
+      "title": "Fraction Outside"
+     },
+     "exceeds_range": {
+      "type": "boolean",
+      "title": "Exceeds Range",
+      "description": "True when any value lies outside the colour range"
+     },
+     "limit_rule": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Limit Rule",
+      "description": "skill_vs_clim: how the limit was chosen"
+     },
+     "limit_capped": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Limit Capped",
+      "description": "skill_vs_clim: True when the percentile limit was cut at the cap"
+     }
+    },
+    "type": "object",
+    "required": [
+     "n_valid",
+     "data_min",
+     "data_max",
+     "n_below",
+     "n_above",
+     "fraction_outside",
+     "exceeds_range"
+    ],
+    "title": "RangeInfo"
+   },
+   "RangesResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units",
+      "default": "degC"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "n_days_available": {
+      "type": "integer",
+      "title": "N Days Available"
+     },
+     "n_days_sampled": {
+      "type": "integer",
+      "title": "N Days Sampled"
+     },
+     "sampled_dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Sampled Dates"
+     },
+     "n_days_with_target": {
+      "type": "integer",
+      "title": "N Days With Target"
+     },
+     "temperature": {
+      "items": {
+       "$ref": "#/components/schemas/ColourRange"
+      },
+      "type": "array",
+      "title": "Temperature",
+      "description": "[depth] range shared by prediction, target and climatology panels"
+     },
+     "temperature_volume": {
+      "$ref": "#/components/schemas/ColourRange",
+      "description": "One range over all depths"
+     },
+     "methods": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/MethodRanges"
+      },
+      "type": "object",
+      "title": "Methods",
+      "description": "method key -> diverging ranges"
+     },
+     "method_note": {
+      "type": "string",
+      "title": "Method Note",
+      "description": "How the ranges were computed (days, percentiles)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "depths",
+     "n_days_available",
+     "n_days_sampled",
+     "sampled_dates",
+     "n_days_with_target",
+     "temperature",
+     "temperature_volume",
+     "methods",
+     "method_note"
+    ],
+    "title": "RangesResponse"
+   },
+   "ReportResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "markdown": {
+      "type": "string",
+      "title": "Markdown"
+     },
+     "figures": {
+      "items": {
+       "$ref": "#/components/schemas/FigureInfo"
+      },
+      "type": "array",
+      "title": "Figures"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "markdown",
+     "figures"
+    ],
+    "title": "ReportResponse"
+   },
+   "RunDetail": {
+    "properties": {
+     "summary": {
+      "$ref": "#/components/schemas/RunSummary"
+     },
+     "grid": {
+      "$ref": "#/components/schemas/GridDetail"
+     },
+     "basins": {
+      "items": {
+       "$ref": "#/components/schemas/Basin"
+      },
+      "type": "array",
+      "title": "Basins"
+     },
+     "prediction_dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Prediction Dates"
+     },
+     "methods": {
+      "items": {
+       "$ref": "#/components/schemas/MethodInfo"
+      },
+      "type": "array",
+      "title": "Methods"
+     },
+     "model": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Model",
+      "description": "Model / pretraining / training config summary."
+     },
+     "training_summary": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Training Summary"
+     },
+     "products": {
+      "items": {
+       "$ref": "#/components/schemas/DataProduct"
+      },
+      "type": "array",
+      "title": "Products"
+     },
+     "counts": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Counts"
+     },
+     "metrics_metadata": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Metrics Metadata",
+      "description": "metadata block of metrics_glorys.json (pooled range, conventions, ...)"
+     },
+     "field_methods": {
+      "items": {
+       "$ref": "#/components/schemas/FieldMethod"
+      },
+      "type": "array",
+      "title": "Field Methods",
+      "description": "Methods with day fields (prediction product), `model` first."
+     }
+    },
+    "type": "object",
+    "required": [
+     "summary",
+     "grid",
+     "basins",
+     "prediction_dates",
+     "methods",
+     "model",
+     "training_summary",
+     "products",
+     "counts"
+    ],
+    "title": "RunDetail"
+   },
+   "RunSummary": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name",
+      "description": "Folder name; the identifier used in every URL."
+     },
+     "run_name": {
+      "type": "string",
+      "title": "Run Name"
+     },
+     "data_source": {
+      "type": "string",
+      "enum": [
+       "synthetic",
+       "real",
+       "unknown"
+      ],
+      "title": "Data Source"
+     },
+     "updated": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Updated"
+     },
+     "period": {
+      "$ref": "#/components/schemas/Span"
+     },
+     "split": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/Span"
+      },
+      "type": "object",
+      "title": "Split"
+     },
+     "grid": {
+      "$ref": "#/components/schemas/GridSummary"
+     },
+     "artefacts": {
+      "$ref": "#/components/schemas/Artefacts"
+     },
+     "n_prediction_days": {
+      "type": "integer",
+      "title": "N Prediction Days"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note",
+      "description": "Set for synthetic runs: they only demo the pipeline."
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "description": "Human display name (config `label`, else derived from source and period).",
+      "default": ""
+     },
+     "description": {
+      "type": "string",
+      "title": "Description",
+      "description": "One-paragraph description (config `description`, else derived).",
+      "default": ""
+     },
+     "n_train_days": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Train Days",
+      "description": "Days of the train split in the data."
+     },
+     "n_val_days": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Val Days"
+     },
+     "n_test_days": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Test Days"
+     },
+     "n_harmonic_terms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "N Harmonic Terms",
+      "description": "Terms of the climatology fit: 1 = mean only, 3 = + annual, 5 = + semi-annual."
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "run_name",
+     "data_source",
+     "updated",
+     "period",
+     "split",
+     "grid",
+     "artefacts",
+     "n_prediction_days"
+    ],
+    "title": "RunSummary"
+   },
+   "RunsResponse": {
+    "properties": {
+     "runs": {
+      "items": {
+       "$ref": "#/components/schemas/RunSummary"
+      },
+      "type": "array",
+      "title": "Runs"
+     }
+    },
+    "type": "object",
+    "required": [
+     "runs"
+    ],
+    "title": "RunsResponse"
+   },
+   "SectionResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "method": {
+      "type": "string",
+      "title": "Method",
+      "description": "Method of `prediction` / `difference`.",
+      "default": "model"
+     },
+     "method_label": {
+      "type": "string",
+      "title": "Method Label",
+      "default": ""
+     },
+     "along": {
+      "type": "string",
+      "enum": [
+       "lon",
+       "lat"
+      ],
+      "title": "Along",
+      "description": "Axis of the section: lon = a zonal section."
+     },
+     "fixed": {
+      "type": "string",
+      "enum": [
+       "lat",
+       "lon"
+      ],
+      "title": "Fixed"
+     },
+     "fixed_value": {
+      "type": "number",
+      "title": "Fixed Value",
+      "description": "Snapped cell-centre value of the fixed coordinate."
+     },
+     "requested": {
+      "type": "number",
+      "title": "Requested"
+     },
+     "distance": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Distance",
+      "description": "Cell centres along the section (degrees)."
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "prediction": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Prediction",
+      "description": "[depth][distance]"
+     },
+     "target": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Target"
+     },
+     "climatology": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Climatology"
+     },
+     "difference": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Difference"
+     },
+     "color_range": {
+      "$ref": "#/components/schemas/ColourRange"
+     },
+     "difference_range": {
+      "$ref": "#/components/schemas/ColourRange"
+     },
+     "has_target": {
+      "type": "boolean",
+      "title": "Has Target"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units",
+      "default": "degC"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "date",
+     "along",
+     "fixed",
+     "fixed_value",
+     "requested",
+     "distance",
+     "depths",
+     "prediction",
+     "target",
+     "climatology",
+     "difference",
+     "color_range",
+     "difference_range",
+     "has_target"
+    ],
+    "title": "SectionResponse"
+   },
+   "Span": {
+    "properties": {
+     "start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start"
+     },
+     "end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End"
+     }
+    },
+    "type": "object",
+    "title": "Span"
+   },
+   "SurfaceField": {
+    "properties": {
+     "long_name": {
+      "type": "string",
+      "title": "Long Name"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units"
+     },
+     "data": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Data"
+     },
+     "color_range": {
+      "$ref": "#/components/schemas/ColourRange"
+     }
+    },
+    "type": "object",
+    "required": [
+     "long_name",
+     "units",
+     "data",
+     "color_range"
+    ],
+    "title": "SurfaceField"
+   },
+   "SurfaceResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "shape": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Shape"
+     },
+     "fields": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/SurfaceField"
+      },
+      "type": "object",
+      "title": "Fields"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "date",
+     "shape",
+     "fields"
+    ],
+    "title": "SurfaceResponse"
+   },
+   "TimeseriesResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "method": {
+      "type": "string",
+      "title": "Method",
+      "description": "Method of `prediction` / rmse / bias.",
+      "default": "model"
+     },
+     "method_label": {
+      "type": "string",
+      "title": "Method Label",
+      "default": ""
+     },
+     "requested": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Requested"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat"
+     },
+     "lon": {
+      "type": "number",
+      "title": "Lon"
+     },
+     "is_ocean": {
+      "type": "boolean",
+      "title": "Is Ocean"
+     },
+     "dates": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Dates"
+     },
+     "depths": {
+      "items": {
+       "type": "number"
+      },
+      "type": "array",
+      "title": "Depths"
+     },
+     "prediction": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Prediction",
+      "description": "[time][depth]"
+     },
+     "target": {
+      "items": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Target",
+      "description": "[time][depth]; null rows where GLORYS is unavailable"
+     },
+     "rmse_by_day": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Rmse By Day",
+      "description": "sqrt(mean over depths of (pred - target)^2) per day"
+     },
+     "bias_by_day": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Bias By Day"
+     },
+     "climatology": {
+      "anyOf": [
+       {
+        "items": {
+         "items": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "type": "array"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Climatology",
+      "description": "[time][depth] harmonic climatology at the cell (null: no statistics)"
+     },
+     "color_range": {
+      "$ref": "#/components/schemas/ColourRange"
+     },
+     "units": {
+      "type": "string",
+      "title": "Units",
+      "default": "degC"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "requested",
+     "lat",
+     "lon",
+     "is_ocean",
+     "dates",
+     "depths",
+     "prediction",
+     "target",
+     "rmse_by_day",
+     "bias_by_day",
+     "color_range"
+    ],
+    "title": "TimeseriesResponse"
+   },
+   "TrainingResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "logs": {
+      "additionalProperties": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Logs",
+      "description": "stem -> {kind, n_epochs, columns: {name: [values per epoch]}, best}"
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "logs"
+    ],
+    "title": "TrainingResponse"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

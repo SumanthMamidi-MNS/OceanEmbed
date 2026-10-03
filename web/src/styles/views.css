@@ -1,0 +1,201 @@
+/* OceanEmbed — view layouts. */
+
+/* ---- explorer --------------------------------------------------------------------------- */
+
+.explorer .viewhead {
+  margin-bottom: var(--s4);
+}
+.explorer__at {
+  font-style: normal;
+  color: var(--ink3);
+  font-size: 0.6em;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin: 0 0.2em;
+}
+.explorer__hint {
+  max-width: none;
+  text-align: right;
+  line-height: 1.9;
+}
+
+.explorer > .timeline {
+  margin-bottom: var(--s3);
+}
+.explorer__options {
+  margin-bottom: var(--s3);
+}
+
+.explorer__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 30%);
+  gap: var(--s5);
+  align-items: start;
+}
+.explorer__stage {
+  display: flex;
+  gap: var(--s2);
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--s4) var(--s4) var(--s4) var(--s1);
+}
+.explorer__stage--wide {
+  display: block;
+  padding: var(--s4);
+}
+.explorer__maps {
+  flex: 1;
+  min-width: 0;
+}
+
+/* every estimate side by side: one row of fields, one row of differences, a colour bar per row */
+.cmp {
+  display: grid;
+  gap: var(--s4);
+}
+.cmp__row {
+  display: grid;
+  gap: var(--s2);
+}
+.cmp__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s5);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--rule);
+}
+.cmp__label {
+  font-size: var(--t-ui);
+  font-weight: 600;
+}
+.cmp__grid {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));
+  gap: var(--s3) var(--s4);
+  align-items: start;
+}
+.cmp__table {
+  display: grid;
+  gap: var(--s2);
+  align-content: start;
+  padding-top: 26px;
+  min-width: 0;
+}
+.cmp__table caption,
+.readtable caption {
+  caption-side: top;
+  text-align: left;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+  padding-bottom: 4px;
+}
+.readtable {
+  margin-top: var(--s3);
+  border-top: 1px solid var(--rule);
+  padding-top: var(--s2);
+}
+.readtable caption {
+  padding-top: var(--s3);
+}
+
+.submaps {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "rail main main" ". a b";
+  gap: var(--s4) var(--s3);
+}
+.submaps__rail {
+  grid-area: rail;
+  display: flex;
+  min-height: 0;
+}
+.submaps__cell {
+  min-width: 0;
+}
+.submaps__cell--main {
+  grid-area: main;
+}
+.submaps__cell--a {
+  grid-area: a;
+}
+.submaps__cell--b {
+  grid-area: b;
+}
+.submaps__cell .state {
+  height: 100%;
+}
+
+.surfgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4) var(--s4);
+  padding-left: var(--s3);
+}
+.surfgrid--uv {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pointpanels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s5);
+  margin-top: var(--s5);
+  align-items: start;
+}
+.pointpanels--3 {
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s4);
+}
+
+@media (max-width: 1180px) {
+  .explorer__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cmp__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pointpanels--3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .pointpanels--3 > :first-child {
+    grid-column: 1 / -1;
+  }
+  .explorer__hint {
+    display: none;
+  }
+  .surfgrid,
+  .surfgrid--uv {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 860px) {
+  .pointpanels,
+  .pointpanels--3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .depthrail {
+    width: 64px;
+  }
+  .submaps {
+    grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 620px) {
+  .cmp__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .submaps {
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-areas: "rail main" "a a" "b b";
+  }
+  .surfgrid,
+  .surfgrid--uv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

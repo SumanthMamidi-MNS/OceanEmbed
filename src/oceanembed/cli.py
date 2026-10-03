@@ -731,6 +731,105 @@ def research_r3_report(
     )
 
 
+@research_app.command("r2")
+def research_r2(
+    config: ConfigOpt,
+    seeds: Annotated[
+        list[str] | None,
+        typer.Option("--seeds", help="Seeds of the trained methods (default 0,1,2)."),
+    ] = None,
+    methods: Annotated[
+        list[str] | None,
+        typer.Option("--methods", help="scratch, mlp, ridge, climatology (default: all)."),
+    ] = None,
+    learning_curve: Annotated[
+        bool,
+        typer.Option(
+            "--learning-curve/--no-learning-curve",
+            help="Also train the headline model on the last 2 and 5 years (seed 0).",
+        ),
+    ] = True,
+    argo: Annotated[
+        bool,
+        typer.Option("--argo/--no-argo", help="Score the test years against Argo (seed 0)."),
+    ] = True,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing/--no-skip-existing",
+            help="Skip finished jobs; --no-skip-existing retrains them.",
+        ),
+    ] = True,
+    device: DeviceOpt = None,
+) -> None:
+    """R2: a longer training period, scored on two test years (resumable).
+
+    Needs the long run's harmonised store and statistics (harmonize, stats). Writes only under
+    outputs/<run>/research/r2/ (and the on-disk array cache under data/processed/cache/)."""
+    from oceanembed.research.r2 import DEFAULT_SEEDS, r2_dir, run_r2
+
+    _setup_logging()
+    cfg = load_config(config)
+    t0 = time.time()
+    try:
+        results = run_r2(
+            cfg,
+            _csv(seeds, int) or list(DEFAULT_SEEDS),
+            _csv(methods),
+            learning_curve,
+            argo,
+            skip_existing,
+            device,
+        )
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    n_new = sum(r["status"] == "done" for r in results)
+    typer.echo(
+        f"{n_new} job(s) run, {len(results) - n_new} skipped in {time.time() - t0:.0f}s -> "
+        f"{r2_dir(cfg)}"
+    )
+
+
+@research_app.command("r2-report")
+def research_r2_report(
+    config: ConfigOpt,
+    compare_config: Annotated[
+        Path | None,
+        typer.Option(
+            "--compare-config",
+            help="Config of the shorter-training run whose R1 results are compared (read only; "
+            "default configs/poc.yaml when it exists).",
+        ),
+    ] = Path("configs/poc.yaml"),
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None,
+        typer.Option(help="Block length in days (default: from the autocorrelation of the data)."),
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """R2: summary.json, summary.md and figures from the finished research/r2 jobs."""
+    from oceanembed.research.r2 import r2_dir
+    from oceanembed.research.r2_report import make_r2_report
+
+    _setup_logging()
+    cfg = load_config(config)
+    poc_cfg = load_config(compare_config) if compare_config and compare_config.exists() else None
+    try:
+        summary = make_r2_report(cfg, poc_cfg, n_boot=n_boot, block_length=block_length, seed=seed)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    bs = summary["settings"]["bootstrap"]
+    typer.echo(
+        f"wrote {r2_dir(cfg)}/summary.json, summary.md, figures/ "
+        f"(block length {bs['block_length_days']} days, {bs['n_replicates']} replicates)"
+    )
+
+
 @app.command()
 def serve(
     host: Annotated[

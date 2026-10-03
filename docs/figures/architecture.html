@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>OceanEmbed model architecture</title>
+<link rel="stylesheet" href="figure.css">
+<style>
+  .row { display: grid; gap: 30px; align-items: stretch; position: relative; }
+  .enc { grid-template-columns: 1.15fr 1fr 1fr 1fr 1.25fr 1.1fr; }
+  .dec { grid-template-columns: 1.1fr 1fr 1fr 1.15fr 1.25fr; margin-top: 26px; }
+  .row .box { position: relative; min-height: 148px; padding: 14px 16px 14px; }
+  .row .box h2 { font-size: 22px; }
+  .row .box p { font-size: 15px; }
+  .shape { font-family: "PlexMono", Consolas, monospace; font-weight: 500; font-size: 14px; color: var(--ink); display: block; margin-top: 8px; }
+  .row .box:not(:last-child)::after { content: ""; position: absolute; right: -24px; top: 50%; border-left: 11px solid #6A7280;
+    border-top: 7px solid transparent; border-bottom: 7px solid transparent; transform: translateY(-50%); }
+  .row .box:not(:last-child)::before { content: ""; position: absolute; right: -17px; top: 50%; width: 15px; border-top: 2.5px solid #6A7280; }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: 2.4px; color: var(--muted); margin: 0 0 10px; }
+  .turn { text-align: right; font-size: 15px; color: var(--muted); margin: 10px 4px 0 0; font-style: italic; }
+  .skips { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 24px; }
+  .note { border-left: 3px solid var(--blue-bd); padding: 2px 0 2px 16px; font-size: 16.5px; color: var(--ink2); line-height: 1.42; }
+  .note b { color: var(--blue-tx); font-weight: 600; }
+  .emb { background: var(--blue-tx); border-color: var(--blue-tx); } .emb h2, .emb .shape { color: #fff; } .emb p { color: #DCE4F4; }
+</style></head>
+<body>
+<div class="head"><h1>The model: encode the surface, decode the water column</h1><span>3.7 M parameters · shapes for the 100 × 240 grid</span></div>
+
+<p class="label">ENCODER — THE SATELLITE EMBEDDING ENGINE (3.2 M PARAMETERS)</p>
+<div class="row enc">
+  <div class="box tan"><h2>Input</h2><p>7 surface fields, ocean mask, day of year (sin, cos), latitude, longitude</p><span class="shape">12 × 100 × 240</span></div>
+  <div class="box blue"><h2>Stem 0</h2><p>3×3 conv + residual block</p><span class="shape">32 × 100 × 240 &nbsp;→ skip A</span></div>
+  <div class="box blue"><h2>Stem 1</h2><p>stride-2 conv + residual block</p><span class="shape">64 × 50 × 120 &nbsp;→ skip B</span></div>
+  <div class="box blue"><h2>Stem 2</h2><p>stride-2 conv + residual block</p><span class="shape">128 × 25 × 60</span></div>
+  <div class="box blue"><h2>Transformer × 6</h2><p>1 500 tokens of width 192, 6 heads, fixed 2-D positions: every patch attends to the whole basin</p><span class="shape">1500 × 192</span></div>
+  <div class="box emb"><h2>Embedding</h2><p>the compact description of the day's surface state</p><span class="shape">128 × 25 × 60</span></div>
+</div>
+<p class="turn">the embedding feeds the decoder ↓</p>
+
+<p class="label">DECODER — RECONSTRUCTION (0.5 M PARAMETERS)</p>
+<div class="row dec">
+  <div class="box blue"><h2>Residual block</h2><p>on the embedding map</p><span class="shape">128 × 25 × 60</span></div>
+  <div class="box blue"><h2>Upsample + skip B</h2><p>×2, concatenate, residual block</p><span class="shape">64 × 50 × 120</span></div>
+  <div class="box blue"><h2>Upsample + skip A</h2><p>×2, concatenate, residual block</p><span class="shape">32 × 100 × 240</span></div>
+  <div class="box gate"><h2>Anomaly at 15 depths</h2><p>standardised departure from the seasonal climatology</p><span class="shape">15 × 100 × 240</span></div>
+  <div class="box green"><h2>Temperature in °C</h2><p>anomaly × per-depth spread + harmonic climatology; land and sea floor masked</p><span class="shape">15 × 100 × 240</span></div>
+</div>
+
+<div class="skips">
+  <div class="note"><b>Masked pretraining (no labels needed).</b> Half of the surface is hidden in 16 × 16 blocks; a small decoder must rebuild all seven fields from the embedding alone. The encoder never sees the hidden pixels, so the skips cannot leak them.</div>
+  <div class="note"><b>Supervised training.</b> Masked mean-squared error on the anomaly, plus a small penalty on the vertical gradient between neighbouring depths. AdamW, cosine schedule, mixed precision, early stopping on the 2023 validation year.</div>
+</div>
+
+<div class="foot"><span>Pretraining 14 min + supervised training 11 min on a 6 GB laptop GPU (RTX 3050), about 1.3 GB of GPU memory at batch size 8.</span><span>src/oceanembed/models/</span></div>
+</body></html>

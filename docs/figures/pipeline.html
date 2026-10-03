@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>OceanEmbed pipeline</title>
+<link rel="stylesheet" href="figure.css">
+<style>
+  .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 34px; align-items: stretch; }
+  .flow .box { position: relative; min-height: 318px; }
+  .flow .box:not(:last-child)::after { content: ""; position: absolute; right: -27px; top: 50%; border-left: 12px solid #6A7280;
+    border-top: 8px solid transparent; border-bottom: 8px solid transparent; transform: translateY(-50%); }
+  .flow .box:not(:last-child)::before { content: ""; position: absolute; right: -19px; top: 50%; width: 17px; border-top: 2.5px solid #6A7280; }
+  .big { font-family: "Newsreader", Georgia, serif; font-weight: 600; font-size: 34px; color: var(--ink); line-height: 1; display: block; margin: 10px 0 2px; }
+  .sub { font-size: 14.5px; color: var(--muted); display: block; }
+  .years { margin-top: 30px; display: grid; grid-template-columns: 5fr 1fr 1fr; gap: 6px; }
+  .yr { border-radius: 8px; padding: 10px 16px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .yr b { font-weight: 600; }
+  .train { background: var(--blue-bg); border: 2px solid var(--blue-bd); color: var(--blue-tx); }
+  .val { background: var(--tan-bg); border: 2px solid var(--tan-bd); color: var(--tan-tx); }
+  .test { background: var(--white); border: 2.5px solid var(--ink); color: var(--ink); }
+</style></head>
+<body>
+<div class="head"><h1>From satellite surface fields to a 3-D temperature field</h1><span>the OceanEmbed pipeline, end to end</span></div>
+
+<div class="flow">
+  <div class="box blue">
+    <span class="k">1 · INPUT</span><h2>Seven surface fields</h2>
+    <p>One satellite snapshot of the sea surface per day.</p>
+    <div style="margin-top:10px">
+      <span class="chip">SST</span><span class="chip">salinity</span><span class="chip">sea level</span>
+      <span class="chip">currents U V</span><span class="chip">winds U V</span>
+    </div>
+    <span class="big">7</span><span class="sub">channels, nothing from below the surface</span>
+  </div>
+  <div class="box tan">
+    <span class="k">2 · HARMONISE</span><h2>One grid, one clock</h2>
+    <p>Six products at 0.05° to 0.25°, daily or 6-hourly, regridded to 0.25° daily.</p>
+    <span class="big">2 541</span><span class="sub">gap-free days · 100 × 240 cells · 15 depths</span>
+  </div>
+  <div class="box blue">
+    <span class="k">3 · ENCODE</span><h2>Satellite embedding</h2>
+    <p>CNN stem + 6-layer Transformer. Pretrained by rebuilding hidden parts of the surface.</p>
+    <span class="big">128</span><span class="sub">features on a 25 × 60 map of the basin</span>
+  </div>
+  <div class="box blue">
+    <span class="k">4 · DECODE</span><h2>Water column</h2>
+    <p>U-Net-style decoder predicts the anomaly from the seasonal climatology at each depth.</p>
+    <span class="big">15</span><span class="sub">depths, 0 to 1 000 m, in °C</span>
+  </div>
+  <div class="box gate">
+    <span class="k">5 · CHECK</span><h2>A year it never saw</h2>
+    <p>Against the GLORYS reanalysis and Argo floats, beside climatology, ridge regression and an ablation.</p>
+    <span class="big">350</span><span class="sub">test days · 2 826 Argo profiles</span>
+  </div>
+  <div class="box dark">
+    <span class="k">6 · DELIVER</span><h2>Product and explorer</h2>
+    <p>Daily NetCDF files, metrics and report, a data API and an interactive dashboard.</p>
+    <span class="big" style="color:#fff">0.25°</span><span class="sub" style="color:#AEB8C8">daily, CF-compliant, one file per month</span>
+  </div>
+</div>
+
+<div class="years">
+  <div class="yr train"><b>Train</b><span>2018 · 2019 · 2020 · 2021 · 2022 &nbsp;(1 826 days)</span></div>
+  <div class="yr val"><b>Validate</b><span>2023</span></div>
+  <div class="yr test"><b>Test</b><span>2024</span></div>
+</div>
+
+<div class="foot"><span>Split by time, never at random: neighbouring days look alike, so a random split would leak the answer.</span><span>North Indian Ocean · 5–30°N, 45–105°E</span></div>
+</body></html>

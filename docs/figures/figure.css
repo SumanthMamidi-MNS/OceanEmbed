@@ -1,0 +1,43 @@
+/* Shared style of the README figures (rendered to docs/images/*.png with a headless browser). */
+@font-face { font-family: "Newsreader"; font-weight: 200 800; font-style: normal;
+  src: url("../../web/node_modules/@fontsource-variable/newsreader/files/newsreader-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Newsreader"; font-weight: 200 800; font-style: italic;
+  src: url("../../web/node_modules/@fontsource-variable/newsreader/files/newsreader-latin-wght-italic.woff2") format("woff2"); }
+@font-face { font-family: "Plex"; font-weight: 400;
+  src: url("../../web/node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Plex"; font-weight: 600;
+  src: url("../../web/node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "PlexMono"; font-weight: 500;
+  src: url("../../web/node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
+
+:root {
+  --paper: #EFEEE6; --ink: #1B2533; --ink2: #3C4656; --muted: #6A7280; --line: #C9C8BE;
+  --blue-bg: #E3E8F3; --blue-bd: #B4C0DC; --blue-tx: #2B4270;
+  --tan-bg: #F2E9D3; --tan-bd: #DCC994; --tan-tx: #8A6418;
+  --green-bg: #E0EEE3; --green-bd: #A9CDB3; --green-tx: #2D6A49;
+  --red-bg: #F5E3DC; --red-bd: #E0B0A0; --red-tx: #A8442C;
+  --white: #FFFFFF;
+  --m-model: #1F66C1; --m-scratch: #B97700; --m-ridge: #C8472B; --m-clim: #7C8796; --m-glorys: #1A8A62;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); }
+body { width: 1600px; padding: 44px 56px 44px; color: var(--ink); font-family: "Plex", "Segoe UI", sans-serif; font-size: 19px; line-height: 1.35; }
+.serif { font-family: "Newsreader", Georgia, serif; }
+.mono { font-family: "PlexMono", Consolas, monospace; font-weight: 500; }
+.head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2.5px solid var(--ink); padding-bottom: 14px; margin-bottom: 28px; }
+.head h1 { font-family: "Newsreader", Georgia, serif; font-weight: 700; font-size: 40px; margin: 0; letter-spacing: 0.2px; }
+.head span { font-family: "Newsreader", Georgia, serif; font-style: italic; font-size: 22px; color: var(--ink2); }
+.box { border-radius: 12px; border: 2px solid; padding: 16px 18px 18px; }
+.box h2 { font-family: "Newsreader", Georgia, serif; font-weight: 600; font-size: 25px; line-height: 1.12; margin: 0 0 6px; }
+.box p { margin: 0; color: var(--ink2); font-size: 16.5px; }
+.box .k { font-size: 11.5px; font-weight: 600; letter-spacing: 2.2px; color: var(--muted); display: block; margin-bottom: 6px; }
+.blue { background: var(--blue-bg); border-color: var(--blue-bd); } .blue h2 { color: var(--blue-tx); }
+.tan { background: var(--tan-bg); border-color: var(--tan-bd); } .tan h2 { color: var(--tan-tx); }
+.green { background: var(--green-bg); border-color: var(--green-bd); } .green h2 { color: var(--green-tx); }
+.gate { background: var(--white); border-color: var(--ink); border-width: 2.5px; }
+.dark { background: var(--ink); border-color: var(--ink); } .dark h2 { color: #fff; } .dark p { color: #D5DBE6; } .dark .k { color: #AEB8C8; }
+.red { background: var(--red-bg); border-color: var(--red-bd); } .red h2 { color: var(--red-tx); }
+.chip { display: inline-block; font-family: "PlexMono", Consolas, monospace; font-weight: 500; font-size: 13.5px; background: var(--white);
+  border: 1.5px solid #C9CFDB; border-radius: 6px; padding: 3px 9px; margin: 3px 3px 0 0; color: var(--blue-tx); }
+.foot { margin-top: 24px; padding-top: 14px; border-top: 1.5px solid var(--line); font-size: 15.5px; color: var(--ink2); display: flex; justify-content: space-between; gap: 30px; }
+svg text { font-family: "Plex", "Segoe UI", sans-serif; fill: var(--ink2); }

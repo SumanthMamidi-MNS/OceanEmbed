@@ -23,10 +23,16 @@ class PixelMLP(nn.Module):
         layers: int = 3,
         n_features: int = N_FEATURES,
         n_depths: int = 15,
+        channels: list[int] | None = None,
     ):
         super().__init__()
         if layers < 1:
             raise ValueError("layers must be >= 1")
+        # input channels used as features; the default is the ridge feature set. A different list
+        # (research stage R3: extra channels holding the previous days) fixes ``n_features``.
+        self.channels = list(FEATURE_CHANNELS if channels is None else channels)
+        if channels is not None:
+            n_features = len(self.channels)
         mods: list[nn.Module] = [nn.Linear(n_features, hidden), nn.SiLU()]
         for _ in range(layers - 1):
             mods += [nn.Linear(hidden, hidden), nn.SiLU()]
@@ -37,6 +43,7 @@ class PixelMLP(nn.Module):
             "layers": layers,
             "n_features": n_features,
             "n_depths": n_depths,
+            **({} if channels is None else {"channels": self.channels}),
         }
 
     def forward_features(self, f: torch.Tensor) -> torch.Tensor:
@@ -45,7 +52,7 @@ class PixelMLP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """``x (B,12,H,W)`` -> standardised anomaly ``(B,15,H,W)``."""
-        f = x[:, FEATURE_CHANNELS].permute(0, 2, 3, 1)  # (B,H,W,F)
+        f = x[:, self.channels].permute(0, 2, 3, 1)  # (B,H,W,F)
         return self.net(f).permute(0, 3, 1, 2)
 
 

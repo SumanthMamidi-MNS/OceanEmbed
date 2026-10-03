@@ -627,6 +627,110 @@ def research_r5(
     typer.echo(f"wrote {r5_dir(cfg)}/summary.json, summary.md, figures/")
 
 
+@research_app.command("r3")
+def research_r3(
+    config: ConfigOpt,
+    seeds: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--seeds", help="Transformer seeds, comma separated or repeated (default 0,1)."
+        ),
+    ] = None,
+    mlp_seeds: Annotated[
+        list[str] | None,
+        typer.Option("--mlp-seeds", help="Per-pixel MLP seeds (default 0,1,2)."),
+    ] = None,
+    models: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--models", help="scratch (Transformer, no pretraining), mlp (default: both)."
+        ),
+    ] = None,
+    experiments: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--experiments",
+            help="no_sst, no_sss, no_sla, no_currents, no_winds, hist3, hist7, sst_only, sst_sla, "
+            "sst_sla_winds, full (default: all but full, which is the R1 model).",
+        ),
+    ] = None,
+    permutation: Annotated[
+        bool,
+        typer.Option(
+            "--permutation/--no-permutation",
+            help="Also score the finished R1 models with one variable group permuted.",
+        ),
+    ] = True,
+    perm_repeats: Annotated[
+        int, typer.Option(help="Random permutations averaged per variable group.")
+    ] = 3,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing/--no-skip-existing",
+            help="Skip finished jobs; --no-skip-existing retrains them.",
+        ),
+    ] = True,
+    device: DeviceOpt = None,
+) -> None:
+    """R3: retrain-without ablations, temporal context and permutation importance (resumable).
+
+    Needs the R1 models (the full-input reference and the models to permute). Writes only under
+    outputs/<run>/research/r3/; the main run's artefacts are never touched."""
+    from oceanembed.research.r3 import DEFAULT_MLP_SEEDS, DEFAULT_SEEDS, r3_dir, run_r3
+
+    _setup_logging()
+    cfg = load_config(config)
+    t0 = time.time()
+    try:
+        results = run_r3(
+            cfg,
+            _csv(seeds, int) or list(DEFAULT_SEEDS),
+            _csv(mlp_seeds, int) or list(DEFAULT_MLP_SEEDS),
+            _csv(models),
+            _csv(experiments),
+            permutation,
+            perm_repeats,
+            skip_existing,
+            device,
+        )
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    n_new = sum(r["status"] == "done" for r in results)
+    typer.echo(
+        f"{n_new} job(s) run, {len(results) - n_new} skipped in {time.time() - t0:.0f}s -> "
+        f"{r3_dir(cfg)}"
+    )
+
+
+@research_app.command("r3-report")
+def research_r3_report(
+    config: ConfigOpt,
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None,
+        typer.Option(help="Block length in days (default: from the autocorrelation of the data)."),
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """R3: summary.json, summary.md and figures from the finished research/r3 jobs."""
+    from oceanembed.research.r3 import r3_dir
+    from oceanembed.research.r3_report import make_r3_report
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        summary = make_r3_report(cfg, n_boot=n_boot, block_length=block_length, seed=seed)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    bs = summary["settings"]["bootstrap"]
+    typer.echo(
+        f"wrote {r3_dir(cfg)}/summary.json, summary.md, figures/ "
+        f"(block length {bs['block_length_days']} days, {bs['n_replicates']} replicates)"
+    )
+
+
 @app.command()
 def serve(
     host: Annotated[

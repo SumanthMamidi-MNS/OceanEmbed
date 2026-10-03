@@ -38,11 +38,14 @@ def run_train_mlp(
     ckpt_path: Path,
     log_path: Path | None = None,
     datasets: tuple | None = None,
+    sample_fn=None,
+    model_kwargs: dict | None = None,
 ) -> dict:
     """Fit the MLP on ``mlp.max_points`` random train samples (all 7 surface values observed, loss
     over the depths valid at each sample); early stopping on the RMSE in degC of a fixed random
     validation sample. The seed controls the initialisation, the training sample and the batch
-    order."""
+    order. ``sample_fn(dataset, n, seed)`` replaces :func:`sample_points` and ``model_kwargs`` are
+    extra :class:`PixelMLP` arguments (R3: masked inputs and previous days as extra features)."""
     mc = cfg.mlp
     set_seed(seed)
     dev = get_device(device)
@@ -51,12 +54,15 @@ def run_train_mlp(
         make_dataset(cfg, "val", preload=True),
     )
     anom_std = torch.from_numpy(train_ds.stats.anom_std.astype(np.float32)).to(dev)
-    tf, ty, tv = sample_points(train_ds, mc.max_points, seed)
-    vf, vy, vv = sample_points(val_ds, mc.val_points, VAL_SAMPLE_SEED)
+    sample = sample_fn or sample_points
+    tf, ty, tv = sample(train_ds, mc.max_points, seed)
+    vf, vy, vv = sample(val_ds, mc.val_points, VAL_SAMPLE_SEED)
     tf, ty, tv = (torch.from_numpy(a).to(dev) for a in (tf, ty, tv))
     vf, vy, vv = (torch.from_numpy(a).to(dev) for a in (vf, vy, vv))
 
-    model = PixelMLP(mc.hidden, mc.layers, n_depths=cfg.model.n_depths).to(dev)
+    model = PixelMLP(mc.hidden, mc.layers, n_depths=cfg.model.n_depths, **(model_kwargs or {})).to(
+        dev
+    )
     opt = torch.optim.AdamW(model.parameters(), lr=mc.lr, weight_decay=mc.weight_decay)
     n = len(tf)
     bs = min(mc.batch_size, n)

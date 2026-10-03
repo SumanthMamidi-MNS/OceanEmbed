@@ -1,0 +1,87 @@
+# Cheap first trial of the real-data pipeline: Jan-Mar 2024 only (3 monthly files per product).
+# Purpose: prove that logins, downloads, harmonisation and every pipeline step work on real data
+# before committing to the multi-hour 2018-2024 download in poc.yaml. It is NOT a meaningful
+# training set (46 train days: the climatology is mean-only), so do not read skill from it.
+#
+# Same products and datasets as poc.yaml; outputs go to outputs/poc_trial and the processed store to
+# data/processed/poc_trial.zarr. Raw monthly files go to data/raw/ with the same names as the full
+# run, so the full poc run reuses these three months instead of downloading them again.
+run_name: poc_trial
+label: "Real-data trial (Jan-Mar 2024)"
+description: "Three months of real CMEMS, PO.DAAC and Argo data used to prove the real-data pipeline end to end. Only 46 training days, so the climatology is mean-only and the skill is not meaningful."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2024-01-01
+  end: 2024-03-31
+
+split:
+  train: [2024-01-01, 2024-02-15]   # 46 days
+  val: [2024-02-16, 2024-02-29]     # 14 days
+  test: [2024-03-01, 2024-03-31]    # 31 days
+
+provider: real
+
+products:
+  sst:
+    provider: cmems
+    datasets:
+      - id: METOFFICE-GLO-SST-L4-REP-OBS-SST
+    variables: {sst: analysed_sst}
+  sss:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-mob_glo_phy-sss_my_multi_P1D
+    variables: {sss: sos}
+  sla:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D
+    variables: {sla: sla}
+  currents:
+    provider: podaac
+    datasets:
+      - id: OSCAR_L4_OC_FINAL_V2.0
+    variables: {uo: u, vo: v}
+  winds:
+    provider: podaac
+    datasets:
+      - id: CCMP_WINDS_10M6HR_L4_V3.1
+    variables: {uw: uwnd, vw: vwnd}
+  temp:
+    provider: cmems
+    datasets:
+      - id: cmems_mod_glo_phy_my_0.083deg_P1D-m
+    variables: {temp: thetao}
+    min_depth: 0.0
+    max_depth: 1100.0
+
+download:
+  halo_deg: 0.5
+  overwrite: false
+  # OSCAR / CCMP: per-granule OPeNDAP server-side subsetting (~0.2 / ~0.75 MB per day, verified live
+  # 2026-10-02), falling back automatically to whole global granules (~32 MB) if it is refused.
+  podaac_mode: opendap   # opendap | granule
+  workers: 4             # concurrent PO.DAAC requests
+  delete_global_granules: true   # only relevant on the granule route / fallback
+
+argo:
+  source: erddap
+  qc_flags: [1, 2]
+
+# run-all also trains the no-pretraining ablation (checkpoint recon_scratch.pt) and predicts it
+# (predictions/scratch/); the ridge product (predictions/ridge/) is always written.
+ablation:
+  no_pretrained: true
+  tag: scratch

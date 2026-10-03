@@ -1,0 +1,48 @@
+# Full-grid synthetic demo: no credentials, no downloads. ~3 years of daily data.
+# Synthetic results prove the pipeline works; they are NOT scientific skill.
+run_name: synthetic
+label: "Synthetic demo (2021-2023)"
+description: "Synthetic data that only demonstrates the pipeline on the full 25 N-5 N, 45-105 E grid; trained on 2021-2022, scored on the second half of 2023. Not scientific skill."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw_synthetic
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2021-01-01
+  end: 2023-12-31
+
+split:
+  train: [2021-01-01, 2022-12-31]   # 2 years
+  val: [2023-01-01, 2023-06-30]     # 6 months
+  test: [2023-07-01, 2023-12-31]    # 6 months
+
+provider: synthetic
+
+synthetic:
+  seed: 7
+  argo_profiles_per_month: 150
+
+# Tuned from measured runs (RTX 3050 6 GB, batch 8, AMP, ~17 s/epoch full grid). With only 2
+# training years the network memorises full-grid days: with the 20-50 epoch defaults the val
+# loss bottomed out around epoch 5 while the train loss kept falling, so the budgets are short
+# and checkpoints are chosen on val. (Random-crop augmentation, `pretrain.crop` / `train.crop`,
+# was tried: it made the pretraining curve smooth but gave worse downstream val RMSE, so it is off.)
+pretrain:
+  epochs: 12
+train:
+  epochs: 40
+
+# run-all also trains the no-pretraining ablation (checkpoint recon_scratch.pt) and predicts it
+# (predictions/scratch/); the ridge product (predictions/ridge/) is always written.
+ablation:
+  no_pretrained: true
+  tag: scratch

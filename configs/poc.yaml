@@ -1,0 +1,103 @@
+# Real-data PoC (needs the user's own CMEMS + Earthdata logins; see README/runbook).
+#
+# Catalogue verification, 2026-10-02 (copernicusmarine.describe, public CMR search):
+#   SST   METOFFICE-GLO-SST-L4-REP-OBS-SST (SST_GLO_SST_L4_REP_OBSERVATIONS_010_011)
+#         var analysed_sst [K], 0.05 deg, daily, 1981-10-01 .. 2026-03-31
+#         (NRT counterpart METOFFICE-GLO-SST-L4-NRT-OBS-SST-V2: 2024-01-17 .. 2026-09-30)
+#   SSS   MULTIOBS_GLO_PHY_S_SURFACE_MYNRT_015_013, var sos, 0.125 deg, daily
+#         cmems_obs-mob_glo_phy-sss_my_multi_P1D  : 1993-01-01 .. 2024-12-15
+#         cmems_obs-mob_glo_phy-sss_nrt_multi_P1D : 2024-01-01 .. 2026-09-25
+#   SLA   SEALEVEL_GLO_PHY_L4_MY_008_047, var sla, dataset
+#         cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D : 1993-01-01 .. 2026-01-16
+#         NOTE: the DUACS grid is now 0.125 deg (PRD says 0.25 deg) -> 2x2 block mean.
+#   Temp  GLOBAL_MULTIYEAR_PHY_001_030 (GLORYS12), var thetao, 1/12 deg, daily
+#         cmems_mod_glo_phy_my_0.083deg_P1D-m : 1993-01-01 .. 2026-06-23
+#   Currents OSCAR_L4_OC_FINAL_V2.0 (CMR C2098858642-POCLOUD), vars u, v, 1993-01-01 .. 2026-01-16
+#            dims (time, longitude, latitude), one global granule per day (~32 MB; server-side
+#            subsetting through OPeNDAP brings ~0.2 MB/day)
+#   Winds    CCMP_WINDS_10M6HR_L4_V3.1 (CMR C2916514952-POCLOUD), vars uwnd, vwnd,
+#            4 x 6-hourly per daily granule, 1993-01-01 .. 2026-08-31 (open-ended)
+#
+# PoC period 2018-01-01 .. 2024-12-15: the reprocessed (MY) SSS dataset ends 2024-12-15 and is
+# used for the whole period, so train / val / test all see the same SSS product (no MY -> NRT
+# shift between training and testing).
+run_name: poc
+label: "Indian Ocean proof of concept (2018-2024)"
+description: "Real reanalysis, satellite and Argo data for the Indian Ocean (5-30 N, 45-105 E), 2018-2024: trained on 2018-2022, checkpoints chosen on 2023, scored on 2024."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2018-01-01
+  end: 2024-12-15
+
+split:
+  train: [2018-01-01, 2022-12-31]   # 5 years
+  val: [2023-01-01, 2023-12-31]     # 1 year
+  test: [2024-01-01, 2024-12-15]    # ~1 year
+
+provider: real
+
+products:
+  sst:
+    provider: cmems
+    datasets:
+      - id: METOFFICE-GLO-SST-L4-REP-OBS-SST
+    variables: {sst: analysed_sst}
+  sss:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-mob_glo_phy-sss_my_multi_P1D
+    variables: {sss: sos}
+  sla:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D
+    variables: {sla: sla}
+  currents:
+    provider: podaac
+    datasets:
+      - id: OSCAR_L4_OC_FINAL_V2.0
+    variables: {uo: u, vo: v}
+  winds:
+    provider: podaac
+    datasets:
+      - id: CCMP_WINDS_10M6HR_L4_V3.1
+    variables: {uw: uwnd, vw: vwnd}
+  temp:
+    provider: cmems
+    datasets:
+      - id: cmems_mod_glo_phy_my_0.083deg_P1D-m
+    variables: {temp: thetao}
+    min_depth: 0.0
+    max_depth: 1100.0
+
+download:
+  halo_deg: 0.5
+  overwrite: false
+  # OSCAR / CCMP: per-granule OPeNDAP server-side subsetting (~0.2 / ~0.75 MB per day, verified live
+  # 2026-10-02), falling back automatically to whole global granules (~32 MB) if it is refused.
+  podaac_mode: opendap   # opendap | granule
+  workers: 4             # concurrent PO.DAAC requests
+  delete_global_granules: true   # only relevant on the granule route / fallback
+
+argo:
+  source: erddap
+  qc_flags: [1, 2]
+
+# run-all also trains the no-pretraining ablation (checkpoint recon_scratch.pt, one extra `train`
+# run) and predicts it (predictions/scratch/), so the pretraining decision comes from this run;
+# the ridge product (predictions/ridge/) is always written.
+ablation:
+  no_pretrained: true
+  tag: scratch

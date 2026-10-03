@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# data and run artefacts
+/data/
+/outputs/
+
+# credentials
+.env
+.netrc
+_netrc
+.copernicusmarine/
+.dodsrc
+.urs_cookies
+*.cookies
+
+.streamlit/secrets.toml
+.vscode/
+.idea/
+
+# web dashboard (React SPA)
+web/node_modules/
+web/dist/
+web/.scratch/
+web/*.tsbuildinfo
+web/.vitest/

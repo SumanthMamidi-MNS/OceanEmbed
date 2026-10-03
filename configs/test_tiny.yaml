@@ -1,0 +1,50 @@
+# Tiny grid, ~60 days. Used only by pytest (data root is redirected to a temp dir).
+run_name: test_tiny
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw_synthetic
+
+grid:
+  lat_min: 8.0
+  lat_max: 12.0      # 16 cells
+  lon_min: 72.0
+  lon_max: 78.0      # 24 cells (open Arabian Sea + the Kerala coast inside)
+  resolution: 0.25
+
+time:
+  start: 2022-01-01
+  end: 2022-03-01    # 60 days
+
+split:
+  train: [2022-01-01, 2022-02-09]
+  val: [2022-02-10, 2022-02-19]
+  test: [2022-02-20, 2022-03-01]
+
+provider: synthetic
+
+synthetic:
+  seed: 3
+  argo_profiles_per_month: 25
+
+download:
+  halo_deg: 0.5
+
+model:
+  emb_dim: 16
+  dim: 32
+  depth: 2
+  heads: 2
+  stem_channels: 16
+pretrain:
+  epochs: 1
+  batch_size: 2
+  block: 4
+train:
+  epochs: 1
+  batch_size: 2
+
+# run-all also trains + predicts the no-pretraining ablation (tag scratch): exercises those steps
+ablation:
+  no_pretrained: true

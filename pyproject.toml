@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oceanembed"
+version = "0.1.0"
+description = "Satellite-embedding deep learning framework for subsurface ocean temperature reconstruction"
+requires-python = ">=3.12"
+dependencies = [
+  # torch is intentionally unpinned: install the CUDA wheel first
+  # (pip install torch --index-url https://download.pytorch.org/whl/cu126)
+  "torch",
+  "xarray",
+  "zarr>=3",
+  "netCDF4",
+  "numpy",
+  "scipy",
+
+  "pyarrow",
+  "scikit-learn",
+  "pydantic>=2",
+  "pyyaml",
+  "typer",
+  "tqdm",
+  "matplotlib",
+  "copernicusmarine",
+  "earthaccess",
+  "argopy",
+  "erddapy<3",  # argopy 1.3 is incompatible with erddapy 3.x
+  "pandas<3",
+  "streamlit>=1.64",  # st.button(shortcut=...) used by the dashboard
+  "plotly",
+  "fastapi",  # read-only data API behind the React dashboard (oceanembed serve)
+  "uvicorn",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+oceanembed = "oceanembed.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "app"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/oceanembed/api/*" = ["E501"]  # long OpenAPI description strings
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]  # lets tests import the dashboard data layer as `app.data_access`
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning", "ignore::UserWarning"]

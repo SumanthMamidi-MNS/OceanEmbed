@@ -81,6 +81,20 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 - [x] Overview redesigned as "result at a glance" (distinct from the Explorer), content pass on the real run, final screenshots on `poc`
 - [x] Short README with screenshots; pipeline flowchart (`docs/flowchart/`, `docs/images/flowchart.png`)
 
+## Phase 10 — Research
+- [x] R1 rigour: `--seed`, plain U-Net and per-pixel MLP baselines, multi-seed runner, block-bootstrap intervals and paired comparisons (`oceanembed research r1`, `r1-report`); results in `docs/research/r1_rigour.md`
+- [x] R4 external benchmark: ARMOR3D against Argo and GLORYS on the same matchups (`oceanembed research r4`); results in `docs/research/r4_armor3d.md`
+- [x] R5 physical metrics: thermocline depth, 0–300 m heat content, skill by monsoon season, eddy regime and Bay of Bengal salinity (`oceanembed research r5`); results in `docs/research/r5_physical.md`
+- [ ] R2 more training years and a second test year
+- [ ] R3 input-variable attribution by depth; several days of surface history as input
+- [ ] R6 Argo-aware correction; R7 manuscript
+
+**R1 result (5 seeds, pooled 50–200 m RMSE vs GLORYS, 2024):** no pretraining 1.052 ± 0.015, pretrained 1.064 ± 0.016, per-pixel MLP 1.094 ± 0.005, plain U-Net 1.124 ± 0.031, ridge 1.155, climatology 1.390 °C. Pretraining gives no benefit; the Transformer beats the U-Net (established); the advantage over a per-pixel MLP is small, not established for the whole domain, and comes from the Bay of Bengal thermocline.
+
+**R4 result (vs Argo, pooled 50–200 m, identical samples):** ARMOR3D 0.63, GLORYS 1.08, OceanEmbed 1.41, ridge 1.53, climatology 1.67 °C. ARMOR3D ingests Argo, so it is not independent of the floats; the two references (ARMOR3D and GLORYS) themselves differ by 1.20 °C on the grid, as much as OceanEmbed's reconstruction error.
+
+**R5 result:** D20 RMSE 13.8 m (climatology 17.6, ridge 15.0, per-pixel MLP 14.1); 0–300 m heat content 0.72 vs 1.02 ×10⁹ J m⁻². The eddy-regime hypothesis is not supported. The advantage of the spatial model over the per-pixel MLP is confined to the Bay of Bengal, largest in the winter monsoon (0.39 °C) and in the freshest surface water (0.34 °C in the freshest tercile, 0.04 in the saltiest), and absent in the summer monsoon and in the Arabian Sea.
+
 ## Notes
 
 - Synthetic results only prove the pipeline works; they are never to be presented as scientific skill.

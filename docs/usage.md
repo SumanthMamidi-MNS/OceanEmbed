@@ -74,8 +74,8 @@ All commands take `--config/-c <yaml>`; run `oceanembed <command> --help` for de
 | `download` | download real raw products (CMEMS, PO.DAAC, Argo); skips existing monthly files | `--variable/-v sst sss sla currents winds temp argo` (repeatable) |
 | `harmonize` | raw files to the harmonised Zarr store on the canonical grid | |
 | `stats` | train-split input statistics, harmonic climatology, anomaly std | |
-| `pretrain` | masked-surface self-supervised pretraining of the encoder | `--device` |
-| `train` | supervised 15-depth reconstruction training | `--no-pretrained`, `--tag`, `--device` |
+| `pretrain` | masked-surface self-supervised pretraining of the encoder | `--seed`, `--device` |
+| `train` | supervised 15-depth reconstruction training | `--no-pretrained`, `--tag`, `--seed`, `--device` |
 | `baseline` | fit the ridge baseline, report val RMSE of ridge and climatology | |
 | `embed` | export embedding maps to `embeddings.zarr` | `--split`, `--checkpoint`, `--device` |
 | `predict` | write the CF-1.8 NetCDF product, one file per month | `--split` or `--start`/`--end`, `--tag`, `--ridge`, `--device` |
@@ -84,12 +84,66 @@ All commands take `--config/-c <yaml>`; run `oceanembed <command> --help` for de
 | `report` | figures and `report.md` | `--date` |
 | `run-all` | whole chain, stops at the first failing step | `--skip-existing`, `--device` |
 
+## Research commands
+
+Stage R1 repeats the comparison with several seeds, adds two stronger baselines and puts confidence
+intervals on the numbers. It needs a finished run (`run-all`: the harmonised store, the statistics and
+the ridge baseline) and writes only under `outputs/<run>/research/r1/`; the run's own checkpoints,
+metrics, predictions, embeddings and report are never touched.
+
+```powershell
+# train + score every method for every seed (long: about 4 h on the 6 GB GPU for the real run)
+.\.venv\Scripts\oceanembed.exe research r1 --config configs\poc.yaml --seeds 0,1,2,3,4
+# tables, confidence intervals, paired comparisons and figures from whatever has finished
+.\.venv\Scripts\oceanembed.exe research r1-report --config configs\poc.yaml
+```
+
+| Command | Options |
+|---|---|
+| `research r1` | `--seeds 0,1,2,3,4` (comma separated or repeated), `--methods oceanembed,scratch,unet,mlp,ridge,climatology` (default all), `--mlp-seeds 3` (the MLP trains for the first N seeds), `--skip-existing/--no-skip-existing` (default skip), `--device` |
+| `research r1-report` | `--n-boot 2000`, `--block-length` (default: from the autocorrelation of the daily errors), `--seed 0` (bootstrap) |
+
+Methods: `oceanembed` (pretrained encoder, each seed repeats the pretraining), `scratch` (same network,
+no pretraining), `unet` (same stem and decoder, the Transformer replaced by residual convolutions),
+`mlp` (per-pixel MLP on the ridge features), `ridge` and `climatology` (deterministic, from the run).
+Jobs run seed by seed (seed 0 of every method first), one at a time. A finished `(method, seed)` is
+skipped; an interrupted one resumes at its first unfinished stage, so re-running the same command
+after a crash or reboot continues where it stopped. `pretrain --seed N` and `train --seed N` set the
+seed of a single training; on CPU the same seed reproduces a run exactly, on the GPU closely (see
+[`backend.md`](backend.md), section 6).
+
+Results: `outputs/<run>/research/r1/summary.md` (tables), `summary.json` (every number),
+`figures/rmse_by_depth.png`, `paired_differences.png`, `skill_by_depth.png`.
+
+### R4: external benchmark (ARMOR3D) and R5: physical metrics
+
+Both read the finished run (predictions, harmonised store, statistics, `validate-argo` matchups) and write only under
+`outputs/<run>/research/r4/` and `r5/` (R4 also writes the downloaded ARMOR3D under `data/raw/armor3d/` and its regridded copy
+under `data/processed/<run>_armor3d/`).
+
+```powershell
+# ARMOR3D (Copernicus Marine login needed once; ~750 MB, ~20 min), regrid, score vs Argo and GLORYS (resumable)
+.\.venv\Scripts\oceanembed.exe research r4 --config configs\poc.yaml
+# derived quantities (D20, D23, heat content), stratified skill, figures (CPU only, ~2 min)
+.\.venv\Scripts\oceanembed.exe research r5 --config configs\poc.yaml
+```
+
+| Command | Options |
+|---|---|
+| `research r4` | `--download/--no-download` (default: download the missing months), `--recompute` (redo regridding and the scoring pass; downloads are kept), `--n-boot 2000`, `--block-length`, `--seed 0` |
+| `research r5` | `--recompute` (redo the streaming pass even if `sums.npz` exists), `--mlp-seed 0` (R1 per-pixel MLP checkpoint to include if it exists), `--n-boot 2000`, `--block-length`, `--seed 0` |
+
+Results: `research/r4/summary.md`, `summary.json`, `figures/` (RMSE and bias by depth against Argo, grid RMSE against GLORYS and
+ARMOR3D, a 100 m map example, error by local float density); `research/r5/summary.md`, `summary.json`, `figures/` (D20 maps,
+derived-skill tables, skill by season and basin, by |SLA| tercile, Bay of Bengal by salinity tercile). Write-ups:
+[`research/r4_armor3d.md`](research/r4_armor3d.md), [`research/r5_physical.md`](research/r5_physical.md).
+
 ## Project layout
 
 ```
 configs/      synthetic.yaml (demo), poc.yaml (real, 2018-2024), poc_trial.yaml (real, 3 months), test_tiny.yaml
 src/oceanembed/   config, grid, runmeta, cli, data_access; api/ (FastAPI data API); data/ (providers, regrid, harmonize, stats, dataset);
-                  models/ (encoder, mae, recon, baselines); train/; eval/; infer/
+                  models/ (encoder, mae, recon, baselines, pixel_mlp); train/; eval/; infer/; research/ (R1 runner, R4 ARMOR3D benchmark, R5 physical metrics, bootstrap, reports)
 app/          Streamlit dashboard: Home.py, pages/, ui/ (theme, figures, views, data, components); data_access.py re-exports the package module
 web/          React dashboard (final): src/api (typed client), src/components (maps, charts, controls), src/views, src/lib; `npm run build` -> web/dist, served by `oceanembed serve`
 tests/        pytest suite (runs on a tiny synthetic grid)

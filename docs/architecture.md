@@ -58,13 +58,16 @@ src/oceanembed/
                         `SurfaceOnlyDataset`: inputs only (never reads `temp`), batched reads, for predict/eval
   models/
     blocks.py           ResBlock / Up conv blocks shared by encoder and decoders
-    encoder.py          OceanEmbed encoder: CNN stem + Transformer -> embedding map
+    encoder.py          OceanEmbed encoder: CNN stem + Transformer -> embedding map (`model.arch: unet`
+                        swaps the Transformer for residual convolutions: research baseline)
     mae.py              masked surface-reconstruction pretraining wrapper
     recon.py            embedding -> 15-depth temperature decoder
     baselines.py        climatology, ridge regression
+    pixel_mlp.py        per-pixel MLP baseline (research R1)
   train/
     pretrain.py         self-supervised embedding pretraining loop
     train.py            supervised reconstruction training loop
+    mlp.py              MLP baseline training (research R1)
     losses.py           masked losses
     utils.py            seeding, cosine+warmup schedule, JSONL logger, loaders
   eval/
@@ -77,6 +80,11 @@ src/oceanembed/
     predict.py          checkpoint loading + predictor / `predict_batch` (degC, NaN off-mask) helpers;
                         CF-1.8 monthly NetCDF writer (`predict_to_netcdf`)
     embed.py            export embedding maps to Zarr
+  research/             stage R1 (rigour): `r1.py` resumable multi-seed runner (outputs only under
+                        outputs/<run>/research/r1/), `bootstrap.py` moving-block bootstrap, `r1_report.py`
+                        summary tables / figures; see docs/backend.md section 9; stage R4 (`armor3d.py`, `r4.py`,
+                        `r4_report.py`: ARMOR3D benchmark) and R5 (`physical.py`, `r5.py`, `r5_report.py`: derived
+                        physical quantities, stratified skill), shared `common.py`
   data_access.py        read-only loaders shared by the Streamlit app and the HTTP API (no UI code, no Streamlit
                         import; documented below); `app/data_access.py` is a thin re-export of it
   api/                  read-only FastAPI data API (`oceanembed serve`), documented in docs/api.md

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -19,6 +20,7 @@ from oceanembed.train.utils import (
     random_crop,
     set_seed,
     to_device,
+    use_progress_bars,
 )
 
 PRETRAIN_CKPT = "pretrain.pt"
@@ -62,14 +64,32 @@ def validate(model: MaskedAutoencoder, loader, device, amp: bool, seed: int = 12
     }
 
 
-def run_pretrain(cfg: Config, device: str | None = None, progress: bool = True) -> dict:
+def run_pretrain(
+    cfg: Config,
+    device: str | None = None,
+    progress: bool = True,
+    *,
+    seed: int | None = None,
+    ckpt_path: Path | None = None,
+    log_path: Path | None = None,
+    datasets: tuple | None = None,
+) -> dict:
+    """Masked-surface pretraining.
+
+    ``seed`` overrides ``pretrain.seed``; ``ckpt_path`` / ``log_path`` redirect the checkpoint and
+    the JSONL log (default: the run's ``checkpoints/pretrain.pt`` and ``logs/pretrain.jsonl``);
+    ``datasets`` is an optional ``(train, val)`` pair of preloaded datasets to reuse.
+    """
     pc = cfg.pretrain
-    set_seed(pc.seed)
+    seed = pc.seed if seed is None else seed
+    set_seed(seed)
     dev = get_device(device)
     amp = pc.amp and dev.type == "cuda"
-    train_ds = make_dataset(cfg, "train", preload=True)
-    val_ds = make_dataset(cfg, "val", preload=True)
-    train_loader = make_loader(train_ds, pc.batch_size, True, seed=pc.seed)
+    train_ds, val_ds = datasets or (
+        make_dataset(cfg, "train", preload=True),
+        make_dataset(cfg, "val", preload=True),
+    )
+    train_loader = make_loader(train_ds, pc.batch_size, True, seed=seed)
     val_loader = make_loader(val_ds, pc.batch_size, False)
 
     model = MaskedAutoencoder(cfg.model, pc).to(dev)
@@ -80,20 +100,23 @@ def run_pretrain(cfg: Config, device: str | None = None, progress: bool = True) 
     )
     scaler = torch.amp.GradScaler("cuda", enabled=amp)
 
-    ckpt_dir = cfg.checkpoints_dir
-    ckpt_dir.mkdir(parents=True, exist_ok=True)
-    ckpt_path = ckpt_dir / PRETRAIN_CKPT
-    logger = JsonlLogger(cfg.logs_dir / "pretrain.jsonl")
+    ckpt_path = Path(ckpt_path) if ckpt_path else cfg.checkpoints_dir / PRETRAIN_CKPT
+    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+    logger = JsonlLogger(log_path or cfg.logs_dir / "pretrain.jsonl")
     if dev.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
-    crop_rng = np.random.default_rng(pc.seed)
+    crop_rng = np.random.default_rng(seed)
     best: dict | None = None
     for epoch in range(1, pc.epochs + 1):
         t0 = time.time()
         model.train()
         total, n = 0.0, 0
-        for batch in tqdm(train_loader, desc=f"pretrain {epoch}/{pc.epochs}", disable=not progress):
+        for batch in tqdm(
+            train_loader,
+            desc=f"pretrain {epoch}/{pc.epochs}",
+            disable=not use_progress_bars(progress),
+        ):
             b = random_crop(to_device(batch, dev), pc.crop, crop_rng)
             with torch.autocast(dev.type, dtype=torch.float16, enabled=amp):
                 out = model(b["x"], b["sv"])
@@ -132,9 +155,12 @@ def run_pretrain(cfg: Config, device: str | None = None, progress: bool = True) 
         if progress:
             print(
                 f"epoch {epoch}: train {rec['train_loss']:.4f} val {metrics['val_loss']:.4f} "
-                f"(mean-fill {metrics['val_meanfill']:.4f}) {rec['epoch_seconds']:.0f}s"
+                f"(mean-fill {metrics['val_meanfill']:.4f}) {rec['epoch_seconds']:.0f}s",
+                flush=True,
             )
     assert best is not None
     best["checkpoint"] = str(ckpt_path)
     best["peak_gpu_mb"] = rec["peak_gpu_mb"]
+    best["seed"] = seed
+    best["n_params"] = sum(p.numel() for p in model.parameters())
     return best

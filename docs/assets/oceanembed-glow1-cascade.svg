@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 610 116" width="610" height="116" fill="none">
+  <defs>
+    <!-- Border Gradient -->
+    <linearGradient id="g1-border" x1="6" y1="6" x2="90" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#45C4D6"/>
+      <stop offset="40%" stop-color="#0A5A78"/>
+      <stop offset="75%" stop-color="#06445C"/>
+      <stop offset="100%" stop-color="#14212B"/>
+    </linearGradient>
+
+    <!-- Deep Ocean Water Column Gradient -->
+    <linearGradient id="g1-water" x1="48" y1="6" x2="48" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0E1728"/>
+      <stop offset="50%" stop-color="#0A1222"/>
+      <stop offset="100%" stop-color="#070D1A"/>
+    </linearGradient>
+
+    <!-- Light Sweeps (Glints) for the 3 Strata -->
+    <linearGradient id="g1-glint-surface" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="g1-glint-thermo" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#45C4D6" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#E8F9FC" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#45C4D6" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="g1-glint-abyss" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0A5A78" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#45C4D6" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#0A5A78" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Ambient Oceanic Aura -->
+    <radialGradient id="g1-aura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#45C4D6" stop-opacity="0.5"/>
+      <stop offset="50%" stop-color="#0A5A78" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#070D1A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <style><![CDATA[
+    /* Ambient Breathing Background */
+    @keyframes g1AuraPulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.96); }
+      50% { opacity: 0.8; transform: scale(1.06); }
+    }
+    .g1-aura {
+      transform-origin: 48px 48px;
+      animation: g1AuraPulse 3.4s ease-in-out infinite;
+    }
+
+    /* Top-Down Cascading Sweep and Glow */
+    /* 1. Surface: Sweeps and glows between 0% and 30% of cycle */
+    @keyframes g1SurfaceSweep {
+      0% { transform: translateX(-30px); opacity: 0; }
+      4% { opacity: 1; }
+      26% { transform: translateX(58px); opacity: 1; }
+      30% { transform: translateX(58px); opacity: 0; }
+      100% { transform: translateX(58px); opacity: 0; }
+    }
+    @keyframes g1SurfaceGlow {
+      0% { filter: none; }
+      5% { filter: drop-shadow(0 0 10px #FFFFFF) drop-shadow(0 0 20px rgba(69, 196, 214, 0.9)); }
+      25% { filter: drop-shadow(0 0 10px #FFFFFF) drop-shadow(0 0 18px rgba(69, 196, 214, 0.7)); }
+      32% { filter: none; }
+      100% { filter: none; }
+    }
+
+    /* 2. Thermocline: Sweeps and glows between 30% and 60% of cycle */
+    @keyframes g1ThermoSweep {
+      0%, 30% { transform: translateX(-24px); opacity: 0; }
+      34% { opacity: 1; }
+      56% { transform: translateX(42px); opacity: 1; }
+      60% { transform: translateX(42px); opacity: 0; }
+      100% { transform: translateX(42px); opacity: 0; }
+    }
+    @keyframes g1ThermoGlow {
+      0%, 30% { filter: none; }
+      35% { filter: drop-shadow(0 0 12px #45C4D6) drop-shadow(0 0 22px rgba(69, 196, 214, 0.95)); }
+      55% { filter: drop-shadow(0 0 10px #45C4D6) drop-shadow(0 0 18px rgba(69, 196, 214, 0.7)); }
+      62% { filter: none; }
+      100% { filter: none; }
+    }
+
+    /* 3. Abyss: Sweeps and glows between 60% and 88% of cycle */
+    @keyframes g1AbyssSweep {
+      0%, 60% { transform: translateX(-18px); opacity: 0; }
+      64% { opacity: 1; }
+      84% { transform: translateX(26px); opacity: 1; }
+      88% { transform: translateX(26px); opacity: 0; }
+      100% { transform: translateX(26px); opacity: 0; }
+    }
+    @keyframes g1AbyssGlow {
+      0%, 60% { filter: none; opacity: 0.55; }
+      65% { filter: drop-shadow(0 0 10px #45C4D6) drop-shadow(0 0 18px rgba(10, 90, 120, 0.9)); opacity: 1; }
+      84% { filter: drop-shadow(0 0 8px #45C4D6); opacity: 0.9; }
+      90% { filter: none; opacity: 0.55; }
+      100% { filter: none; opacity: 0.55; }
+    }
+
+    .g1-surface-light { animation: g1SurfaceSweep 3.4s ease-in-out infinite; }
+    .g1-bar-surface { animation: g1SurfaceGlow 3.4s ease-in-out infinite; }
+
+    .g1-thermo-light { animation: g1ThermoSweep 3.4s ease-in-out infinite; }
+    .g1-bar-thermo { animation: g1ThermoGlow 3.4s ease-in-out infinite; }
+
+    .g1-abyss-light { animation: g1AbyssSweep 3.4s ease-in-out infinite; }
+    .g1-bar-abyss { animation: g1AbyssGlow 3.4s ease-in-out infinite; }
+
+    /* Typography */
+    .oe-wordmark {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-size: 72px;
+      letter-spacing: -1.2px;
+    }
+    .oe-ocean { font-weight: 600; fill: #FFFFFF; }
+    .oe-embed { font-weight: 600; fill: #45C4D6; }
+
+    /* Light Theme Adaptation */
+    @media (prefers-color-scheme: light) {
+      .g1-casing-bg { fill: #F7F6F2 !important; stroke: #0A5A78 !important; }
+      .g1-bar-surface { stroke: #14212B !important; }
+      .g1-bar-thermo { stroke: #0A5A78 !important; }
+      .g1-bar-abyss { stroke: #0A5A78 !important; }
+      .oe-ocean { fill: #14212B !important; }
+      .oe-embed { fill: #0A5A78 !important; }
+    }
+  ]]></style>
+
+  <!-- Lockup Container (viewBox 610x116, translate 18, 10) -->
+  <g transform="translate(18, 10)">
+    <!-- Emblem Container (84x84) -->
+    <g transform="translate(0, 0)">
+      <!-- Ambient Oceanic Aura -->
+      <ellipse cx="48" cy="48" rx="54" ry="54" fill="url(#g1-aura)" class="g1-aura"/>
+
+      <!-- Clean Squircle Enclosure -->
+      <rect x="6" y="6" width="84" height="84" rx="22"
+            fill="url(#g1-water)"
+            stroke="url(#g1-border)"
+            stroke-width="4.5"
+            stroke-linejoin="round"
+            class="g1-casing-bg"/>
+
+      <!-- Inner Subtle Border Highlight -->
+      <rect x="9.5" y="9.5" width="77" height="77" rx="19"
+            fill="none"
+            stroke="#45C4D6"
+            stroke-width="0.8"
+            stroke-opacity="0.35"/>
+
+      <!-- Clip-paths for Glint Sweeps -->
+      <clipPath id="g1-clip-surface">
+        <rect x="18.5" y="29.5" width="59" height="7" rx="3.5"/>
+      </clipPath>
+      <clipPath id="g1-clip-thermo">
+        <rect x="18.5" y="44.5" width="41" height="7" rx="3.5"/>
+      </clipPath>
+      <clipPath id="g1-clip-abyss">
+        <rect x="18.5" y="59.5" width="23" height="7" rx="3.5"/>
+      </clipPath>
+
+      <!-- Layer 1: Sea Surface (0m) - Preserved Original White Color -->
+      <line x1="22" y1="33" x2="74" y2="33"
+            stroke="#FFFFFF"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            class="g1-bar-surface"/>
+
+      <!-- Glowing Light Wave travelling along Layer 1 -->
+      <g clip-path="url(#g1-clip-surface)">
+        <rect x="22" y="29" width="28" height="8" fill="url(#g1-glint-surface)" class="g1-surface-light"/>
+      </g>
+
+      <!-- Layer 2: Thermocline (50-200m) - Preserved Original Cyan Color -->
+      <line x1="22" y1="48" x2="56" y2="48"
+            stroke="#45C4D6"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            class="g1-bar-thermo"/>
+
+      <!-- Glowing Light Wave travelling along Layer 2 -->
+      <g clip-path="url(#g1-clip-thermo)">
+        <rect x="22" y="44" width="22" height="8" fill="url(#g1-glint-thermo)" class="g1-thermo-light"/>
+      </g>
+
+      <!-- Layer 3: Abyss (1000m) - Preserved Original Deep Navy 55% -->
+      <line x1="22" y1="63" x2="38" y2="63"
+            stroke="#0A5A78"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            opacity="0.55"
+            class="g1-bar-abyss"/>
+
+      <!-- Glowing Light Wave travelling along Layer 3 -->
+      <g clip-path="url(#g1-clip-abyss)">
+        <rect x="22" y="59" width="16" height="8" fill="url(#g1-glint-abyss)" class="g1-abyss-light"/>
+      </g>
+    </g>
+
+    <!-- Wordmark "OceanEmbed" (72px, guaranteed zero cutoff with 610px width) -->
+    <text x="116" y="74" class="oe-wordmark">
+      <tspan class="oe-ocean">Ocean</tspan><tspan class="oe-embed">Embed</tspan>
+    </text>
+  </g>
+</svg>

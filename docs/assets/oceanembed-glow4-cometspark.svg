@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 610 116" width="610" height="116" fill="none">
+  <defs>
+    <!-- Border Gradient -->
+    <linearGradient id="g4-border" x1="6" y1="6" x2="90" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#45C4D6"/>
+      <stop offset="40%" stop-color="#0A5A78"/>
+      <stop offset="75%" stop-color="#06445C"/>
+      <stop offset="100%" stop-color="#14212B"/>
+    </linearGradient>
+
+    <!-- Deep Ocean Water Column Gradient -->
+    <linearGradient id="g4-water" x1="48" y1="6" x2="48" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0E1728"/>
+      <stop offset="50%" stop-color="#0A1222"/>
+      <stop offset="100%" stop-color="#070D1A"/>
+    </linearGradient>
+
+    <!-- Photon Spark Bead Gradient -->
+    <radialGradient id="g4-spark-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="45%" stop-color="#45C4D6"/>
+      <stop offset="100%" stop-color="#45C4D6" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ambient Oceanic Aura -->
+    <radialGradient id="g4-aura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#45C4D6" stop-opacity="0.5"/>
+      <stop offset="45%" stop-color="#0A5A78" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#070D1A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <style>
+    /* Ambient Breathing Background */
+    @keyframes g4AuraPulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.96); }
+      50% { opacity: 0.8; transform: scale(1.06); }
+    }
+    .g4-aura {
+      transform-origin: 48px 48px;
+      animation: g4AuraPulse 3.4s ease-in-out infinite;
+    }
+
+    /* Traveling Photon Spark 1 (Surface: length 52px) */
+    @keyframes g4Spark1Travel {
+      0% { transform: translateX(0px); opacity: 0; }
+      4% { opacity: 1; }
+      32% { transform: translateX(52px); opacity: 1; }
+      36% { transform: translateX(52px); opacity: 0; }
+      100% { transform: translateX(52px); opacity: 0; }
+    }
+    @keyframes g4Bar1Glow {
+      0% { filter: none; }
+      4% { filter: drop-shadow(0 0 10px #FFFFFF) drop-shadow(0 0 20px rgba(69, 196, 214, 0.9)); }
+      30% { filter: drop-shadow(0 0 10px #FFFFFF) drop-shadow(0 0 18px rgba(69, 196, 214, 0.7)); }
+      38% { filter: none; }
+      100% { filter: none; }
+    }
+
+    /* Traveling Photon Spark 2 (Thermocline: length 34px, starts at 25%) */
+    @keyframes g4Spark2Travel {
+      0%, 24% { transform: translateX(0px); opacity: 0; }
+      28% { opacity: 1; }
+      54% { transform: translateX(34px); opacity: 1; }
+      58% { transform: translateX(34px); opacity: 0; }
+      100% { transform: translateX(34px); opacity: 0; }
+    }
+    @keyframes g4Bar2Glow {
+      0%, 24% { filter: none; }
+      28% { filter: drop-shadow(0 0 12px #45C4D6) drop-shadow(0 0 22px rgba(69, 196, 214, 0.95)); }
+      52% { filter: drop-shadow(0 0 10px #45C4D6) drop-shadow(0 0 16px rgba(69, 196, 214, 0.7)); }
+      60% { filter: none; }
+      100% { filter: none; }
+    }
+
+    /* Traveling Photon Spark 3 (Abyss: length 16px, starts at 50%) */
+    @keyframes g4Spark3Travel {
+      0%, 48% { transform: translateX(0px); opacity: 0; }
+      52% { opacity: 1; }
+      74% { transform: translateX(16px); opacity: 1; }
+      78% { transform: translateX(16px); opacity: 0; }
+      100% { transform: translateX(16px); opacity: 0; }
+    }
+    @keyframes g4Bar3Glow {
+      0%, 48% { filter: none; opacity: 0.55; }
+      52% { filter: drop-shadow(0 0 12px #45C4D6) drop-shadow(0 0 20px rgba(10, 90, 120, 0.95)); opacity: 1.0; }
+      72% { filter: drop-shadow(0 0 8px #45C4D6); opacity: 0.9; }
+      80% { filter: none; opacity: 0.55; }
+      100% { filter: none; opacity: 0.55; }
+    }
+
+    .g4-spark-1 { animation: g4Spark1Travel 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    .g4-bar-1 { animation: g4Bar1Glow 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+    .g4-spark-2 { animation: g4Spark2Travel 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    .g4-bar-2 { animation: g4Bar2Glow 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+    .g4-spark-3 { animation: g4Spark3Travel 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    .g4-bar-3 { animation: g4Bar3Glow 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+    /* Typography */
+    .oe-wordmark {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-size: 72px;
+      letter-spacing: -1.2px;
+    }
+    .oe-ocean { font-weight: 600; fill: #FFFFFF; }
+    .oe-embed { font-weight: 600; fill: #45C4D6; }
+
+    /* Light Theme Adaptation */
+    @media (prefers-color-scheme: light) {
+      .g4-casing-bg { fill: #F7F6F2 !important; stroke: #0A5A78 !important; }
+      .g4-bar-1 { stroke: #14212B !important; }
+      .g4-bar-2 { stroke: #0A5A78 !important; }
+      .g4-bar-3 { stroke: #0A5A78 !important; }
+      .oe-ocean { fill: #14212B !important; }
+      .oe-embed { fill: #0A5A78 !important; }
+    }
+  </style>
+
+  <!-- Lockup Container (viewBox 610x116, translate 18, 10) -->
+  <g transform="translate(18, 10)">
+    <!-- Emblem Container (84x84) -->
+    <g transform="translate(0, 0)">
+      <!-- Ambient Oceanic Aura -->
+      <ellipse cx="48" cy="48" rx="54" ry="54" fill="url(#g4-aura)" class="g4-aura"/>
+
+      <!-- Clean Squircle Enclosure -->
+      <rect x="6" y="6" width="84" height="84" rx="22"
+            fill="url(#g4-water)"
+            stroke="url(#g4-border)"
+            stroke-width="4.5"
+            stroke-linejoin="round"
+            class="g4-casing-bg"/>
+
+      <!-- Inner Subtle Border Highlight -->
+      <rect x="9.5" y="9.5" width="77" height="77" rx="19"
+            fill="none"
+            stroke="#45C4D6"
+            stroke-width="0.8"
+            stroke-opacity="0.35"/>
+
+      <!-- Layer 1: Sea Surface (0m) - Preserved Original White Color -->
+      <line x1="22" y1="33" x2="74" y2="33"
+            stroke="#FFFFFF"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            class="g4-bar-1"/>
+
+      <!-- Photon Spark 1 Bead -->
+      <g class="g4-spark-1">
+        <circle cx="22" cy="33" r="5.0" fill="url(#g4-spark-core)"/>
+        <circle cx="22" cy="33" r="2.2" fill="#FFFFFF" filter="drop-shadow(0 0 4px #FFFFFF)"/>
+      </g>
+
+      <!-- Layer 2: Thermocline (50-200m) - Preserved Original Cyan Color -->
+      <line x1="22" y1="48" x2="56" y2="48"
+            stroke="#45C4D6"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            class="g4-bar-2"/>
+
+      <!-- Photon Spark 2 Bead -->
+      <g class="g4-spark-2">
+        <circle cx="22" cy="48" r="5.0" fill="url(#g4-spark-core)"/>
+        <circle cx="22" cy="48" r="2.2" fill="#FFFFFF" filter="drop-shadow(0 0 4px #FFFFFF)"/>
+      </g>
+
+      <!-- Layer 3: Abyss (1000m) - Preserved Original Deep Navy 55% -->
+      <line x1="22" y1="63" x2="38" y2="63"
+            stroke="#0A5A78"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            opacity="0.55"
+            class="g4-bar-3"/>
+
+      <!-- Photon Spark 3 Bead -->
+      <g class="g4-spark-3">
+        <circle cx="22" cy="63" r="5.0" fill="url(#g4-spark-core)"/>
+        <circle cx="22" cy="63" r="2.2" fill="#FFFFFF" filter="drop-shadow(0 0 4px #FFFFFF)"/>
+      </g>
+    </g>
+
+    <!-- Wordmark "OceanEmbed" (72px, guaranteed zero cutoff with 610px width) -->
+    <text x="116" y="74" class="oe-wordmark">
+      <tspan class="oe-ocean">Ocean</tspan><tspan class="oe-embed">Embed</tspan>
+    </text>
+  </g>
+</svg>

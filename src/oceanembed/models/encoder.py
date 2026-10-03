@@ -75,6 +75,16 @@ class TransformerBlock(nn.Module):
         return x + self.mlp(self.norm2(x))
 
 
+def unet_blocks(mc: ModelConfig) -> int:
+    """Width-``dim`` residual conv blocks that replace the Transformer in the U-Net variant.
+
+    A Transformer block has about ``(4 + 2 * mlp_ratio) * dim^2`` weights and a ResBlock
+    ``18 * dim^2``; the count keeps the parameter budget of the two variants within a few percent
+    (4 blocks instead of 6 at the default size).
+    """
+    return max(1, round(mc.depth * (4 + 2 * mc.mlp_ratio) / 18))
+
+
 class OceanEncoder(nn.Module):
     def __init__(self, mc: ModelConfig):
         super().__init__()
@@ -88,9 +98,12 @@ class OceanEncoder(nn.Module):
         self.stem1 = nn.Sequential(nn.Conv2d(c // 2, c, 3, stride=2, padding=1), ResBlock(c))
         self.stem2 = nn.Sequential(nn.Conv2d(c, 2 * c, 3, stride=2, padding=1), ResBlock(2 * c))
         self.to_tokens = nn.Conv2d(2 * c, mc.dim, 1)
-        self.blocks = nn.ModuleList(
-            TransformerBlock(mc.dim, mc.heads, mc.mlp_ratio) for _ in range(mc.depth)
-        )
+        if mc.arch == "unet":  # no attention: residual convolutions at the H/4 resolution
+            self.blocks = nn.ModuleList(ResBlock(mc.dim) for _ in range(unet_blocks(mc)))
+        else:
+            self.blocks = nn.ModuleList(
+                TransformerBlock(mc.dim, mc.heads, mc.mlp_ratio) for _ in range(mc.depth)
+            )
         self.norm = nn.LayerNorm(mc.dim)
         self.proj = nn.Linear(mc.dim, mc.emb_dim)
         self._pos_cache: dict[tuple, torch.Tensor] = {}
@@ -113,10 +126,15 @@ class OceanEncoder(nn.Module):
         f = self.stem2(s2)
         t = self.to_tokens(f)
         h, w = t.shape[-2:]
-        tokens = t.flatten(2).transpose(1, 2)
-        tokens = tokens + self._pos(h, w, tokens).to(tokens.dtype)[None]
-        for blk in self.blocks:
-            tokens = blk(tokens)
+        if self.cfg.arch == "unet":
+            for blk in self.blocks:
+                t = blk(t)
+            tokens = t.flatten(2).transpose(1, 2)
+        else:
+            tokens = t.flatten(2).transpose(1, 2)
+            tokens = tokens + self._pos(h, w, tokens).to(tokens.dtype)[None]
+            for blk in self.blocks:
+                tokens = blk(tokens)
         emb = self.proj(self.norm(tokens))  # (B, h*w, emb_dim)
         emb = emb.transpose(1, 2).reshape(b, self.cfg.emb_dim, h, w)
         return EncoderOutput(emb, s1, s2)

@@ -117,10 +117,20 @@ Paths are relative to `src/oceanembed/`. "-" = none.
 | [`models/mae.py`](../src/oceanembed/models/mae.py) | Masked surface autoencoder | `MaskedAutoencoder`, `PretrainDecoder`, `block_mask` | `x`, `sv` | masked loss, per-channel sums |
 | [`models/recon.py`](../src/oceanembed/models/recon.py) | Embedding -> 15-depth anomaly decoder | `ReconModel`, `ReconDecoder`, `load_encoder_state`, `param_groups` | `(B,12,H,W)` | `(B,15,H,W)` standardised anomaly |
 | [`models/baselines.py`](../src/oceanembed/models/baselines.py) | Climatology and ridge predictors | `ClimatologyBaseline`, `RidgeBaseline`, `fit_ridge`, `rmse_per_depth` | train dataset | `ridge.joblib` |
+| [`models/pixel_mlp.py`](../src/oceanembed/models/pixel_mlp.py) | Per-pixel MLP baseline (research R1) | `PixelMLP`, `load_pixel_mlp` | `(B,12,H,W)` | `(B,15,H,W)` |
 | [`train/losses.py`](../src/oceanembed/train/losses.py) | Masked losses | `masked_mse`, `vertical_gradient_loss`, `reconstruction_loss` | pred, target, mask | scalars |
 | [`train/utils.py`](../src/oceanembed/train/utils.py) | Seed, device, LR schedule, JSONL logger, loaders, crop | `set_seed`, `cosine_warmup`, `JsonlLogger`, `make_loader`, `random_crop` | - | - |
 | [`train/pretrain.py`](../src/oceanembed/train/pretrain.py) | Pretraining loop | `run_pretrain`, `validate` | datasets (train, val) | `checkpoints/pretrain.pt`, `logs/pretrain.jsonl` |
 | [`train/train.py`](../src/oceanembed/train/train.py) | Supervised loop, early stopping | `run_train`, `recon_ckpt_name`, `validate` | datasets, `pretrain.pt` | `recon[_tag].pt`, `logs/train[_tag].jsonl` |
+| [`train/mlp.py`](../src/oceanembed/train/mlp.py) | MLP training on a random point sample | `run_train_mlp` | datasets | `mlp.pt` |
+| [`research/r1.py`](../src/oceanembed/research/r1.py) | R1 runner: train + score every (method, seed), resumable | `run_r1`, `run_job`, `plan_jobs`, `evaluate_to_file` | config, main run's ridge | `research/r1/<method>/seed<k>/` |
+| [`research/bootstrap.py`](../src/oceanembed/research/bootstrap.py) | Moving-block bootstrap over days from per-day sums, paired differences, decorrelation time | `block_counts`, `metrics_from_daily`, `paired_difference`, `decorrelation_time` | `(F,T,D)` sums | arrays |
+| [`research/r1_report.py`](../src/oceanembed/research/r1_report.py) | R1 summary, tables, figures | `make_r1_report`, `build_summary` | `eval.npz` files | `summary.json`, `summary.md`, `figures/` |
+| [`research/armor3d.py`](../src/oceanembed/research/armor3d.py) | ARMOR3D month-by-month CMEMS subset (resumable, ledger entry), regridding with the GLORYS rules | `download_armor`, `subset_kwargs`, `regrid_month` | CMEMS login | `data/raw/armor3d/armor3d_YYYYMM.nc` |
+| [`research/r4.py`](../src/oceanembed/research/r4.py), [`r4_report.py`](../src/oceanembed/research/r4_report.py) | R4: regridded ARMOR3D vs Argo matchups and the grid, block-bootstrap summary, figures | `run_r4`, `regrid_all`, `argo_table`, `stream_grid`, `make_r4_report` | `argo_matchups.parquet`, predictions, Zarr | `research/r4/`, `data/processed/<run>_armor3d/` |
+| [`research/physical.py`](../src/oceanembed/research/physical.py) | Derived quantities (isotherm depth, layer integral, heat content), terciles, seasons | `isotherm_depth`, `layer_integral`, `heat_content`, `derived_fields` | `(D, ...)` temperature | arrays |
+| [`research/r5.py`](../src/oceanembed/research/r5.py), [`r5_report.py`](../src/oceanembed/research/r5_report.py) | R5: streaming per-day sums for derived quantities and strata, report | `run_r5`, `make_r5_report` | predictions, Zarr, stats | `research/r5/` |
+| [`research/common.py`](../src/oceanembed/research/common.py) | Bootstrap scoring and number formatting shared by the R4 / R5 reports | `score_series`, `paired`, `interval` | per-day sums | dicts |
 | [`infer/predict.py`](../src/oceanembed/infer/predict.py) | Checkpoint loading, predictors, degC conversion, CF-1.8 NetCDF writer | `load_recon_model`, `model_predictor`, `predict_batch`, `predict_to_netcdf`, `expected_product_files` | checkpoint, surface dataset | `predictions/**/oceanembed_T_YYYYMM.nc` |
 | [`infer/embed.py`](../src/oceanembed/infer/embed.py) | Embedding export | `export_embeddings`, `embedding_path` | encoder weights, split | `embeddings/embeddings.zarr` |
 | [`eval/metrics.py`](../src/oceanembed/eval/metrics.py) | Streaming sums-based metrics | `MetricAccumulator`, `metrics_from_sums`, `skill_score`, `point_metrics` | pred / ref arrays | metric dicts |
@@ -320,12 +330,16 @@ Both are predictors `x (B,12,H,W) -> standardised anomaly (B,15,H,W)`, like the 
 | Mixed precision | fp16 autocast + `GradScaler`, CUDA only (`amp: true`) | same |
 | Gradient clip | 1.0 (global norm) | 1.0 |
 | Selection | best epoch by val masked MSE; no early stopping | best epoch by val RMSE in degC; early stopping after `patience` = 8 epochs without improvement |
-| Seed | 0 (`set_seed`) | 0 |
+| Seed | 0 (`set_seed`); `--seed` overrides | 0; `--seed` overrides |
 | Data | train and val splits preloaded into RAM (float32; ~2 GB for 2 train years, ~5 GB for 5) | same |
 | Augmentation | optional `crop` (h, w multiple of 4), off in every shipped config | same |
 | Logged (JSONL, one line per epoch) | `epoch`, `train_loss`, `val_loss`, `val_meanfill`, `val_mse_per_channel`, `val_meanfill_per_channel`, `lr`, `epoch_seconds`, `train_seconds`, `peak_gpu_mb` | `epoch`, `train_loss`, `val_loss`, `val_rmse`, `val_rmse_per_depth`, `lr_decoder`, `epoch_seconds`, `train_seconds`, `peak_gpu_mb` |
 | Checkpoint | `checkpoints/pretrain.pt`: `model`, `config`, `epoch`, `metrics` | `recon.pt` (or `recon_<tag>.pt`): the same plus `pretrained`, `tag` |
 
+- `set_seed` seeds python, numpy, torch and every CUDA device and sets cuDNN to deterministic kernels without benchmarking. On CPU
+  the same seed gives bit-identical weights (tested). On CUDA it gives close, not identical, results: the backward passes of
+  nearest-neighbour upsampling and of scaled-dot-product attention use atomic additions and fp16 autocast reductions are order
+  dependent. `--seed` sets the initialisation, the batch order, the masking and the crop RNG together.
 - Val RMSE in degC is computed as `(anomaly error) * anom_std[depth]`: the climatology cancels in prediction minus truth.
 - `train` loads the encoder from `pretrain.pt` (error if missing) unless `--no-pretrained`; then the tag defaults to
   `scratch` so `recon.pt` is never overwritten.
@@ -442,8 +456,8 @@ All commands take `--config / -c <yaml>` (must exist) except `serve`. `--device`
 | `download` | `-v/--variable` from `sst sss sla currents winds temp argo` (default all) | config, credentials | raw files, ledger; exit 2 on missing credentials |
 | `harmonize` | - | raw files | `processed/<run>.zarr` (rebuilt) |
 | `stats` | - | Zarr | `processed/<run>_stats.nc` |
-| `pretrain` | `--device` | Zarr, stats | `checkpoints/pretrain.pt`, `logs/pretrain.jsonl` |
-| `train` | `--no-pretrained`, `--tag`, `--device` | Zarr, stats, `pretrain.pt` | `checkpoints/recon[_tag].pt`, `logs/train[_tag].jsonl` |
+| `pretrain` | `--seed`, `--device` | Zarr, stats | `checkpoints/pretrain.pt`, `logs/pretrain.jsonl` |
+| `train` | `--no-pretrained`, `--tag`, `--seed`, `--device` | Zarr, stats, `pretrain.pt` | `checkpoints/recon[_tag].pt`, `logs/train[_tag].jsonl` |
 | `baseline` | - | Zarr, stats | `checkpoints/ridge.joblib`; prints val RMSE of ridge and climatology |
 | `embed` | `--split` (test), `--checkpoint`, `--device` | checkpoint, Zarr | `embeddings/embeddings.zarr` |
 | `predict` | `--split` or `--start` + `--end`, `--tag`, `--ridge`, `--device` | checkpoint (or ridge), Zarr, stats | `predictions/[ridge/\|<tag>/]oceanembed_T_<YYYYMM>.nc` |
@@ -451,6 +465,10 @@ All commands take `--config / -c <yaml>` (must exist) except `serve`. `--device`
 | `validate-argo` | `--split` (test), `--device` | checkpoints, Zarr, Argo (downloads missing months) | `metrics/metrics_argo.json`, `argo_matchups.parquet` |
 | `report` | `--date` (middle of test) | metrics files, Zarr, predictions, logs | `figures/*.png`, `report.md` |
 | `run-all` | `--skip-existing`, `--device` | config | everything above |
+| `research r1` | `--seeds`, `--methods`, `--mlp-seeds`, `--skip-existing/--no-skip-existing`, `--device` | config, Zarr, stats, `ridge.joblib` | `research/r1/<method>/seed<k>/` only |
+| `research r1-report` | `--n-boot`, `--block-length`, `--seed` | `research/r1/**/eval.npz` | `research/r1/summary.{json,md}`, `figures/` |
+| `research r4` | `--download/--no-download`, `--recompute`, `--n-boot`, `--block-length`, `--seed` | config, predictions, Zarr, stats, `argo_matchups.parquet`, CMEMS login (download only) | `data/raw/armor3d/`, `data/processed/<run>_armor3d/`, `research/r4/` |
+| `research r5` | `--recompute`, `--mlp-seed`, `--n-boot`, `--block-length`, `--seed` | config, predictions, Zarr, stats, R1 `mlp.pt` (optional) | `research/r5/` only |
 | `serve` | `--host` (127.0.0.1), `--port` (8000), `--outputs-root`, `--reload` | `outputs/` (exit 2 if missing) | serves the API; sets `OCEANEMBED_API_OUTPUTS_ROOT` for `--reload` |
 
 `predict` argument rules: `--start` and `--end` together, not with `--split`; `--ridge` and `--tag` exclusive; tag `ridge` rejected.
@@ -467,6 +485,66 @@ step and a non-zero exit code; prints a per-step timing summary; frees GPU memor
 
 That is 14 steps with the ablation, 12 without. `--skip-existing` skips a step whose output files exist (it does not
 detect stale outputs); the `download` check needs every monthly file of every product, Argo included.
+
+### Research commands (stage R1)
+
+`oceanembed research r1` and `research r1-report` (usage: [`usage.md`](usage.md)). Code in `research/`. Nothing outside
+`outputs/<run>/research/r1/` is written (they load the config only; `run_meta.json` is not rewritten).
+
+```
+outputs/<run>/research/r1/
+  <method>/seed<k>/            method in oceanembed | scratch | unet | mlp ; ridge, climatology use seed0
+    pretrain.pt, pretrain.jsonl, pretrain.done.json     oceanembed only
+    recon.pt (mlp.pt), train.jsonl, train.done.json     trained methods
+    eval.npz                   per-day sufficient statistics of the test split vs GLORYS
+    done.json                  written last: provenance, timings, parameter counts, best epochs
+  summary.json, summary.md, figures/{rmse_by_depth,paired_differences,skill_by_depth}.png
+```
+
+- **Methods.** `oceanembed`: pretraining then fine-tuning, both with the seed. `scratch`: the same network with the encoder trained
+  from scratch. `unet`: `model.arch = unet`, i.e. the same stem, embedding projection and decoder with the 6 Transformer blocks
+  replaced by 4 residual conv blocks of width 192 at H/4 (3 731 055 parameters vs 3 741 423; the decoder is identical at 537 839),
+  no pretraining. `mlp`: 11 features (the ridge features) to 15 depths, 3 hidden layers of 256 with SiLU (138 511 parameters), AdamW
+  1e-3, batch 4096, up to 30 epochs, early stopping (patience 5) on the RMSE of a fixed 200 000-point validation sample, trained on
+  1 000 000 random train (day, pixel) samples chosen by the seed; loss over the depths valid at each sample. `ridge`,
+  `climatology`: loaded from the main run, scored once.
+- **Evaluation file.** For the whole domain and each basin, raw and climatology-removed, the 8 sums of `eval/metrics.py`
+  (`n, sx, sy, sxx, syy, sxy, sae, se2`) per test day and depth: `raw` and `anom` of shape `(region, field, day, depth)`, about 2 MB
+  per job. Same valid sample and de-normalisation as `evaluate`; the report asserts all jobs share the same `n`, and tests check that
+  ridge and climatology reproduce `metrics_glorys.json`.
+- **Resumability.** A job with `done.json` is skipped. A job without it restarts at its first stage lacking a `*.done.json` marker
+  (partial files of the unfinished stage are deleted first); scoring always reruns. `--no-skip-existing` also retrains.
+- **Memory.** The runner preloads the train and validation splits once (about 7 GB for the real run) and reuses them for every
+  training in the process; run nothing else heavy beside it.
+- **Statistics** ([`r1_report.py`](../src/oceanembed/research/r1_report.py), [`bootstrap.py`](../src/oceanembed/research/bootstrap.py)).
+  Per method: seed mean / SD (n - 1) / min / max of every metric (RMSE, bias, MAE, raw and anomaly correlation, skill) for each
+  depth, the pooled 50-200 m range and all depths, for the domain and each basin. Test-day uncertainty: the per-day sums are averaged
+  over seeds, then a moving-block bootstrap (overlapping blocks, no wrap-around, `ceil(T/L)` blocks truncated to `T` days, 2000
+  replicates) resamples days; metrics are recomputed from the resampled sums and the 95 % interval is the 2.5-97.5 percentile range.
+  Replicates are stored as day-count vectors, so one set of replicates is shared by all methods, depths, basins and metrics. Paired
+  comparison `A - B`: formed inside each replicate (same days for both), with the percentile interval, whether it excludes 0, a
+  two-sided bootstrap p-value, and, across seeds, whether the seed ranges overlap and a Welch t-test.
+- **Block length.** Chosen from the data: the median over methods of the e-folding time of the autocorrelation of the daily pooled
+  50-200 m MSE, capped at a quarter of the period (`--block-length` overrides). `summary.md` lists the e-folding and integrated
+  autocorrelation times and how the interval half-widths change with the block length (1, 7, 15, 30, 45 days).
+
+### Research commands (stages R4 and R5)
+
+`oceanembed research r4` and `research r5` (usage: [`usage.md`](usage.md); results: [`research/r4_armor3d.md`](research/r4_armor3d.md),
+[`research/r5_physical.md`](research/r5_physical.md)).
+
+- **R4.** Downloads ARMOR3D (`cmems_obs-mob_glo_phy_my_0.125deg_P1D-m`, variable `to`, daily, 1993-01-01 to 2024-12-31, so the whole
+  test year comes from one dataset) with the same subset-per-month / skip-existing / ledger pattern as the other CMEMS products;
+  credentials are only checked when a month is missing. Each month is regridded with `harmonize.process_variable` (vertical linear
+  to the 15 depths, then 2 x 2 block mean) on the product's own days into `data/processed/<run>_armor3d/`. The Argo scoring adds
+  an `armor3d` column to the stored `validate-argo` matchups (same cell, day and depth) and keeps only rows where ARMOR3D is
+  defined, so all six products are scored on identical rows; the grid pass streams the days and stores per-day, per-depth sums of
+  every product against GLORYS and against ARMOR3D on the common sample (`grid_sums.npz`). The report is a block bootstrap over days.
+- **R5.** `run_r5` streams the test split once (GLORYS, the three prediction products, the climatology and, if the R1 checkpoint
+  exists, the per-pixel MLP run on the CPU), accumulating per-day sums of the derived quantities (definitions in
+  [`physical.py`](../src/oceanembed/research/physical.py)) on a common sample and of the pooled 50-200 m temperature per stratum
+  (`sums.npz`); the report turns them into tables and figures. Memory stays at a few fields.
+- Neither stage writes under `checkpoints`, `metrics`, `predictions`, `embeddings`, `report.md` or `research/r1`.
 
 ## 10. Data API
 
@@ -550,10 +628,11 @@ project root.
 | `download` | `halo_deg` 0.5, `overwrite` false, `podaac_mode` `opendap`, `workers` 4, `retries` 4, `retry_backoff_s` 2.0, `delete_global_granules` true |
 | `argo` | `source` `erddap` (or `gdac`), `max_depth_m` 1100, `qc_flags` [1, 2], `box_deg` 15 |
 | `harmonize` | `time_chunk` 8, `min_valid_fraction` 0.5 |
-| `model` | `in_channels` 12, `emb_dim` 128, `dim` 192, `depth` 6, `heads` 6, `mlp_ratio` 4.0, `stem_channels` 64, `n_depths` 15 |
+| `model` | `in_channels` 12, `emb_dim` 128, `dim` 192, `depth` 6, `heads` 6, `mlp_ratio` 4.0, `stem_channels` 64, `n_depths` 15, `arch` `transformer` (`unet` = residual convolutions instead of attention, research R1) |
 | `pretrain` | `epochs` 20, `batch_size` 8, `lr` 3e-4, `weight_decay` 0.05, `warmup_epochs` 1, `grad_clip` 1, `mask_ratio` 0.5, `block` 16, `amp`, `seed` 0, `crop` null |
 | `train` | `epochs` 30, `batch_size` 8, `lr` 3e-4, `encoder_lr_scale` 0.1, `weight_decay` 0.01, `warmup_epochs` 1, `grad_clip` 1, `vertical_grad_weight` 0.05, `patience` 8, `amp`, `seed` 0, `crop` null, `num_workers` 0 |
 | `baseline` | `ridge_alpha` 1.0, `ridge_max_points` 1 000 000, `seed` 0 |
+| `mlp` | `hidden` 256, `layers` 3, `max_points` 1 000 000, `val_points` 200 000, `epochs` 30, `batch_size` 4096, `lr` 1e-3, `weight_decay` 1e-4, `patience` 5 (research R1 only) |
 | `ablation` | `no_pretrained` false, `tag` `scratch` |
 | `synthetic` | `seed` 7, `argo_profiles_per_month` 150, `native_resolution`, `n_eddies_per_100_deg2_year` |
 

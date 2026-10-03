@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -12,11 +13,25 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 
-def set_seed(seed: int) -> None:
+def set_seed(seed: int, deterministic: bool = True) -> None:
+    """Seed python, numpy, torch and every CUDA device; ask cuDNN for deterministic kernels.
+
+    On CPU the same seed reproduces a run bit for bit. On CUDA it reproduces it closely but not
+    exactly: backward passes through nearest-neighbour upsampling and scaled-dot-product attention
+    use atomic additions, and fp16 autocast reductions are order dependent.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
+def use_progress_bars(progress: bool) -> bool:
+    """Progress bars only on an interactive terminal (a redirected log would fill with updates)."""
+    return bool(progress) and sys.stderr.isatty()
 
 
 def get_device(device: str | None = None) -> torch.device:

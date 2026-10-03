@@ -1,41 +1,69 @@
-<div align="center">
+<p align="center">
+  <img src="docs/assets/oceanembed-logo.svg" alt="OceanEmbed" height="88">
+</p>
+<h3 align="center">
+  <strong>3D Subsurface Ocean Temperature Reconstruction</strong><br>
+  <small>Satellite Surface AI &bull; North Indian Ocean &bull; In-Situ Argo Validation</small>
+</h3>
 
-# OceanEmbed
+<p align="center">
+  <a href="https://www.python.org/"><img src="docs/assets/badges/python.svg" alt="Python 3.12" height="30"></a>
+  <a href="https://pytorch.org/"><img src="docs/assets/badges/pytorch.svg" alt="PyTorch 2.x CUDA" height="30"></a>
+  <a href="https://fastapi.tiangolo.com"><img src="docs/assets/badges/fastapi.svg" alt="FastAPI Data API" height="30"></a>
+  <a href="web/"><img src="docs/assets/badges/dashboard.svg" alt="Dashboard: React 19 + TS" height="30"></a>
+  <a href="docs/decisions.md"><img src="docs/assets/badges/offline.svg" alt="Engine: Zero Cloud APIs" height="30"></a>
+  <br>
+  <a href="docs/architecture.md"><img src="docs/assets/badges/model.svg" alt="Architecture: CNN + Transformer" height="30"></a>
+  <a href="docs/backend.md"><img src="docs/assets/badges/resolution.svg" alt="Resolution: 0.25-deg Daily" height="30"></a>
+  <a href="docs/backend.md#5-check"><img src="docs/assets/badges/argo.svg" alt="In-Situ Check: 2,826 Argo Floats" height="30"></a>
+  <br>
+  <a href="tests/"><img src="docs/assets/badges/tests.svg" alt="219 Py · 163 UI Passing" height="30"></a>
+  <a href="LICENSE"><img src="docs/assets/badges/license.svg" alt="MIT License" height="30"></a>
+</p>
 
-### The ocean below the surface, reconstructed from what satellites see above it
+<p align="center">
+  Daily 3D ocean temperature (15 depths, 0 &ndash; 1,000&nbsp;m) for the Arabian Sea and Bay of Bengal,<br>
+  estimated from satellite surface observations alone and validated against GLORYS reanalysis and in-situ Argo floats.
+</p>
 
-Daily 3-D ocean temperature (15 depths, 0 – 1 000 m) for the Arabian Sea and Bay of Bengal,<br>
-estimated from satellite surface observations alone and validated against a reanalysis and Argo floats.
+<p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-data%20API-009688?logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React%20%2B%20TypeScript-dashboard-3178C6?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-219%20Python%20%C2%B7%20163%20UI-2D6A49)
-![License](https://img.shields.io/badge/license-MIT-1B2533)
+<details open>
+<summary><strong>Table of Contents</strong></summary>
 
-</div>
+1. [Why it matters](#why-it-matters)
+2. [What it does](#what-it-does)
+3. [Results](#results)
+4. [Data](#data)
+5. [Model](#model)
+6. [How it is evaluated](#how-it-is-evaluated)
+7. [A look inside](#a-look-inside)
+8. [Quick start](#quick-start)
+9. [Commands and API](#commands-and-api)
+10. [Project structure](#project-structure)
+11. [Engineering quality](#engineering-quality)
+12. [Limitations and roadmap](#limitations-and-roadmap)
+13. [Acknowledgements](#acknowledgements)
+14. [License](#license)
 
-![OceanEmbed dashboard: reconstruction, reanalysis and difference at 100 m with the skill tables](docs/images/overview.png)
+</details>
 
-<p align="center"><em>A typical day of the test year at 100 m: reconstructed from the surface (left), the GLORYS reanalysis it never saw (centre), and the difference (right).</em></p>
+<p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
 
-## Contents
+<p align="center">
+  <strong>1.08&deg;C pooled RMSE</strong> across the thermocline (50&ndash;200&nbsp;m) &bull;
+  <strong>0.64 anomaly correlation</strong> (vs 0.27 climatology) &bull;
+  <strong>2,826 Argo float profiles</strong> independent in-situ validation &bull;
+  runs offline on a laptop GPU
+</p>
 
-- [Why it matters](#why-it-matters)
-- [What it does](#what-it-does)
-- [Results](#results)
-- [Data](#data)
-- [Model](#model)
-- [How it is evaluated](#how-it-is-evaluated)
-- [The dashboard](#the-dashboard)
-- [Quick start](#quick-start)
-- [Commands and API](#commands-and-api)
-- [Project structure](#project-structure)
-- [Engineering quality](#engineering-quality)
-- [Limitations and roadmap](#limitations-and-roadmap)
-- [Documentation](#documentation)
-- [Data credits and licence](#data-credits-and-licence)
+<p align="center">
+  <a href="docs/images/overview.png"><img src="docs/images/overview.png" alt="OceanEmbed dashboard: reconstruction, reanalysis and difference at 100 m with the skill tables" width="100%"></a>
+  <br>
+  <sub>A typical day of the test year at 100&nbsp;m: reconstructed from the surface (left), the GLORYS reanalysis it never saw (centre), and the difference (right).</sub>
+</p>
+
+<p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
 
 ## Why it matters
 
@@ -52,7 +80,22 @@ ocean temperature using only surface satellite observations, daily, at 0.25°, a
 
 ## What it does
 
-![Pipeline: seven surface fields, harmonisation, embedding, decoding, validation, product](docs/images/pipeline.png)
+<details>
+<summary><strong>Architecture flowchart</strong></summary>
+
+<p align="center">
+  <a href="docs/images/flowchart.png"><img src="docs/images/flowchart.png" alt="OceanEmbed full pipeline flowchart with measured results" width="100%"></a>
+  <br>
+  <sub><b>End-to-end architecture flowchart</b>: from raw satellite ingestion and physical regridding to encoder-decoder training, multi-baseline validation against 2,826 Argo floats, and delivery.</sub>
+</p>
+
+</details>
+
+<p align="center">
+  <a href="docs/images/pipeline.png"><img src="docs/images/pipeline.png" alt="Pipeline: seven surface fields, harmonisation, embedding, decoding, validation, product" width="100%"></a>
+  <br>
+  <sub><b>The six pipeline stages</b>: 7 surface satellite fields &rarr; 0.25&deg; grid harmonisation &rarr; latent embedding &rarr; 3D anomaly decoding &rarr; Argo validation &rarr; CF-compliant NetCDF delivery.</sub>
+</p>
 
 | Step | What happens |
 |---|---|
@@ -69,7 +112,9 @@ Everything runs from one command and one config file.
 
 Scored on **2024, a year the model never saw** (350 days; trained on 2018 – 2022, checkpoints chosen on 2023).
 
-![Results: error and skill by depth, thermocline comparison against GLORYS and Argo, skill by basin](docs/images/results.png)
+<p align="center">
+  <a href="docs/images/results.png"><img src="docs/images/results.png" alt="Results: error and skill by depth, thermocline comparison against GLORYS and Argo, skill by basin" width="100%"></a>
+</p>
 
 **The thermocline, 50 – 200 m** — where temperature varies most and the surface says least:
 
@@ -117,7 +162,11 @@ RMSE in °C against GLORYS over the 350 test days. Skill = 1 − MSE / MSE of cl
 
 A vertical section through both basins on one test day shows the reconstruction as a water column rather than a map:
 
-![Vertical section along 15°N: reconstruction, GLORYS and difference](docs/images/section.png)
+<p align="center">
+  <a href="docs/images/section.png"><img src="docs/images/section.png" alt="Vertical section along 15°N: reconstruction, GLORYS and difference" width="100%"></a>
+  <br>
+  <sub>Vertical section along 15&deg;N across both basins: reconstruction (top), GLORYS (middle), and difference (bottom).</sub>
+</p>
 
 ## Data
 
@@ -140,7 +189,9 @@ All inputs are open products. The target is used only to train and to score; it 
 
 ## Model
 
-![Model architecture: encoder with CNN stem and Transformer, embedding, decoder with skip connections](docs/images/architecture.png)
+<p align="center">
+  <a href="docs/images/architecture.png"><img src="docs/images/architecture.png" alt="Model architecture: encoder with CNN stem and Transformer, embedding, decoder with skip connections" width="100%"></a>
+</p>
 
 - **12 input channels:** the seven standardised surface fields, the ocean mask, day of year (sin, cos), latitude and longitude.
 - **Encoder (the embedding engine):** a three-stage CNN stem brings the 100 × 240 grid down to 25 × 60; six Transformer blocks let each of the 1 500 patches attend to the whole basin; the result is a 128-feature embedding map.
@@ -162,33 +213,25 @@ All inputs are open products. The target is used only to train and to score; it 
 
 One caveat is stated wherever Argo appears: GLORYS assimilates Argo, so the floats are independent of the model's *inputs* but not of its training target.
 
-## The dashboard
+<a id="a-look-inside"></a><a id="the-dashboard"></a>
+## A look inside
 
 A React app served by a FastAPI data API. Every number on screen is computed from the selected run; nothing is hard-coded.
 
-**Explorer** — any day, depth and point; linked maps, depth rail, vertical profile of every method, section and time–depth view.
-
-![Explorer: linked maps at 100 m with depth rail and water-column profile](docs/images/explorer.png)
-
-**Compare** — reconstruction, ridge regression and the ablation beside GLORYS on one colour scale, with the day's error table.
-
-![Compare mode: three estimates beside GLORYS and their differences](docs/images/explorer-compare.png)
-
-**Validation** — error, bias, anomaly correlation and skill by depth, per basin, as maps and as daily series.
-
-![Validation: pooled tables and metrics by depth](docs/images/validation.png)
-
-**Argo** — every float profile of the test year on the map; open any one against the reconstruction.
-
-![Argo validation: profile map, sortable list and an opened profile](docs/images/validation-argo.png)
-
-**Representation** — what the 128-feature embedding encodes: principal components, similarity between places, and which surface field each component follows.
-
-![Representation: embedding as a colour map, similarity map and correlation table](docs/images/representation.png)
-
-**Experiments** — methods and ablations side by side, training curves, data products, downloadable NetCDF files and the generated report.
-
-![Experiments: comparison table and ablation verdict](docs/images/experiments.png)
+<table>
+<tr>
+<td width="50%" valign="top"><a href="docs/images/explorer.png"><img src="docs/images/explorer.png" alt="Explorer: linked maps at 100 m with depth rail and water-column profile"></a><br><sub><b>Explorer.</b> Any day, depth and point; linked maps at 100&nbsp;m with interactive depth rail and vertical profile of every method, section and time&ndash;depth view.</sub></td>
+<td width="50%" valign="top"><a href="docs/images/explorer-compare.png"><img src="docs/images/explorer-compare.png" alt="Compare mode: three estimates beside GLORYS and their differences"></a><br><sub><b>Compare mode.</b> Three estimates beside GLORYS on a unified scale with daily error metrics.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/images/validation.png"><img src="docs/images/validation.png" alt="Validation: pooled tables and metrics by depth"></a><br><sub><b>Validation.</b> Error, bias, anomaly correlation and skill by depth, per basin, as maps and as daily series.</sub></td>
+<td width="50%" valign="top"><a href="docs/images/validation-argo.png"><img src="docs/images/validation-argo.png" alt="Argo validation: profile map, sortable list and an opened profile"></a><br><sub><b>Argo in-situ validation.</b> Geographic profile map of 2,826 floats, sortable matchup ledger, and individual water-column sounding.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/images/representation.png"><img src="docs/images/representation.png" alt="Representation: embedding as a colour map, similarity map and correlation table"></a><br><sub><b>Representation.</b> What the 128-feature embedding encodes: principal components, similarity between places, and which surface field each component follows.</sub></td>
+<td width="50%" valign="top"><a href="docs/images/experiments.png"><img src="docs/images/experiments.png" alt="Experiments: comparison table and ablation verdict"></a><br><sub><b>Experiments.</b> Side-by-side run comparisons, ablation verdicts, training curves, and downloadable CF-compliant NetCDF products.</sub></td>
+</tr>
+</table>
 
 ## Quick start
 
@@ -304,31 +347,20 @@ docs/               architecture, backend and frontend references, API, runbook,
 - Physical metrics: thermocline depth, upper-ocean heat content, skill by monsoon season.
 - A correction towards Argo to remove the inherited reanalysis bias.
 
-<details>
-<summary><strong>The full pipeline flowchart</strong></summary>
+## Acknowledgements
 
-<p align="center"><img src="docs/images/flowchart.png" alt="Detailed pipeline flowchart with measured results" width="720"></p>
+- **Smart India Hackathon** and the **Ministry of Earth Sciences (MoES) / INCOIS** for problem statement **SIH26066** (*Satellite Embedding-Based Deep Learning Framework for Reconstruction of Subsurface Ocean Temperature from Surface Satellite Observations*).
+- **[Copernicus Marine Service](https://marine.copernicus.eu)** (OSTIA, multi-observation salinity, DUACS, GLORYS12) for high-resolution satellite products and global ocean reanalysis.
+- **[NASA PO.DAAC](https://podaac.jpl.nasa.gov)** (OSCAR surface currents, CCMP winds) for physical surface observation datasets.
+- The international **[Argo Programme](https://argo.ucsd.edu)** and **[argopy](https://argopy.readthedocs.io/)** for global in-situ profiling float measurements.
 
-</details>
+## License
 
-## Documentation
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
 
-| Document | What it covers |
-|---|---|
-| [docs/backend.md](docs/backend.md) | the whole backend at a glance: data, model, training, evaluation, CLI, API |
-| [docs/frontend.md](docs/frontend.md) | the whole dashboard at a glance: views, state, rendering, design |
-| [docs/usage.md](docs/usage.md) | setup, commands, requirement-by-requirement mapping, tests |
-| [docs/runbook.md](docs/runbook.md) | the real-data run, step by step |
-| [docs/architecture.md](docs/architecture.md) | design, data products, output contract |
-| [docs/api.md](docs/api.md) | data API reference |
-| [docs/design.md](docs/design.md) | the dashboard's design system |
-| [docs/decisions.md](docs/decisions.md) | why each technical choice was made |
-| [docs/PRD.md](docs/PRD.md) | the problem statement |
+<p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
 
-## Data credits and licence
-
-This project uses products from the [Copernicus Marine Service](https://marine.copernicus.eu) (OSTIA, multi-observation
-salinity, DUACS, GLORYS12), [NASA PO.DAAC](https://podaac.jpl.nasa.gov) (OSCAR, CCMP) and the international
-[Argo](https://argo.ucsd.edu) programme. The data belong to their providers and are not redistributed here.
-
-Code released under the [MIT licence](LICENSE).
+<p align="center">
+  Designed &amp; Developed by <a href="https://github.com/SumanthMamidi-MNS">Sumanth Mamidi</a><br>
+  <sub>For Smart India Hackathon (SIH26066) &bull; Ministry of Earth Sciences (MoES) &bull; INCOIS</sub>
+</p>

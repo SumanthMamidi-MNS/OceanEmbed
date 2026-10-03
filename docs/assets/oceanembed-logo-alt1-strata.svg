@@ -1,0 +1,183 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 610 116" width="610" height="116" fill="none">
+  <defs>
+    <!-- Deep Ocean to Cyan Gradient for Border -->
+    <linearGradient id="alt1-border" x1="6" y1="6" x2="90" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#45C4D6"/>
+      <stop offset="40%" stop-color="#0A5A78"/>
+      <stop offset="75%" stop-color="#06445C"/>
+      <stop offset="100%" stop-color="#14212B"/>
+    </linearGradient>
+
+    <!-- Deep Ocean Water Column Gradient -->
+    <linearGradient id="alt1-water" x1="48" y1="6" x2="48" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0E1728"/>
+      <stop offset="50%" stop-color="#0A1222"/>
+      <stop offset="100%" stop-color="#070D1A"/>
+    </linearGradient>
+
+    <!-- Ambient Oceanic Aura -->
+    <radialGradient id="alt1-aura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#45C4D6" stop-opacity="0.6"/>
+      <stop offset="40%" stop-color="#0A5A78" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#070D1A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Satellite Surface Glint Gradient -->
+    <linearGradient id="alt1-glint" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#45C4D6" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#45C4D6" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <style>
+    /* 1. Ambient Background Breathing */
+    @keyframes alt1AuraPulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.96); }
+      50% { opacity: 0.85; transform: scale(1.06); }
+    }
+    .alt1-aura {
+      transform-origin: 48px 48px;
+      animation: alt1AuraPulse 3.8s ease-in-out infinite;
+    }
+
+    /* 2. Sequential Vertical Depth Stratification Pulse (Surface -> Thermocline -> Abyss) */
+    @keyframes alt1SurfacePulse {
+      0%, 100% { stroke: #FFFFFF; opacity: 0.85; }
+      18% { stroke: #FFFFFF; opacity: 1; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8)); }
+      35% { stroke: #FFFFFF; opacity: 0.85; filter: none; }
+    }
+    @keyframes alt1ThermoPulse {
+      0%, 25%, 100% { stroke: #45C4D6; opacity: 0.85; }
+      43% { stroke: #DDEBF0; opacity: 1; filter: drop-shadow(0 0 7px rgba(69, 196, 214, 0.9)); }
+      60% { stroke: #45C4D6; opacity: 0.85; filter: none; }
+    }
+    @keyframes alt1AbyssPulse {
+      0%, 50%, 100% { stroke: #0A5A78; opacity: 0.55; }
+      68% { stroke: #45C4D6; opacity: 0.9; filter: drop-shadow(0 0 6px rgba(10, 90, 120, 0.8)); }
+      85% { stroke: #0A5A78; opacity: 0.55; filter: none; }
+    }
+    .alt1-layer-surface { animation: alt1SurfacePulse 3.0s ease-in-out infinite; }
+    .alt1-layer-thermo { animation: alt1ThermoPulse 3.0s ease-in-out infinite; }
+    .alt1-layer-abyss { animation: alt1AbyssPulse 3.0s ease-in-out infinite; }
+
+    /* 3. Surface Satellite Sweep Glint */
+    @keyframes alt1SurfaceScan {
+      0% { transform: translateX(-52px); opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { transform: translateX(56px); opacity: 0; }
+    }
+    .alt1-glint-scan { animation: alt1SurfaceScan 2.5s ease-in-out infinite; }
+
+    /* 4. Smooth Acoustic Transponder Rings */
+    @keyframes alt1SonarWave1 {
+      0% { transform: scale(0.5); opacity: 0; stroke-width: 2.2px; }
+      20% { opacity: 0.95; stroke: #45C4D6; }
+      75% { opacity: 0.3; stroke: #0A5A78; }
+      100% { transform: scale(2.2); opacity: 0; stroke-width: 0.8px; }
+    }
+    @keyframes alt1SonarWave2 {
+      0%, 30% { transform: scale(0.5); opacity: 0; stroke-width: 2.2px; }
+      50% { opacity: 0.9; stroke: #DDEBF0; }
+      85% { opacity: 0.25; stroke: #0A5A78; }
+      100% { transform: scale(2.2); opacity: 0; stroke-width: 0.8px; }
+    }
+    .alt1-sonar-1 { transform-origin: 56px 48px; animation: alt1SonarWave1 2.2s ease-out infinite; }
+    .alt1-sonar-2 { transform-origin: 56px 48px; animation: alt1SonarWave2 2.2s ease-out infinite; }
+
+    /* 5. Beacon Heartbeat */
+    @keyframes alt1BeaconBeat {
+      0%, 100% { fill: #45C4D6; transform: scale(1); }
+      50% { fill: #FFFFFF; transform: scale(1.35); }
+    }
+    .alt1-beacon-core { transform-origin: 56px 48px; animation: alt1BeaconBeat 2.2s ease-in-out infinite; }
+
+    /* Typography */
+    .oe-wordmark {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-size: 72px;
+      letter-spacing: -1.2px;
+    }
+    .oe-ocean { font-weight: 600; fill: #FFFFFF; }
+    .oe-embed { font-weight: 600; fill: #45C4D6; }
+
+    /* Light Theme Adaptation */
+    @media (prefers-color-scheme: light) {
+      .alt1-casing-bg { fill: #F7F6F2 !important; stroke: #0A5A78 !important; }
+      .alt1-layer-surface { stroke: #14212B !important; }
+      .alt1-layer-thermo { stroke: #0A5A78 !important; }
+      .alt1-layer-abyss { stroke: #0A5A78 !important; }
+      .oe-ocean { fill: #14212B; }
+      .oe-embed { fill: #0A5A78; }
+    }
+  </style>
+
+  <!-- Lockup Container (viewBox 610x116, translate 18, 10) -->
+  <g transform="translate(18, 10)">
+    <!-- Emblem Container (84x84) -->
+    <g transform="translate(0, 0)">
+      <!-- Ambient Oceanic Aura -->
+      <ellipse cx="48" cy="48" rx="54" ry="54" fill="url(#alt1-aura)" class="alt1-aura"/>
+
+      <!-- Clean, Spacious Dark Squircle -->
+      <rect x="6" y="6" width="84" height="84" rx="22"
+            fill="url(#alt1-water)"
+            stroke="url(#alt1-border)"
+            stroke-width="4.5"
+            stroke-linejoin="round"
+            class="alt1-casing-bg"/>
+
+      <!-- Inner Subtle Border Highlight -->
+      <rect x="9.5" y="9.5" width="77" height="77" rx="19"
+            fill="none"
+            stroke="#45C4D6"
+            stroke-width="0.8"
+            stroke-opacity="0.35"/>
+
+      <!-- Clip-path for Surface Scan Glint -->
+      <clipPath id="alt1-surface-clip">
+        <rect x="18.5" y="29.5" width="59" height="7" rx="3.5"/>
+      </clipPath>
+
+      <!-- 3-Tier Bathymetric Stratification Layers (Clean, Spacious, Bold) -->
+      <!-- Layer 1: Sea Surface (0m, Wide) -->
+      <line x1="22" y1="33" x2="74" y2="33"
+            stroke="#FFFFFF"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            class="alt1-layer-surface"/>
+
+      <!-- Satellite Microwave Scan Glint -->
+      <g clip-path="url(#alt1-surface-clip)">
+        <rect x="22" y="29" width="24" height="8" fill="url(#alt1-glint)" class="alt1-glint-scan"/>
+      </g>
+
+      <!-- Layer 2: Thermocline (50-200m, Medium) -->
+      <line x1="22" y1="48" x2="56" y2="48"
+            stroke="#45C4D6"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            class="alt1-layer-thermo"/>
+
+      <!-- Layer 3: Deep Ocean Abyss (1000m, Short, 55% Opacity) -->
+      <line x1="22" y1="63" x2="38" y2="63"
+            stroke="#0A5A78"
+            stroke-width="7.0"
+            stroke-linecap="round"
+            opacity="0.55"
+            class="alt1-layer-abyss"/>
+
+      <!-- In-Situ Argo Float Transponder at Thermocline Node -->
+      <circle cx="56" cy="48" r="9" fill="none" stroke="#45C4D6" stroke-width="1.8" class="alt1-sonar-1"/>
+      <circle cx="56" cy="48" r="9" fill="none" stroke="#DDEBF0" stroke-width="1.4" class="alt1-sonar-2"/>
+      <circle cx="56" cy="48" r="3.4" fill="#45C4D6" class="alt1-beacon-core"/>
+      <circle cx="55.2" cy="47.2" r="1.1" fill="#FFFFFF" opacity="0.95"/>
+    </g>
+
+    <!-- Wordmark "OceanEmbed" (72px, guaranteed zero cutoff with 610px width) -->
+    <text x="116" y="74" class="oe-wordmark">
+      <tspan class="oe-ocean">Ocean</tspan><tspan class="oe-embed">Embed</tspan>
+    </text>
+  </g>
+</svg>

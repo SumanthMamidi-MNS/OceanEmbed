@@ -114,6 +114,7 @@ def stats(config: ConfigOpt) -> None:
 def pretrain(
     config: ConfigOpt,
     device: Annotated[str | None, typer.Option(help="e.g. cuda, cpu (default: auto).")] = None,
+    seed: Annotated[int | None, typer.Option(help="Random seed (default: pretrain.seed).")] = None,
 ) -> None:
     """Self-supervised masked-surface pretraining of the embedding encoder."""
     from oceanembed.train.pretrain import run_pretrain
@@ -121,7 +122,7 @@ def pretrain(
     _setup_logging()
     cfg = _load_run(config)
     t0 = time.time()
-    best = run_pretrain(cfg, device=device)
+    best = run_pretrain(cfg, device=device, seed=seed)
     typer.echo(
         f"best epoch {best['epoch']}: masked val MSE {best['val_loss']:.4f} "
         f"vs mean-fill {best['val_meanfill']:.4f} -> {best['checkpoint']} "
@@ -141,6 +142,7 @@ def train(
         str | None, typer.Option(help="Checkpoint suffix: recon_<tag>.pt (default scratch).")
     ] = None,
     device: Annotated[str | None, typer.Option(help="e.g. cuda, cpu (default: auto).")] = None,
+    seed: Annotated[int | None, typer.Option(help="Random seed (default: train.seed).")] = None,
 ) -> None:
     """Supervised training of the 15-depth temperature reconstruction model."""
     from oceanembed.train.train import run_train
@@ -148,7 +150,7 @@ def train(
     _setup_logging()
     cfg = _load_run(config)
     t0 = time.time()
-    best = run_train(cfg, pretrained=not no_pretrained, tag=tag, device=device)
+    best = run_train(cfg, pretrained=not no_pretrained, tag=tag, device=device, seed=seed)
     typer.echo(
         f"best epoch {best['epoch']} of {best['epochs_run']}: val RMSE {best['val_rmse']:.3f} degC "
         f"-> {best['checkpoint']} ({time.time() - t0:.0f}s, "
@@ -461,6 +463,168 @@ def run_all(
         typer.echo(f"  {name:<14} {status:<8} {dt:7.0f}s")
     typer.echo(f"  {'total':<14} {'':<8} {time.time() - t_all:7.0f}s")
     typer.echo(f"outputs: {cfg.outputs_dir}")
+
+
+research_app = typer.Typer(
+    help="Research stages: seeds, confidence intervals, stronger baselines (docs/usage.md).",
+    no_args_is_help=True,
+)
+app.add_typer(research_app, name="research")
+
+
+def _csv(values: list[str] | None, cast=str) -> list | None:
+    """Repeated and/or comma-separated option values -> one flat list (None when not given)."""
+    if not values:
+        return None
+    return [cast(v) for item in values for v in item.split(",") if v.strip()]
+
+
+@research_app.command("r1")
+def research_r1(
+    config: ConfigOpt,
+    seeds: Annotated[
+        list[str] | None,
+        typer.Option("--seeds", help="Seeds, comma separated or repeated (default 0,1,2,3,4)."),
+    ] = None,
+    methods: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--methods",
+            help="oceanembed, scratch, unet, mlp, ridge, climatology (default: all).",
+        ),
+    ] = None,
+    mlp_seeds: Annotated[
+        int, typer.Option(help="The MLP trains for the first N of the seeds.")
+    ] = 3,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing/--no-skip-existing",
+            help="Skip finished (method, seed) jobs; --no-skip-existing retrains them.",
+        ),
+    ] = True,
+    device: DeviceOpt = None,
+) -> None:
+    """R1: train every method for every seed and score it on the test split (resumable).
+
+    Writes only under outputs/<run>/research/r1/; the main run's artefacts are never touched."""
+    from oceanembed.research.r1 import DEFAULT_SEEDS, r1_dir, run_r1
+
+    _setup_logging()
+    cfg = load_config(config)
+    t0 = time.time()
+    try:
+        results = run_r1(
+            cfg,
+            _csv(seeds, int) or list(DEFAULT_SEEDS),
+            _csv(methods),
+            mlp_seeds,
+            skip_existing,
+            device,
+        )
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    n_new = sum(r["status"] == "done" for r in results)
+    typer.echo(
+        f"{n_new} job(s) run, {len(results) - n_new} skipped in {time.time() - t0:.0f}s -> "
+        f"{r1_dir(cfg)}"
+    )
+
+
+@research_app.command("r1-report")
+def research_r1_report(
+    config: ConfigOpt,
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None,
+        typer.Option(help="Block length in days (default: from the autocorrelation of the data)."),
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """R1: summary.json, summary.md and figures from the finished research/r1 jobs."""
+    from oceanembed.research.r1 import r1_dir
+    from oceanembed.research.r1_report import make_r1_report
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        summary = make_r1_report(cfg, n_boot=n_boot, block_length=block_length, seed=seed)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    bs = summary["settings"]["bootstrap"]
+    typer.echo(
+        f"wrote {r1_dir(cfg)}/summary.json, summary.md, figures/ "
+        f"(block length {bs['block_length_days']} days, {bs['n_replicates']} replicates)"
+    )
+
+
+@research_app.command("r4")
+def research_r4(
+    config: ConfigOpt,
+    download: Annotated[
+        bool,
+        typer.Option(
+            "--download/--no-download",
+            help="Download the ARMOR3D months that are missing (needs Copernicus Marine login).",
+        ),
+    ] = True,
+    recompute: Annotated[
+        bool, typer.Option(help="Redo the regridding and the scoring pass (downloads are kept).")
+    ] = False,
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None, typer.Option(help="Block length in days (default: from the autocorrelation).")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """R4: ARMOR3D (observation-based product) vs OceanEmbed, baselines, GLORYS and Argo.
+
+    Downloads, regrids, scores and writes outputs/<run>/research/r4/ (resumable)."""
+    from oceanembed.data.providers.base import MissingCredentialsError
+    from oceanembed.research.r4 import r4_dir, run_r4
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        run_r4(cfg, download, recompute, n_boot, block_length, seed)
+    except (MissingCredentialsError, FileNotFoundError, ValueError) as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(f"wrote {r4_dir(cfg)}/summary.json, summary.md, figures/")
+
+
+@research_app.command("r5")
+def research_r5(
+    config: ConfigOpt,
+    recompute: Annotated[
+        bool, typer.Option(help="Redo the streaming pass even if sums.npz exists.")
+    ] = False,
+    mlp_seed: Annotated[
+        int, typer.Option(help="Seed of the R1 per-pixel MLP checkpoint to include (if present).")
+    ] = 0,
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None, typer.Option(help="Block length in days (default: from the autocorrelation).")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """R5: derived physical quantities (D20, D23, heat content) and stratified skill (CPU only).
+
+    Streams the test split from the existing predictions; writes outputs/<run>/research/r5/."""
+    from oceanembed.research.r5 import SUMS_FILE, r5_dir, run_r5
+    from oceanembed.research.r5_report import make_r5_report
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        if recompute or not (r5_dir(cfg) / SUMS_FILE).exists():
+            run_r5(cfg, mlp_seed=mlp_seed)
+        make_r5_report(cfg, n_boot=n_boot, block_length=block_length, seed=seed)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(f"wrote {r5_dir(cfg)}/summary.json, summary.md, figures/")
 
 
 @app.command()

@@ -211,6 +211,9 @@ class ModelConfig(_Base):
     mlp_ratio: float = 4.0
     stem_channels: int = 64
     n_depths: int = 15
+    # "transformer": the OceanEmbed encoder. "unet": the Transformer blocks are replaced by residual
+    # convolution blocks of the same width (research baseline; see models/encoder.py).
+    arch: Literal["transformer", "unet"] = "transformer"
 
 
 class PretrainConfig(_Base):
@@ -250,6 +253,20 @@ class BaselineConfig(_Base):
     seed: int = 0
 
 
+class MlpConfig(_Base):
+    """Per-pixel MLP baseline (research stage R1): the ridge features, a non-linear model."""
+
+    hidden: int = 256
+    layers: int = 3  # hidden layers
+    max_points: int = 1_000_000  # random train (day, pixel) samples
+    val_points: int = 200_000  # fixed random val sample for early stopping
+    epochs: int = 30
+    batch_size: int = 4096
+    lr: float = 1e-3
+    weight_decay: float = 1e-4
+    patience: int = 5
+
+
 class AblationConfig(_Base):
     """Optional extra training run(s) that ``run-all`` performs and publishes next to the model."""
 
@@ -284,6 +301,7 @@ class Config(_Base):
     pretrain: PretrainConfig = Field(default_factory=PretrainConfig)
     train: TrainConfig = Field(default_factory=TrainConfig)
     baseline: BaselineConfig = Field(default_factory=BaselineConfig)
+    mlp: MlpConfig = Field(default_factory=MlpConfig)
     ablation: AblationConfig = Field(default_factory=AblationConfig)
 
     @field_validator("products")

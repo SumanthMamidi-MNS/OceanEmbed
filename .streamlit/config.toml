@@ -1,0 +1,27 @@
+# OceanEmbed dashboard: dark deep-ocean theme (tokens documented in docs/design.md).
+[theme]
+base = "dark"
+primaryColor = "#45C4D6"
+backgroundColor = "#070D1A"
+secondaryBackgroundColor = "#0E1728"
+textColor = "#E6ECF5"
+borderColor = "#1F2C44"
+linkColor = "#45C4D6"
+font = "sans-serif"
+baseRadius = "medium"
+showWidgetBorder = true
+
+[theme.sidebar]
+backgroundColor = "#0A1222"
+secondaryBackgroundColor = "#142037"
+borderColor = "#1F2C44"
+
+[client]
+# navigation is rendered by app/ui/components.py (readable page names)
+showSidebarNavigation = false
+# pages show their own readable empty / error states, never a traceback
+showErrorDetails = "none"
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

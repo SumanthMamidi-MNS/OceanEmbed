@@ -80,18 +80,14 @@ def sample_points(ds: OceanDataset, max_points: int, seed: int):
     Returns ``features (n, 11)``, ``target (n, D)`` and ``valid (n, D)`` for samples whose 7
     surface values were all observed.
     """
-    a = ds.arrays()
     n_days = len(ds)
-    h, w = ds.shape
     ocean = np.flatnonzero(ds.mask[0].reshape(-1))
     rng = np.random.default_rng(seed)
     n = min(max_points, n_days * len(ocean))
     t = rng.integers(0, n_days, n)
     p = ocean[rng.integers(0, len(ocean), n)]
-    surf = a["surf"].reshape(n_days, N_SURFACE, h * w)[t, :, p]  # (n, 7)
-    ok = a["sv"].reshape(n_days, N_SURFACE, h * w)[t, :, p].all(axis=1)
-    y = a["y"].reshape(n_days, -1, h * w)[t, :, p]  # (n, D)
-    valid = a["valid"].reshape(n_days, -1, h * w)[t, :, p]
+    surf, sv, y, valid = ds.gather(t, p)  # (n, 7), (n, 7), (n, D), (n, D)
+    ok = sv.all(axis=1)
     lat = ds._lat_plane.reshape(-1)[p]
     lon = ds._lon_plane.reshape(-1)[p]
     feats = np.column_stack([surf, ds._sin[t], ds._cos[t], lat, lon]).astype(np.float32)
@@ -147,8 +143,8 @@ def rmse_per_depth(predictor, ds: OceanDataset, batch_size: int = 16) -> np.ndar
     for i in range(0, len(ds), batch_size):
         batch = [ds[j] for j in range(i, min(i + batch_size, len(ds)))]
         x = torch.stack([b["x"] for b in batch])
-        y = torch.from_numpy(a["y"][i : i + len(batch)])
-        m = torch.from_numpy(a["valid"][i : i + len(batch)])
+        y = torch.from_numpy(np.asarray(a["y"][i : i + len(batch)], dtype=np.float32))
+        m = torch.from_numpy(np.array(a["valid"][i : i + len(batch)]))
         err = torch.where(m, (predictor(x).float() - y) * sd, 0.0).double()
         se += (err**2).sum(dim=(0, 2, 3)).numpy()
         cnt += m.sum(dim=(0, 2, 3)).numpy()

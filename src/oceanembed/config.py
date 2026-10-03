@@ -245,6 +245,10 @@ class TrainConfig(_Base):
     seed: int = 0
     crop: tuple[int, int] | None = None  # as pretrain.crop
     num_workers: int = 0
+    # Where the train / validation arrays live: "ram" (preloaded, the default) or "memmap" (a
+    # one-off on-disk cache read by day, for periods too long for RAM; see data/dataset.py).
+    cache: Literal["ram", "memmap"] = "ram"
+    cache_dtype: Literal["float16", "float32"] = "float16"  # the memmap cache only
 
 
 class BaselineConfig(_Base):

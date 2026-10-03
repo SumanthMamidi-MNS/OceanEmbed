@@ -15,6 +15,7 @@ are stored as zero.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,6 +62,14 @@ class Stats:
     train_end: str
     n_train_days: int
     n_terms: int
+
+    def fingerprint(self) -> str:
+        """SHA-1 of everything the normalisation and the climatology depend on (cache validity)."""
+        h = hashlib.sha1()
+        for a in (self.input_mean, self.input_std, self.clim_coef, self.anom_std):
+            h.update(np.ascontiguousarray(a, dtype=np.float64 if a.ndim == 1 else np.float32))
+        h.update(f"{self.train_start}|{self.train_end}|{self.n_terms}".encode())
+        return h.hexdigest()
 
     def climatology(self, dates) -> np.ndarray:
         """Climatological temperature ``(n, D, H, W)`` float32 for the given dates."""

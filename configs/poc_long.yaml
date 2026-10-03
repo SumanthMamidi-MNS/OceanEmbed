@@ -75,6 +75,12 @@ argo:
   source: erddap
   qc_flags: [1, 2]
 
+# Eleven training years do not fit in RAM: the train / validation arrays are an on-disk cache read by
+# day (data/processed/cache/poc_long/, float16; rebuilt automatically if missing or stale).
+train:
+  cache: memmap
+  cache_dtype: float16
+
 # run-all also trains the no-pretraining ablation (checkpoint recon_scratch.pt, one extra `train`
 # run) and predicts it (predictions/scratch/), so the pretraining decision comes from this run;
 # the ridge product (predictions/ridge/) is always written.

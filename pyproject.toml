@@ -54,6 +54,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/oceanembed/api/*" = ["E501"]  # long OpenAPI description strings
+"docs/assets/badges/*" = ["E501"]  # inline SVG path data
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

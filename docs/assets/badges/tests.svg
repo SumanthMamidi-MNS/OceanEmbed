@@ -26,5 +26,5 @@
   <text x="32" y="20" class="badge-label">Tests</text>
   <rect x="74" y="3.5" width="122" height="25" rx="4.5" fill="url(#tests-grad)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
   <rect x="74" y="3.5" width="122" height="25" rx="4.5" fill="url(#tests-gloss)"/>
-  <text x="135.0" y="20" text-anchor="middle" class="badge-value">219 Py · 163 UI</text>
+  <text x="135.0" y="20" text-anchor="middle" class="badge-value">252 Py · 163 UI</text>
 </svg>

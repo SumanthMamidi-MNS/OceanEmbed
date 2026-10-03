@@ -1,0 +1,83 @@
+# Research stage R2: the same products and domain as poc.yaml over a longer period.
+# Starts in 2011 so that the whole period lies in the satellite-salinity era (SMOS from 2010).
+# Shares data/raw with poc.yaml: months already downloaded for 2018-2024 are reused.
+run_name: poc_long
+label: "Indian Ocean, long training period (2011-2024)"
+description: "Real reanalysis, satellite and Argo data for the Indian Ocean (5-30 N, 45-105 E), 2011-2024: trained on 2011-2021, checkpoints chosen on 2022, scored on 2023 and 2024."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2011-01-01
+  end: 2024-12-15
+
+split:
+  train: [2011-01-01, 2021-12-31]   # 11 years
+  val: [2022-01-01, 2022-12-31]     # 1 year
+  test: [2023-01-01, 2024-12-15]    # two test years, scored separately
+
+provider: real
+
+products:
+  sst:
+    provider: cmems
+    datasets:
+      - id: METOFFICE-GLO-SST-L4-REP-OBS-SST
+    variables: {sst: analysed_sst}
+  sss:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-mob_glo_phy-sss_my_multi_P1D
+    variables: {sss: sos}
+  sla:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D
+    variables: {sla: sla}
+  currents:
+    provider: podaac
+    datasets:
+      - id: OSCAR_L4_OC_FINAL_V2.0
+    variables: {uo: u, vo: v}
+  winds:
+    provider: podaac
+    datasets:
+      - id: CCMP_WINDS_10M6HR_L4_V3.1
+    variables: {uw: uwnd, vw: vwnd}
+  temp:
+    provider: cmems
+    datasets:
+      - id: cmems_mod_glo_phy_my_0.083deg_P1D-m
+    variables: {temp: thetao}
+    min_depth: 0.0
+    max_depth: 1100.0
+
+download:
+  halo_deg: 0.5
+  overwrite: false
+  # OSCAR / CCMP: per-granule OPeNDAP server-side subsetting (~0.2 / ~0.75 MB per day, verified live
+  # 2026-10-02), falling back automatically to whole global granules (~32 MB) if it is refused.
+  podaac_mode: opendap   # opendap | granule
+  workers: 4             # concurrent PO.DAAC requests
+  delete_global_granules: true   # only relevant on the granule route / fallback
+
+argo:
+  source: erddap
+  qc_flags: [1, 2]
+
+# run-all also trains the no-pretraining ablation (checkpoint recon_scratch.pt, one extra `train`
+# run) and predicts it (predictions/scratch/), so the pretraining decision comes from this run;
+# the ridge product (predictions/ridge/) is always written.
+ablation:
+  no_pretrained: true
+  tag: scratch

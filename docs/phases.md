@@ -95,6 +95,19 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 
 **R5 result:** D20 RMSE 13.8 m (climatology 17.6, ridge 15.0, per-pixel MLP 14.1); 0–300 m heat content 0.72 vs 1.02 ×10⁹ J m⁻². The eddy-regime hypothesis is not supported. The advantage of the spatial model over the per-pixel MLP is confined to the Bay of Bengal, largest in the winter monsoon (0.39 °C) and in the freshest surface water (0.34 °C in the freshest tercile, 0.04 in the saltiest), and absent in the summer monsoon and in the Arabian Sea.
 
+## Phase 11 — Live nowcast (an added section; the evaluated results stay untouched)
+
+Starts after R2 and R3 have finished, so that it uses the final headline model and does not change code under running jobs.
+
+- [ ] L1 Near-real-time inputs: `configs/live.yaml` with the NRT counterparts of the seven surface fields (dataset ids and publication delays verified against the live catalogues), a rolling window of recent days, the same grid and the training statistics of the headline model
+- [ ] L2 `oceanembed live update`: fetch the days that are newly available (resumable), harmonise, reconstruct with the headline model, append to a rolling `live` run that follows the normal run contract; record per day which inputs were available and how old they were
+- [ ] L3 Honesty checks before anything is shown as "live": (a) input shift — for an overlap period run the model on reprocessed and on NRT inputs and measure the difference by depth; (b) running verification — score each new day against Argo profiles as they are published, and against the operational Mercator analysis where available; rolling 30-day error next to climatology
+- [ ] L4 Dashboard: a sixth view, "Live" — latest reconstructed day, freshness of each input, rolling accuracy, clearly labelled as a same-day reconstruction (nowcast), not a forecast; the five existing views and their numbers do not change
+- [ ] L5 Operation: one command to update; an optional scheduled daily run that the owner enables; documented in the runbook
+- [ ] L6 README: a short "Live mode" section at the end
+
+**Success:** `oceanembed live update` brings the window up to the latest available day from a cold start and from a previous state; the Live view shows the date of each input and the rolling error; the input-shift check is reported with numbers.
+
 ## Notes
 
 - Synthetic results only prove the pipeline works; they are never to be presented as scientific skill.

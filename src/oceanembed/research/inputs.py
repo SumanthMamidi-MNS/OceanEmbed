@@ -30,7 +30,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from oceanembed.config import SURFACE_VARS, Config
+from oceanembed.config import INPUT_GROUPS, SURFACE_VARS, Config
 from oceanembed.data.dataset import (
     N_INPUT_CHANNELS,
     N_SURFACE,
@@ -40,13 +40,7 @@ from oceanembed.data.dataset import (
 )
 from oceanembed.models.baselines import FEATURE_CHANNELS
 
-GROUPS: dict[str, tuple[str, ...]] = {
-    "sst": ("sst",),
-    "sss": ("sss",),
-    "sla": ("sla",),
-    "currents": ("uo", "vo"),
-    "winds": ("uw", "vw"),
-}
+GROUPS: dict[str, tuple[str, ...]] = INPUT_GROUPS  # defined in oceanembed.config
 GROUP_LABELS = {
     "sst": "SST",
     "sss": "salinity",

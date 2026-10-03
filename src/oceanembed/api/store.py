@@ -53,17 +53,18 @@ KIND_LABELS = {
     "anomaly_target": "Target anomaly (target minus climatology)",
 }
 MAIN_METHOD = "model"
+BASELINE_METHODS = ("ridge", "mlp")  # prediction products of the baselines
 RANGE_SAMPLE_DAYS = 24
 METHOD_KINDS = ("prediction", "difference", "anomaly_pred")
 
 
-def kind_label(kind: str, method: str = MAIN_METHOD) -> str:
+def kind_label(kind: str, method: str = MAIN_METHOD, main_init: str = "pretrained") -> str:
     """Label of a field kind. The kinds that depend on the prediction method all follow one pattern,
     ``<method label> prediction`` / ``<method label> minus GLORYS`` / ``<method label> anomaly
     (prediction minus climatology)``, for the model and every other method alike."""
     if kind not in METHOD_KINDS:
         return KIND_LABELS[kind]
-    name = method_label(method)
+    name = method_label(method, main_init)
     return {
         "prediction": f"{name} prediction",
         "difference": f"{name} minus GLORYS",
@@ -72,10 +73,10 @@ def kind_label(kind: str, method: str = MAIN_METHOD) -> str:
 
 
 def method_kind(key: str) -> str:
-    """``model`` | ``baseline`` (ridge) | ``ablation`` (a tagged ``model_<tag>`` product)."""
+    """``model`` | ``baseline`` (ridge, mlp) | ``ablation`` (a tagged ``model_<tag>`` product)."""
     if key == MAIN_METHOD:
         return "model"
-    return "baseline" if key == "ridge" else "ablation"
+    return "baseline" if key in BASELINE_METHODS else "ablation"
 
 
 class ApiError(Exception):
@@ -152,6 +153,11 @@ class Run:
     @cached_property
     def config(self) -> Config:
         return Config.model_validate(self.meta["config"])
+
+    @property
+    def main_init(self) -> str:
+        """``pretrained`` | ``scratch``: how the run's main model was initialised."""
+        return self.config.model.main_init
 
     @cached_property
     def grid(self) -> Grid:
@@ -269,7 +275,7 @@ class Store:
         return int(np.abs(g.lat - lat).argmin()), int(np.abs(g.lon - lon).argmin())
 
     def method(self, run: Run, key: str | None) -> str:
-        """Validated prediction method (``model`` | ``ridge`` | ``model_<tag>``); 404 when that
+        """Validated prediction method (``model`` | ``ridge`` | ``mlp`` | ``model_<tag>``); 404 when that
         method has no day-field product in this run. ``model`` is never checked here (a run
         without predictions fails later with its own message)."""
         key = key or MAIN_METHOD
@@ -291,7 +297,7 @@ class Store:
                 out.append(
                     {
                         "key": key,
-                        "label": method_label(key),
+                        "label": method_label(key, run.main_init),
                         "kind": method_kind(key),
                         "tag": key.removeprefix("model_") if key.startswith("model_") else None,
                         "n_days": int(len(days)),
@@ -504,7 +510,7 @@ class Store:
         out_methods = {}
         for m in methods:
             out_methods[m] = {
-                "label": method_label(m),
+                "label": method_label(m, run.main_init),
                 "kind": method_kind(m),
                 "difference": [sym(diff[m][k]) for k in range(n_depth)] if have_target else None,
                 "anomaly": [sym(anom[m][k]) for k in range(n_depth)] if have_clim else None,

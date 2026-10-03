@@ -130,7 +130,10 @@ def process_variable(
     return full
 
 
-def harmonize(cfg: Config, progress: bool = True) -> Path:
+def harmonize(cfg: Config, progress: bool = True, surface_only: bool = False) -> Path:
+    """Build the harmonised store. ``surface_only`` skips the GLORYS temperature: the store then
+    holds the five surface products only (``temp`` stays NaN, the ocean ``mask`` is all False) --
+    enough to predict with released weights, which carry their own mask and statistics."""
     grid = build_grid(cfg)
     time = daily_axis(cfg.time.start, cfg.time.end)
     store = cfg.zarr_path
@@ -152,7 +155,8 @@ def harmonize(cfg: Config, progress: bool = True) -> Path:
         mdays = daily_axis(first, last)
         i0 = int(time.get_loc(mdays[0]))
         opened: dict[str, xr.Dataset] = {
-            p: _open_month(cfg, p, first) for p in [*SURFACE_PRODUCTS, "temp"]
+            p: _open_month(cfg, p, first)
+            for p in (SURFACE_PRODUCTS if surface_only else [*SURFACE_PRODUCTS, "temp"])
         }
         try:
             for s in range(0, len(mdays), chunk):
@@ -194,6 +198,8 @@ def harmonize(cfg: Config, progress: bool = True) -> Path:
                 ds.close()
 
     mask = valid_count >= max(1, int(np.ceil(0.5 * len(time))))
+    if surface_only:
+        mask = np.zeros_like(mask)  # unknown without the target: released weights bring theirs
     mds = xr.Dataset(
         {
             "mask": (

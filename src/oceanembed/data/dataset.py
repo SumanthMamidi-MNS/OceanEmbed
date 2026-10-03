@@ -41,7 +41,7 @@ import torch
 import xarray as xr
 from torch.utils.data import Dataset
 
-from oceanembed.config import SURFACE_VARS, Config
+from oceanembed.config import INPUT_GROUPS, SURFACE_VARS, Config
 from oceanembed.data.stats import Stats, split_indices
 
 INPUT_CHANNELS = [*SURFACE_VARS, "ocean_mask", "doy_sin", "doy_cos", "lat_norm", "lon_norm"]
@@ -82,7 +82,27 @@ class OceanDataset(Dataset):
         self._cos = np.cos(phi).astype(np.float32)
         self._cache: dict[str, np.ndarray] | None = None
         self._memmap = False  # the cache arrays are read-only memory maps (see use_cache)
+        self._zero_surface: tuple[int, ...] = ()  # surface channels of dropped input groups
         self._ds = None  # do not keep an open handle (pickling / workers)
+
+    # --- input groups ----------------------------------------------------------------
+    def set_input_groups(self, groups) -> OceanDataset:
+        """Keep only the surface inputs of ``groups``: every other surface channel is zeroed (the
+        training mean, in standardised units) in the inputs ``x`` / ``gather`` return. The cached
+        arrays are never changed, so one cache serves every input set. Returns ``self``."""
+        keep = {v for g in groups for v in INPUT_GROUPS[g]}
+        self._zero_surface = tuple(i for i, v in enumerate(SURFACE_VARS) if v not in keep)
+        return self
+
+    def _zero_surf(self, surf: np.ndarray, axis: int) -> np.ndarray:
+        """``surf`` with the dropped channels (on ``axis``) set to 0 -- a copy, never in place."""
+        if not self._zero_surface:
+            return surf
+        surf = np.array(surf, dtype=np.float32, copy=True)
+        index = [slice(None)] * surf.ndim
+        index[axis] = list(self._zero_surface)
+        surf[tuple(index)] = 0.0
+        return surf
 
     # --- lazy zarr handle -------------------------------------------------------------
     def _open(self) -> xr.Dataset:
@@ -297,6 +317,13 @@ class OceanDataset(Dataset):
         (default ``surf (n,7)``, ``sv (n,7)``, ``y (n,D)``, ``valid (n,D)``), as a tuple. A RAM
         cache is indexed directly; a memory map is read day by day (each day's block once) instead
         of one scattered read per sample."""
+        out = self._gather(t, p, names)
+        if self._zero_surface and "surf" in names:
+            i = names.index("surf")
+            out = (*out[:i], self._zero_surf(out[i], axis=1), *out[i + 1 :])
+        return out
+
+    def _gather(self, t: np.ndarray, p: np.ndarray, names: tuple[str, ...]):
         a = self.arrays()
         n_days, (h, w) = len(self), self.shape
         if not self._memmap:
@@ -348,7 +375,7 @@ class OceanDataset(Dataset):
         planes[2] = self._cos[i]
         planes[3] = self._lat_plane
         planes[4] = self._lon_plane
-        x = np.concatenate([surf, planes])
+        x = np.concatenate([self._zero_surf(surf, axis=0), planes])
         ti = int(self.indices[i])
         return {
             "x": torch.from_numpy(x),
@@ -395,6 +422,7 @@ class SurfaceOnlyDataset(OceanDataset):
         sl = slice(int(ti[0]), int(ti[-1]) + 1)
         raw = np.stack([ds[v].isel(time=sl).values for v in SURFACE_VARS], axis=1)
         surf, ok = self._standardise_surface(raw)
+        surf = self._zero_surf(surf, axis=1)
         n, (h, w) = len(idx), self.shape
         planes = np.empty((n, 5, h, w), np.float32)
         planes[:, 0] = self.mask[0]
@@ -420,16 +448,39 @@ class SurfaceOnlyDataset(OceanDataset):
         raise NotImplementedError("SurfaceOnlyDataset reads inputs on demand")
 
 
-def make_surface_dataset(cfg: Config, start, end) -> SurfaceOnlyDataset:
-    """Inputs-only dataset for an arbitrary date range inside the harmonised store."""
-    return SurfaceOnlyDataset(cfg.zarr_path, Stats.load(cfg.stats_path), start, end)
+def _stats_for(cfg: Config, stats: Stats | None = None) -> Stats:
+    """The run's statistics (or the given ``stats``); a run that shares another run's store must
+    have been fitted on the same train period."""
+    if stats is None:
+        stats = Stats.load(cfg.stats_path)
+    if cfg.shares_store:
+        want = (str(cfg.split.train.start), str(cfg.split.train.end))
+        if (stats.train_start, stats.train_end) != want:
+            raise ValueError(
+                f"the statistics of store '{cfg.store_name}' were fitted on "
+                f"{stats.train_start} .. {stats.train_end}, but this config trains on "
+                f"{want[0]} .. {want[1]}"
+            )
+    return stats
+
+
+def make_surface_dataset(
+    cfg: Config, start, end, *, stats: Stats | None = None, mask: np.ndarray | None = None
+) -> SurfaceOnlyDataset:
+    """Inputs-only dataset for an arbitrary date range inside the harmonised store, with the
+    config's input groups applied. ``stats`` / ``mask`` replace the run's statistics file and the
+    store's ocean mask (prediction from released weights)."""
+    ds = SurfaceOnlyDataset(cfg.zarr_path, _stats_for(cfg, stats), start, end)
+    if mask is not None:
+        ds.mask = np.asarray(mask, dtype=bool)
+    return ds.set_input_groups(cfg.model.input_groups)
 
 
 def make_dataset(cfg: Config, split: str, preload: bool = False) -> OceanDataset:
     """Dataset for ``'train' | 'val' | 'test'`` using the config's date ranges and saved stats."""
-    stats = Stats.load(cfg.stats_path)
     r = cfg.split.get(split)
-    ds = OceanDataset(cfg.zarr_path, stats, r.start, r.end)
+    ds = OceanDataset(cfg.zarr_path, _stats_for(cfg), r.start, r.end)
+    ds.set_input_groups(cfg.model.input_groups)
     if not preload:
         return ds
     if cfg.train.cache == "memmap":
@@ -438,7 +489,8 @@ def make_dataset(cfg: Config, split: str, preload: bool = False) -> OceanDataset
 
 
 def cache_dir(cfg: Config, split: str) -> Path:
-    """Folder of a split's on-disk cache: ``<data_root>/processed/cache/<run>/<split>_...``."""
+    """Folder of a split's on-disk cache: ``<data_root>/processed/cache/<store>/<split>_...``
+    (the store is the run itself unless ``paths.store`` points at another run's data)."""
     r = cfg.split.get(split)
     name = f"{split}_{r.start:%Y%m%d}_{r.end:%Y%m%d}_{cfg.train.cache_dtype}"
-    return cfg.processed_root / "cache" / cfg.run_name / name
+    return cfg.processed_root / "cache" / cfg.store_name / name

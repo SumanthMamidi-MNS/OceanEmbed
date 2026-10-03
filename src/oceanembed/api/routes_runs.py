@@ -218,7 +218,10 @@ def run_detail(request: Request, run: Run = Depends(run_dep), store: Store = Dep
             k: (cfg.get("train") or {}).get(k)
             for k in ("epochs", "batch_size", "lr", "encoder_lr_scale", "patience", "vertical_grad_weight")
         },
-        "inputs": ["sst", "sss", "sla", "uo", "vo", "uw", "vw"],
+        "inputs": run.config.model.input_variables,
+        "input_groups": run.config.model.input_groups,
+        "dropped_input_groups": run.config.model.dropped_groups,
+        "main_init": run.config.model.main_init,
         "output": "temperature at the standard depths (standardised anomaly decoded to degC)",
     }  # fmt: skip
     products = []
@@ -232,6 +235,7 @@ def run_detail(request: Request, run: Run = Depends(run_dep), store: Store = Dep
         products.append(
             {
                 "variable": var,
+                "used_by_model": role != "input" or var in run.config.model.input_variables,
                 "role": role,
                 "long_name": long_name,
                 "units": units,
@@ -244,6 +248,7 @@ def run_detail(request: Request, run: Run = Depends(run_dep), store: Store = Dep
     products.append(
         {
             "variable": "argo",
+            "used_by_model": True,
             "role": "validation",
             "long_name": "Argo temperature profiles",
             "units": "degC",
@@ -564,7 +569,7 @@ def product(request: Request, run: Run = Depends(run_dep)):
         extra.append(
             {
                 "method": key,
-                "label": method_label(key),
+                "label": method_label(key, run.main_init),
                 "kind": method_kind(key),
                 "files": entries,
                 "total_size": sum(f["size"] for f in entries),

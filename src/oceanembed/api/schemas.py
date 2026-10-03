@@ -120,6 +120,9 @@ class MethodInfo(BaseModel):
 
 class DataProduct(BaseModel):
     variable: str
+    used_by_model: bool = Field(
+        True, description="False for an input variable the run's model does not use (input_groups)."
+    )
     role: Literal["input", "target", "validation"]
     long_name: str
     units: str
@@ -132,7 +135,7 @@ class DataProduct(BaseModel):
 class FieldMethod(BaseModel):
     key: str = Field(description="Value of the `method` query parameter.")
     label: str
-    kind: str = Field(description="model | baseline (ridge) | ablation (model_<tag>)")
+    kind: str = Field(description="model | baseline (ridge, mlp) | ablation (model_<tag>)")
     tag: str | None = Field(None, description="Ablation tag (model_<tag>), else null.")
     n_days: int
     first: str | None
@@ -344,6 +347,12 @@ class MetricsResponse(BaseModel):
         "{method: [time][depth]}, pooled_rmse / pooled_bias / pooled_corr_anom: {method: [time]} over "
         "pooled_range_m}; corr_anom is the spatial anomaly correlation of that day. Keys missing "
         "from older runs are absent (re-run `evaluate`).",
+    )
+    per_year: dict[str, Any] | None = Field(
+        None,
+        description="Present when the evaluated period spans several calendar years: "
+        "{year: {n_days | n_profiles, ..., overall, pooled, per_depth, per_basin}}, each block "
+        "shaped like the whole-period fields above. The whole-period fields stay as they were.",
     )
     extra: dict[str, Any] = Field(default_factory=dict, description="e.g. gridded_argo (vs Argo)")
 

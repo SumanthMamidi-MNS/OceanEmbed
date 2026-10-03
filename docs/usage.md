@@ -72,17 +72,20 @@ All commands take `--config/-c <yaml>`; run `oceanembed <command> --help` for de
 |---|---|---|
 | `synth` | write synthetic raw products at native resolutions | `--variable/-v` |
 | `download` | download real raw products (CMEMS, PO.DAAC, Argo); skips existing monthly files | `--variable/-v sst sss sla currents winds temp argo` (repeatable) |
-| `harmonize` | raw files to the harmonised Zarr store on the canonical grid | |
+| `harmonize` | raw files to the harmonised Zarr store on the canonical grid | `--surface-only` (no GLORYS target: enough for `predict --weights`) |
 | `stats` | train-split input statistics, harmonic climatology, anomaly std | |
 | `pretrain` | masked-surface self-supervised pretraining of the encoder | `--seed`, `--device` |
-| `train` | supervised 15-depth reconstruction training | `--no-pretrained`, `--tag`, `--seed`, `--device` |
+| `train` | supervised 15-depth reconstruction training of the main model (`model.main_init`) | `--no-pretrained`, `--pretrained`, `--tag`, `--seed`, `--device` |
+| `train-mlp` | fit the per-pixel MLP baseline | `--seed`, `--device` |
 | `baseline` | fit the ridge baseline, report val RMSE of ridge and climatology | |
 | `embed` | export embedding maps to `embeddings.zarr` | `--split`, `--checkpoint`, `--device` |
-| `predict` | write the CF-1.8 NetCDF product, one file per month | `--split` or `--start`/`--end`, `--tag`, `--ridge`, `--device` |
+| `predict` | write the CF-1.8 NetCDF product, one file per month | `--split` or `--start`/`--end`, `--tag`, `--ridge`, `--mlp`, `--weights <folder>`, `--out`, `--device` |
 | `evaluate` | metrics vs GLORYS (model, ablations, ridge, climatology) | `--split`, `--device` |
 | `validate-argo` | collocate Argo profiles and score all methods | `--split`, `--device` |
 | `report` | figures and `report.md` | `--date` |
 | `run-all` | whole chain, stops at the first failing step | `--skip-existing`, `--device` |
+| `export-results` | copy metrics, report and research summaries to `results/` | `--out` |
+| `export-weights` | copy the checkpoint, statistics, mask and baselines to `models/<run>/` | `--out` |
 
 ## Research commands
 
@@ -187,6 +190,21 @@ or split changed) is rebuilt automatically; deleting the folder is always safe.
 Every job scores the whole test split; the report splits it into 2023, 2024 and pooled, each with its own block bootstrap. Results:
 `research/r2/summary.md`, `summary.json`, `figures/` (RMSE by depth per year, long vs first run on 2024, bias by depth and RMSE per
 year, learning curve, Argo by depth).
+
+## The final run, results and weights
+
+`configs\final.yaml` is the project's main run (trained 2011-2021, validated 2022, tested 2023 and 2024; network trained from scratch; inputs chosen on the validation year). It reuses the data of `poc_long`:
+
+```powershell
+.\.venv\Scripts\oceanembed.exe research final-inputs --config configs\poc_long.yaml          # input-set selection, 3 seeds x 2 sets (about 2.5 h)
+.\.venv\Scripts\oceanembed.exe research final-inputs-report --config configs\poc_long.yaml
+.\.venv\Scripts\oceanembed.exe run-all --config configs\final.yaml --skip-existing           # train, baselines, ablation, predict, evaluate, Argo, report
+.\.venv\Scripts\oceanembed.exe export-results --config configs\final.yaml                    # results/
+.\.venv\Scripts\oceanembed.exe export-weights --config configs\final.yaml                    # models/final/
+.\.venv\Scripts\oceanembed.exe predict --config configs\final.yaml --weights models\final --start 2024-06-01 --end 2024-06-30
+```
+
+See [`reproduce.md`](reproduce.md) for what can be deleted and how to come back from a fresh clone.
 
 ## Project layout
 

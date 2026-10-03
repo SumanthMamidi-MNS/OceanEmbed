@@ -22,20 +22,32 @@ import xarray as xr  # noqa: E402
 
 from oceanembed.config import Config  # noqa: E402
 from oceanembed.data.harmonize import open_harmonized  # noqa: E402
-from oceanembed.eval.evaluate import method_label, metrics_dir  # noqa: E402
+from oceanembed.eval.evaluate import method_label as _method_label  # noqa: E402
+from oceanembed.eval.evaluate import metrics_dir  # noqa: E402
 from oceanembed.infer.predict import product_path  # noqa: E402
 
 log = logging.getLogger(__name__)
+
+_MAIN_INIT = (
+    "pretrained"  # how the run under report initialises its main model (set by make_report)
+)
+
+
+def method_label(key: str) -> str:
+    return _method_label(key, _MAIN_INIT)
+
 
 # Okabe-Ito palette
 METHOD_COLORS = {
     "model": "#0072B2",  # blue
     "model_scratch": "#009E73",  # bluish green
+    "model_pretrained": "#D55E00",  # vermilion
     "ridge": "#E69F00",  # orange
+    "mlp": "#56B4E9",  # sky blue
     "climatology": "#555555",  # grey
     "glorys": "#CC79A7",  # reddish purple
 }
-_EXTRA_COLORS = ["#D55E00", "#56B4E9", "#F0E442"]
+_EXTRA_COLORS = ["#F0E442", "#999999", "#000000"]
 METHOD_STYLES = {"climatology": "--", "glorys": "-."}
 FIELD_CMAP = "viridis"
 DIVERGING_CMAP = "RdBu_r"
@@ -455,6 +467,37 @@ def _banner(source: str) -> str:
     )
 
 
+def _per_year_lines(block: dict, title: str, argo: bool = False) -> list[str]:
+    """Tables of the per-calendar-year scores (``per_year``) next to the whole period; nothing when
+    the evaluated period lies in one year."""
+    per_year = block.get("per_year")
+    if not per_year:
+        return []
+    rows = []
+    sources = [(y, e["methods"], e) for y, e in per_year.items()]
+    sources.append(("both years", block["methods"], None))
+    for y, methods, entry in sources:
+        for k, m in methods.items():
+            if k == "glorys" and not argo:
+                continue
+            n = (entry or block["metadata"])["n_matchups"] if argo else None
+            rows.append(
+                [y, method_label(k)]
+                + ([str(n)] if argo else [])
+                + [
+                    _f(m["overall"]["rmse"]),
+                    _f(m["pooled_50_200m"]["rmse"]),
+                    _f(m["pooled_50_200m"]["bias"]),
+                    _f(m["pooled_50_200m"]["skill_vs_clim"]),
+                ]
+                + ([_f(m["pooled_50_200m"]["corr_anom"])] if not argo else [])
+            )
+    head = ["period", "method"] + (["matchups"] if argo else [])
+    head += ["RMSE all depths", "RMSE 50-200 m", "bias 50-200 m", "skill 50-200 m"]
+    head += [] if argo else ["corr_anom 50-200 m"]
+    return [title, "", md_table(head, rows), ""]
+
+
 def write_markdown(cfg, gl, argo, figures: dict[str, Path | None], run_dir: Path) -> Path:
     md = gl["metadata"]
     source = md["data_source"]
@@ -477,7 +520,14 @@ def write_markdown(cfg, gl, argo, figures: dict[str, Path | None], run_dir: Path
                                        f"{cfg.split.val.start}..{cfg.split.val.end} / "
                                        f"{cfg.split.test.start}..{cfg.split.test.end}"],
                 ["evaluated split", f"{md['split']} ({md['start']} to {md['end']}, "
-                                    f"{md['n_days']} days)"],
+                                    f"{md['n_days']} days"
+                                    + (f"; years {', '.join(md['years'])} also scored separately"
+                                       if len(md.get("years", [])) > 1 else "") + ")"],
+                ["main model", "trained from scratch" if cfg.model.main_init == "scratch"
+                               else "fine-tuned from a pretrained encoder"],
+                ["model inputs", ", ".join(cfg.model.input_variables)
+                                 + (f" (not used: {', '.join(cfg.model.dropped_groups)})"
+                                    if cfg.model.dropped_groups else "")],
                 ["target", md["reference"]],
                 ["climatology", f"harmonic fit (mean + annual + semi-annual) on the train split "
                                 f"{md['climatology']['train_start']}..{md['climatology']['train_end']}"],
@@ -558,6 +608,7 @@ def write_markdown(cfg, gl, argo, figures: dict[str, Path | None], run_dir: Path
         ),
         "",
     ]  # fmt: skip
+    lines += _per_year_lines(gl, "### Results by test year (whole domain)")
     if argo is not None:
         am = argo["metadata"]
         lines += [
@@ -592,6 +643,7 @@ def write_markdown(cfg, gl, argo, figures: dict[str, Path | None], run_dir: Path
             ),  # fmt: skip
             "",
         ]
+        lines += _per_year_lines(argo, "### RMSE vs Argo by test year (whole domain)", argo=True)
         if "gridded_argo" in argo:
             g = argo["gridded_argo"]
             lines += [f"INCOIS gridded ARGO: compared on {g.get('n_times', 0)} time(s); see "
@@ -625,7 +677,9 @@ def write_markdown(cfg, gl, argo, figures: dict[str, Path | None], run_dir: Path
         "- Skill below the thermocline is dominated by the climatology (small variability); "
         "`corr_raw` values are inflated by seasonal and vertical gradients - prefer `corr_anom` "
         "and the skill score.",
-        "- One training seed and one temporal split; no uncertainty estimates.",
+        "- The scores are those of one training seed and carry no confidence intervals; the "
+        "multi-seed, block-bootstrap study of the same models is in the research stage summaries "
+        "(`research/r2`).",
     ]
     if source == "synthetic":
         lines += [
@@ -639,6 +693,8 @@ def write_markdown(cfg, gl, argo, figures: dict[str, Path | None], run_dir: Path
 
 
 def make_report(cfg: Config, example_date: str | None = None) -> Path:
+    global _MAIN_INIT
+    _MAIN_INIT = cfg.model.main_init
     run_dir = cfg.outputs_dir
     mdir = metrics_dir(cfg)
     gl_path = mdir / "metrics_glorys.json"

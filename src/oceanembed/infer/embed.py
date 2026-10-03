@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from oceanembed.config import Config
 from oceanembed.data.dataset import make_dataset
+from oceanembed.infer.predict import check_inputs
 from oceanembed.models.encoder import OceanEncoder
 from oceanembed.models.recon import load_encoder_state
 from oceanembed.train.pretrain import PRETRAIN_CKPT
@@ -53,6 +54,9 @@ def export_embeddings(
     ckpt = Path(checkpoint) if checkpoint else default_checkpoint(cfg)
     if not ckpt.exists():
         raise FileNotFoundError(f"{ckpt} not found; run `oceanembed pretrain` / `train` first")
+    saved = torch.load(ckpt, map_location="cpu", weights_only=False).get("config")
+    if saved is not None:  # the embedding must see the inputs the encoder was trained with
+        check_inputs(cfg, Config.model_validate(saved), ckpt)
     encoder = OceanEncoder(cfg.model)
     encoder.load_state_dict(load_encoder_state(ckpt))
     encoder.to(dev).eval()

@@ -35,7 +35,10 @@ satellite observations. This file is the working spec: module contracts here are
 configs/
   synthetic.yaml        full-grid synthetic demo (no credentials needed)
   poc.yaml              real-data PoC (CMEMS + PO.DAAC + Argo)
-  test_tiny.yaml        tiny grid / few days, used by pytest
+  poc_long.yaml         research / long run: 2011-2024, memmap cache
+  final.yaml            the main run: from-scratch model, selected inputs, MLP baseline, pretrained
+                        ablation; reuses poc_long's store (`paths.store`)
+  test_tiny.yaml        tiny grid / few days, used by pytest (test_tiny_final.yaml: final-style run)
 src/oceanembed/
   config.py             pydantic config models + YAML loader
   grid.py               canonical grid, standard depths, basin masks (Arabian Sea / Bay of Bengal)
@@ -77,6 +80,7 @@ src/oceanembed/
     evaluate.py         model + baselines + ablations vs GLORYS on a split -> metrics JSON + maps NetCDF
     argo_validation.py  Argo vertical interpolation, collocation, matchups + metrics (+ optional INCOIS gridded)
     report.py           figures + report.md
+  export.py             `export-results` (results/) and `export-weights` (models/<run>/)
   infer/
     predict.py          checkpoint loading + predictor / `predict_batch` (degC, NaN off-mask) helpers;
                         CF-1.8 monthly NetCDF writer (`predict_to_netcdf`)

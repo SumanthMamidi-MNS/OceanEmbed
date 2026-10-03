@@ -66,6 +66,28 @@ def _blocks(methods: dict[str, dict]) -> dict[str, Any]:
     return {"overall": overall, "pooled": pooled, "per_depth": per_depth, "depths": depths}
 
 
+def _reshape_year(block: dict) -> dict[str, Any]:
+    """One ``per_year`` entry (``{n_days | n_profiles, methods: {method: block}}``): the counts as
+    they are, the methods metric-major like the whole period."""
+    methods = block.get("methods", {})
+    out = {k: v for k, v in block.items() if k != "methods"}
+    top = _blocks(methods)
+    basins: dict[str, dict[str, Any]] = {}
+    for k, m in methods.items():
+        for basin, b in (m.get("per_basin") or {}).items():
+            basins.setdefault(basin, {})[k] = b
+    per_basin = {b: _blocks(ms) for b, ms in basins.items()}
+    for b in per_basin.values():
+        b.pop("depths", None)
+    return {
+        **out,
+        "overall": top["overall"],
+        "pooled": top["pooled"],
+        "per_depth": top["per_depth"],
+        "per_basin": per_basin,
+    }
+
+
 def reshape_metrics(run: str, raw: dict, reference: str) -> dict[str, Any]:
     """Method-major file -> metric-major structure. Nothing from the source file is dropped: unknown
     top-level keys (e.g. ``gridded_argo``) are passed through in ``extra``."""
@@ -107,7 +129,12 @@ def reshape_metrics(run: str, raw: dict, reference: str) -> dict[str, Any]:
         if daily
         else None
     )
-    extra = {k: v for k, v in raw.items() if k not in ("metadata", "methods", "daily_rmse")}
+    per_year = (
+        {y: _reshape_year(b) for y, b in raw["per_year"].items()} if raw.get("per_year") else None
+    )
+    extra = {
+        k: v for k, v in raw.items() if k not in ("metadata", "methods", "daily_rmse", "per_year")
+    }
     return {
         "run": run,
         "reference": reference,
@@ -122,6 +149,7 @@ def reshape_metrics(run: str, raw: dict, reference: str) -> dict[str, Any]:
         "per_basin": per_basin,
         "daily_rmse": daily_out,
         "daily": daily_full,
+        "per_year": per_year,
         "extra": extra,
     }
 

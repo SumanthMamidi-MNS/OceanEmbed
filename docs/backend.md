@@ -463,7 +463,10 @@ All commands take `--config / -c <yaml>` (must exist) except `serve`. `--device`
 | `train` | `--no-pretrained`, `--tag`, `--seed`, `--device` | Zarr, stats, `pretrain.pt` | `checkpoints/recon[_tag].pt`, `logs/train[_tag].jsonl` |
 | `baseline` | - | Zarr, stats | `checkpoints/ridge.joblib`; prints val RMSE of ridge and climatology |
 | `embed` | `--split` (test), `--checkpoint`, `--device` | checkpoint, Zarr | `embeddings/embeddings.zarr` |
-| `predict` | `--split` or `--start` + `--end`, `--tag`, `--ridge`, `--device` | checkpoint (or ridge), Zarr, stats | `predictions/[ridge/\|<tag>/]oceanembed_T_<YYYYMM>.nc` |
+| `train-mlp` | `--seed`, `--device` | Zarr, stats (cache) | `checkpoints/mlp.pt`, `logs/baselines/mlp.jsonl` |
+| `predict` | `--split` or `--start` + `--end`, `--tag`, `--ridge`, `--mlp`, `--weights <folder>`, `--out`, `--device` | checkpoint (ridge, mlp) or a released-weights folder, Zarr, stats | `predictions/[ridge/\|mlp/\|<tag>/]oceanembed_T_<YYYYMM>.nc` (with `--weights`: `predictions_from_weights/` or `--out`) |
+| `export-results` | `--out results` | `outputs/` of the run and of the research stages | `results/` (tracked: metrics JSON, report, research summaries) |
+| `export-weights` | `--out models/<run>` | checkpoints, stats, Zarr mask | `models/<run>/` (`recon.pt`, `ridge.joblib`, `mlp.pt`, `stats.nc`, `manifest.json`) |
 | `evaluate` | `--split` (test), `--device` | checkpoints, Zarr | `metrics/metrics_glorys.json`, `maps_glorys.nc` |
 | `validate-argo` | `--split` (test), `--device` | checkpoints, Zarr, Argo (downloads missing months) | `metrics/metrics_argo.json`, `argo_matchups.parquet` |
 | `report` | `--date` (middle of test) | metrics files, Zarr, predictions, logs | `figures/*.png`, `report.md` |
@@ -475,6 +478,8 @@ All commands take `--config / -c <yaml>` (must exist) except `serve`. `--device`
 | `research r3` | `--seeds`, `--mlp-seeds`, `--models`, `--experiments`, `--permutation/--no-permutation`, `--perm-repeats`, `--skip-existing/--no-skip-existing`, `--device` | config, Zarr, stats, R1 `scratch` / `mlp` jobs | `research/r3/<model>_<experiment>/seed<k>/`, `research/r3/perm_<model>/seed<k>/` only |
 | `research r3-report` | `--n-boot`, `--block-length`, `--seed` | `research/r3/**`, R1 `scratch` / `mlp` / `climatology` | `research/r3/summary.{json,md}`, `figures/` |
 | `research r2` | `--seeds`, `--methods`, `--learning-curve/--no-learning-curve`, `--argo/--no-argo`, `--skip-existing/--no-skip-existing`, `--device` | long config, Zarr, stats, stored Argo months | `research/r2/<name>/seed<k>/`, `research/r2/argo/`, `data/processed/cache/<run>/` |
+| `research final-inputs` | `--seeds`, `--experiments sst_sla_winds,sst_sla`, `--skip-existing/--no-skip-existing`, `--device` | long config, Zarr, stats, R2 `scratch` jobs | `research/final_inputs/scratch_<set>/seed<k>/` only |
+| `research final-inputs-report` | `--n-boot`, `--block-length`, `--seed` | `research/final_inputs/**`, R2 `scratch` / `climatology` | `research/final_inputs/summary.{json,md}` |
 | `research r2-report` | `--compare-config`, `--n-boot`, `--block-length`, `--seed` | `research/r2/**`, the compared run's `research/r1/**` (read only) | `research/r2/summary.{json,md}`, `figures/` |
 | `serve` | `--host` (127.0.0.1), `--port` (8000), `--outputs-root`, `--reload` | `outputs/` (exit 2 if missing) | serves the API; sets `OCEANEMBED_API_OUTPUTS_ROOT` for `--reload` |
 
@@ -658,6 +663,8 @@ with a client-side-route fallback that never shadows `/api`.
 target (1st-99th percentile) so panels of different methods share a scale; diverging ranges are symmetric about 0.
 
 ## 11. Configuration
+
+Finalisation additions (all optional; defaults reproduce the earlier behaviour): `model.input_groups` (subset of `sst sss sla currents winds`; dropped groups are zeroed in the dataset's inputs for every consumer), `model.main_init` (`pretrained` | `scratch`: how `recon.pt` is made), `ablation.pretrained` (the pretrained variant of a scratch config as `recon_<tag>.pt`), `baseline.mlp` (fit and publish the per-pixel MLP), `paths.store` (reuse another run's harmonised store, statistics and array cache; `harmonize` / `stats` refuse to rebuild it, `run-all` checks it in a `store` step). `configs/final.yaml` uses all of them. Metrics files gain `metadata.inputs`, `metadata.years` and, for a multi-year split, a `per_year` block.
 
 One YAML per run, validated by [`config.py`](../src/oceanembed/config.py) (`extra="forbid"`: an unknown key is an error; splits must lie
 inside `time`, be ordered and not overlap). Relative `paths` resolve against the current directory, so run from the

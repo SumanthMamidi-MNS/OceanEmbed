@@ -39,6 +39,7 @@ from oceanembed.eval.evaluate import (
     POOLED_RANGE,
     SYNTHETIC_NOTE,
     _block,
+    inputs_metadata,
     load_methods,
     method_label,
     metrics_dir,
@@ -372,7 +373,9 @@ def validate_argo(
     table["grid_lat"] = grid.lat[j[ok_idx]][pi].astype(np.float32) if n_p else []
     table["grid_lon"] = grid.lon[k[ok_idx]][pi].astype(np.float32) if n_p else []
     # canonical column order: spec columns first
-    first_cols = ["profile_id", "time", "lat", "lon", "depth", "obs", "model", "ridge", "clim"]
+    first_cols = [
+        "profile_id", "time", "lat", "lon", "depth", "obs", "model", "ridge", "mlp", "clim",
+    ]  # fmt: skip
     first_cols = [c for c in first_cols if c in table.columns]
     rest = [c for c in table.columns if c not in first_cols and c not in ("basin", "glorys")]
     table = table[[*first_cols, *rest, "glorys", "basin"]]
@@ -388,6 +391,27 @@ def validate_argo(
             name: _argo_block(table[table["basin"] == name], col, depths) for name in BASINS
         }
         results[key] = entry
+
+    per_year = None
+    years = sorted({int(y) for y in pd.DatetimeIndex(table["time"]).year})
+    if len(years) > 1:
+        t_year = np.asarray(pd.DatetimeIndex(table["time"]).year)
+        per_year = {}
+        for y in years:
+            sub = table[t_year == y]
+            block = {}
+            for key in keys:
+                col = PARQUET_COLUMNS.get(key, key)
+                entry = _argo_block(sub, col, depths)
+                entry["per_basin"] = {
+                    name: _argo_block(sub[sub["basin"] == name], col, depths) for name in BASINS
+                }
+                block[key] = entry
+            per_year[str(y)] = {
+                "n_profiles": int(sub["profile_id"].nunique()),
+                "n_matchups": int(len(sub)),
+                "methods": block,
+            }
 
     synthetic = data_source(cfg) == "synthetic"
     info = {k: {"label": methods.labels[k], **methods.info[k]} for k in methods.predictors}
@@ -408,6 +432,7 @@ def validate_argo(
             "n_profiles_used": int(table["profile_id"].nunique()),
             "n_matchups": int(len(table)),
             "n_levels_with_obs": n_levels_obs,
+            "inputs": inputs_metadata(cfg),
             "dropped_profiles": dropped,
             "interpolation_rule": INTERPOLATION_RULE,
             "collocation": "cell containing the profile position, same UTC day (daily fields)",
@@ -424,6 +449,8 @@ def validate_argo(
         },
         "methods": results,
     }
+    if per_year is not None:
+        out["per_year"] = per_year
     gridded = evaluate_gridded_argo(cfg, ds, zds, methods, grid, dev, progress)
     if gridded is not None:
         out["gridded_argo"] = gridded

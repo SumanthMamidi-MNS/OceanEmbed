@@ -83,15 +83,38 @@ def download(
         raise typer.Exit(code=2) from e
 
 
+def _refuse_shared_store(cfg: Config, what: str) -> None:
+    """``harmonize`` / ``stats`` rebuild a store: never one that belongs to another run."""
+    if cfg.shares_store:
+        typer.echo(
+            f"error: run '{cfg.run_name}' reuses the harmonised store '{cfg.store_name}' "
+            f"(paths.store); {what} would overwrite it. Run it with the config of "
+            f"'{cfg.store_name}' instead (configs/{cfg.store_name}.yaml).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+
 @app.command()
-def harmonize(config: ConfigOpt) -> None:
+def harmonize(
+    config: ConfigOpt,
+    surface_only: Annotated[
+        bool,
+        typer.Option(
+            "--surface-only",
+            help="Only the five surface products (no GLORYS temperature, no ocean mask): enough "
+            "to predict with released weights (`predict --weights`).",
+        ),
+    ] = False,
+) -> None:
     """Raw -> harmonised Zarr on the canonical 0.25 deg daily grid."""
     from oceanembed.data.harmonize import harmonize as run
 
     _setup_logging()
     cfg = load_config(config)
+    _refuse_shared_store(cfg, "harmonize")
     t0 = time.time()
-    store = run(cfg)
+    store = run(cfg, surface_only=surface_only)
     typer.echo(f"wrote {store} in {time.time() - t0:.0f}s")
 
 
@@ -102,6 +125,7 @@ def stats(config: ConfigOpt) -> None:
 
     _setup_logging()
     cfg = load_config(config)
+    _refuse_shared_store(cfg, "stats")
     t0 = time.time()
     s = compute_stats(cfg)
     typer.echo(
@@ -139,18 +163,36 @@ def train(
         bool, typer.Option("--no-pretrained", help="Train the encoder from scratch (ablation).")
     ] = False,
     tag: Annotated[
-        str | None, typer.Option(help="Checkpoint suffix: recon_<tag>.pt (default scratch).")
+        str | None,
+        typer.Option(help="Checkpoint suffix: recon_<tag>.pt (default scratch / pretrained)."),
     ] = None,
     device: Annotated[str | None, typer.Option(help="e.g. cuda, cpu (default: auto).")] = None,
     seed: Annotated[int | None, typer.Option(help="Random seed (default: train.seed).")] = None,
+    pretrained: Annotated[
+        bool,
+        typer.Option(
+            "--pretrained", help="Fine-tune the pretrained encoder (ablation of a scratch config)."
+        ),
+    ] = False,
 ) -> None:
-    """Supervised training of the 15-depth temperature reconstruction model."""
+    """Supervised training of the 15-depth temperature reconstruction model.
+
+    Without flags this trains the main model as the config says (``model.main_init``) into
+    ``recon.pt``; ``--no-pretrained`` / ``--pretrained`` train the other initialisation as an
+    ablation into ``recon_<tag>.pt``."""
     from oceanembed.train.train import run_train
 
     _setup_logging()
     cfg = _load_run(config)
+    if no_pretrained and pretrained:
+        raise typer.BadParameter("--no-pretrained and --pretrained are mutually exclusive")
+    main_pretrained = cfg.model.main_init == "pretrained"
+    want_pretrained = True if pretrained else False if no_pretrained else main_pretrained
+    is_main = tag is None and want_pretrained == main_pretrained
     t0 = time.time()
-    best = run_train(cfg, pretrained=not no_pretrained, tag=tag, device=device, seed=seed)
+    best = run_train(
+        cfg, pretrained=want_pretrained, tag=tag, device=device, seed=seed, main=is_main
+    )
     typer.echo(
         f"best epoch {best['epoch']} of {best['epochs_run']}: val RMSE {best['val_rmse']:.3f} degC "
         f"-> {best['checkpoint']} ({time.time() - t0:.0f}s, "
@@ -183,6 +225,32 @@ def baseline(config: ConfigOpt) -> None:
     typer.echo("val RMSE degC  depth: climatology / ridge")
     for z, c, r in zip(val_ds.depth, clim, rdg, strict=True):
         typer.echo(f"  {z:6.0f} m: {c:.3f} / {r:.3f}")
+
+
+@app.command("train-mlp")
+def train_mlp(
+    config: ConfigOpt,
+    device: Annotated[str | None, typer.Option(help="e.g. cuda, cpu (default: auto).")] = None,
+    seed: Annotated[int, typer.Option(help="Random seed.")] = 0,
+) -> None:
+    """Fit the per-pixel MLP baseline (ridge features, non-linear model): checkpoints/mlp.pt."""
+    from oceanembed.models.pixel_mlp import MLP_FILE
+    from oceanembed.train.mlp import run_train_mlp
+
+    _setup_logging()
+    cfg = _load_run(config)
+    t0 = time.time()
+    best = run_train_mlp(
+        cfg,
+        seed,
+        device,
+        ckpt_path=cfg.checkpoints_dir / MLP_FILE,
+        log_path=cfg.logs_dir / "baselines" / "mlp.jsonl",
+    )
+    typer.echo(
+        f"best epoch {best['epoch']} of {best['epochs_run']}: val RMSE {best['val_rmse']:.3f} degC "
+        f"-> {best['checkpoint']} ({time.time() - t0:.0f}s)"
+    )
 
 
 @app.command()
@@ -232,6 +300,27 @@ def predict(
         bool,
         typer.Option("--ridge", help="Predict with the ridge baseline; writes predictions/ridge/."),
     ] = False,
+    mlp: Annotated[
+        bool,
+        typer.Option("--mlp", help="Predict with the per-pixel MLP; writes predictions/mlp/."),
+    ] = False,
+    weights: Annotated[
+        Path | None,
+        typer.Option(
+            "--weights",
+            file_okay=False,
+            help="Folder of released model files (e.g. models/final): the model, statistics and "
+            "ocean mask are read from it, no training needed; writes to --out.",
+        ),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            file_okay=False,
+            help="Output folder (default with --weights: outputs/<run>/predictions_from_weights).",
+        ),
+    ] = None,
 ) -> None:
     """Write the CF-1.8 NetCDF temperature product (one file per month)."""
     import pandas as pd
@@ -242,10 +331,10 @@ def predict(
     cfg = _load_run(config)
     if (start is None) != (end is None):
         raise typer.BadParameter("give both --start and --end")
-    if ridge and tag:
-        raise typer.BadParameter("--ridge and --tag are mutually exclusive")
-    if tag == "ridge":
-        raise typer.BadParameter("the tag 'ridge' is reserved for the ridge product folder")
+    if sum([ridge, mlp, tag is not None]) > 1:
+        raise typer.BadParameter("--ridge, --mlp and --tag are mutually exclusive")
+    if tag in ("ridge", "mlp"):
+        raise typer.BadParameter(f"the tag '{tag}' is reserved for the {tag} product folder")
     if start is not None:
         if split is not None:
             raise typer.BadParameter("use either --split or --start/--end")
@@ -255,7 +344,13 @@ def predict(
         r = cfg.split.get(split or "test")
         lo, hi = pd.Timestamp(r.start), pd.Timestamp(r.end)
     t0 = time.time()
-    files = predict_to_netcdf(cfg, lo, hi, tag=tag, device=device, ridge=ridge)
+    try:
+        files = predict_to_netcdf(
+            cfg, lo, hi, tag=tag, device=device, ridge=ridge, mlp=mlp, weights=weights, out_dir=out
+        )
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
     typer.echo(f"wrote {len(files)} file(s) under {files[0].parent} in {time.time() - t0:.0f}s")
 
 
@@ -321,34 +416,69 @@ def _raw_complete(cfg: Config) -> bool:
     )
 
 
+def _require_store(cfg: Config) -> None:
+    """The ``store`` step of a run that reuses another run's data: nothing is built, but the
+    harmonised store and the statistics must exist."""
+    missing = [p for p in (cfg.zarr_path, cfg.stats_path) if not p.exists()]
+    if missing:
+        typer.echo(
+            f"error: run '{cfg.run_name}' reuses the data of '{cfg.store_name}' but "
+            f"{', '.join(str(p) for p in missing)} is missing; build it with "
+            f"configs/{cfg.store_name}.yaml (download, harmonize, stats) first.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+
 def _step_plan(cfg: Config, config: Path, device: str | None):
     """The ``run-all`` chain as ``(name, callable, outputs_exist)``. Callables resolve the command
     functions at call time, so each step runs exactly the code of its own CLI command."""
     from oceanembed.infer.embed import embedding_path
     from oceanembed.infer.predict import expected_product_files
     from oceanembed.models.baselines import RIDGE_FILE
+    from oceanembed.models.pixel_mlp import MLP_FILE
     from oceanembed.train.pretrain import PRETRAIN_CKPT
     from oceanembed.train.train import recon_ckpt_name
 
     ck, mdir = cfg.checkpoints_dir, cfg.outputs_dir / "metrics"
     test = cfg.split.test
-    first = (
-        ("synth", lambda: synth(config, None))
-        if cfg.provider == "synthetic"
-        else ("download", lambda: download(config, None))
-    )
     abl = cfg.ablation
-    steps = [
-        (*first, lambda: _raw_complete(cfg)),
-        ("harmonize", lambda: harmonize(config), lambda: (cfg.zarr_path / "mask").exists()),
-        ("stats", lambda: stats(config), lambda: cfg.stats_path.exists()),
-        ("pretrain", lambda: pretrain(config, device), lambda: (ck / PRETRAIN_CKPT).exists()),
+    pretrained_main = cfg.model.main_init == "pretrained"
+
+    def products(**kw):
+        return lambda: all(
+            f.exists() for f in expected_product_files(cfg, test.start, test.end, **kw)
+        )
+
+    if cfg.shares_store:  # the data of another run: checked, never rebuilt (or downloaded)
+        steps = [
+            ("store", lambda: _require_store(cfg), lambda: False),
+        ]
+    else:
+        first = (
+            ("synth", lambda: synth(config, None))
+            if cfg.provider == "synthetic"
+            else ("download", lambda: download(config, None))
+        )
+        steps = [
+            (*first, lambda: _raw_complete(cfg)),
+            ("harmonize", lambda: harmonize(config), lambda: (cfg.zarr_path / "mask").exists()),
+            ("stats", lambda: stats(config), lambda: cfg.stats_path.exists()),
+        ]
+    pretrain_step = (
+        "pretrain",
+        lambda: pretrain(config, device),
+        lambda: (ck / PRETRAIN_CKPT).exists(),
+    )
+    if pretrained_main:
+        steps.append(pretrain_step)
+    steps.append(
         (
             "train",
             lambda: train(config, False, None, device),
             lambda: (ck / "recon.pt").exists(),
-        ),
-    ]
+        )
+    )
     if abl.no_pretrained:  # the pretraining ablation: same network, encoder trained from scratch
         steps.append(
             (
@@ -357,8 +487,21 @@ def _step_plan(cfg: Config, config: Path, device: str | None):
                 lambda: (ck / recon_ckpt_name(abl.tag)).exists(),
             )
         )
+    steps.append(("baseline", lambda: baseline(config), lambda: (ck / RIDGE_FILE).exists()))
+    if cfg.baseline.mlp:
+        steps.append(
+            ("train-mlp", lambda: train_mlp(config, device), lambda: (ck / MLP_FILE).exists())
+        )
+    if abl.pretrained:  # the reverse ablation of a from-scratch main model: pretrain + fine-tune
+        steps += [
+            pretrain_step,
+            (
+                "train-ablation",
+                lambda: train(config, False, abl.tag, device, None, True),
+                lambda: (ck / recon_ckpt_name(abl.tag)).exists(),
+            ),
+        ]
     steps += [
-        ("baseline", lambda: baseline(config), lambda: (ck / RIDGE_FILE).exists()),
         (
             "embed",
             lambda: embed(config, "test", None, device),
@@ -367,25 +510,28 @@ def _step_plan(cfg: Config, config: Path, device: str | None):
         (
             "predict",
             lambda: predict(config, "test", None, None, None, device),
-            lambda: all(f.exists() for f in expected_product_files(cfg, test.start, test.end)),
+            products(),
         ),
         (
             "predict-ridge",
             lambda: predict(config, "test", None, None, None, device, ridge=True),
-            lambda: all(
-                f.exists() for f in expected_product_files(cfg, test.start, test.end, ridge=True)
-            ),
+            products(ridge=True),
         ),
     ]
-    if abl.no_pretrained:
+    if cfg.baseline.mlp:
+        steps.append(
+            (
+                "predict-mlp",
+                lambda: predict(config, "test", None, None, None, device, mlp=True),
+                products(mlp=True),
+            )
+        )
+    if abl.no_pretrained or abl.pretrained:
         steps.append(
             (
                 "predict-ablation",
                 lambda: predict(config, "test", None, None, abl.tag, device),
-                lambda: all(
-                    f.exists()
-                    for f in expected_product_files(cfg, test.start, test.end, tag=abl.tag)
-                ),
+                products(tag=abl.tag),
             )
         )
     steps += [
@@ -418,10 +564,14 @@ def run_all(
     ] = False,
     device: DeviceOpt = None,
 ) -> None:
-    """Run the whole chain: synth|download, harmonize, stats, pretrain, train, [train-ablation],
-    baseline, embed, predict, predict-ridge, [predict-ablation], evaluate, validate-argo, report.
-    The bracketed ablation steps run when the config sets ``ablation.no_pretrained: true``. Stops
-    with a non-zero exit code on the first failing step."""
+    """Run the whole chain: synth|download, harmonize, stats [or `store`: check a shared store],
+    [pretrain], train, [train-ablation], baseline, train-mlp, [pretrain, train-ablation], embed,
+    predict, predict-ridge, predict-mlp, [predict-ablation], evaluate, validate-argo, report.
+
+    The bracketed steps depend on the config: the main model is pretrained or trained from scratch
+    (`model.main_init`) and the other initialisation is trained as an ablation when
+    `ablation.no_pretrained` / `ablation.pretrained` is set. Stops with a non-zero exit code on
+    the first failing step."""
     import gc
 
     cfg = _load_run(config)
@@ -828,6 +978,120 @@ def research_r2_report(
         f"wrote {r2_dir(cfg)}/summary.json, summary.md, figures/ "
         f"(block length {bs['block_length_days']} days, {bs['n_replicates']} replicates)"
     )
+
+
+@research_app.command("final-inputs")
+def research_final_inputs(
+    config: ConfigOpt,
+    seeds: Annotated[
+        list[str] | None,
+        typer.Option("--seeds", help="Seeds, comma separated or repeated (default 0,1,2)."),
+    ] = None,
+    experiments: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--experiments", help="sst_sla_winds, sst_sla (default: both; full = the R2 model)."
+        ),
+    ] = None,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing/--no-skip-existing",
+            help="Skip finished jobs; --no-skip-existing retrains them.",
+        ),
+    ] = True,
+    device: DeviceOpt = None,
+) -> None:
+    """Input-set selection: retrain the headline model with reduced input sets (resumable).
+
+    Needs the R2 jobs of the full-input model. Writes only under
+    outputs/<run>/research/final_inputs/."""
+    from oceanembed.research.final_inputs import fi_dir, run_final_inputs
+
+    _setup_logging()
+    cfg = load_config(config)
+    t0 = time.time()
+    try:
+        results = run_final_inputs(
+            cfg, _csv(seeds, int) or None, _csv(experiments), skip_existing, device
+        )
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    n_new = sum(r["status"] == "done" for r in results)
+    typer.echo(
+        f"{n_new} job(s) run, {len(results) - n_new} skipped in {time.time() - t0:.0f}s -> "
+        f"{fi_dir(cfg)}"
+    )
+
+
+@research_app.command("final-inputs-report")
+def research_final_inputs_report(
+    config: ConfigOpt,
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None,
+        typer.Option(help="Block length in days (default: from the autocorrelation of the data)."),
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """Input-set selection: the validation-based decision and the test-year scores of every
+    candidate (summary.json, summary.md under research/final_inputs/)."""
+    from oceanembed.research.final_inputs import fi_dir
+    from oceanembed.research.final_inputs_report import make_final_inputs_report
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        summary = make_final_inputs_report(cfg, n_boot=n_boot, block_length=block_length, seed=seed)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(
+        f"wrote {fi_dir(cfg)}/summary.json, summary.md; decision: {summary['decision']['chosen']}"
+    )
+
+
+@app.command("export-results")
+def export_results_cmd(
+    config: ConfigOpt,
+    out: Annotated[
+        Path, typer.Option("--out", file_okay=False, help="Folder to (re)create.")
+    ] = Path("results"),
+) -> None:
+    """Copy the small result files (metrics, report, research summaries) to a tracked folder."""
+    from oceanembed.export import export_results
+
+    _setup_logging()
+    cfg = load_config(config)
+    res = export_results(cfg, out)
+    typer.echo(f"wrote {len(res['files'])} file(s), {res['bytes'] / 1e6:.1f} MB under {out}")
+    for m in res["missing"]:
+        typer.echo(f"  not found, skipped: {m}")
+
+
+@app.command("export-weights")
+def export_weights_cmd(
+    config: ConfigOpt,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", file_okay=False, help="Folder to write (default models/<run>)."),
+    ] = None,
+) -> None:
+    """Copy the main checkpoint, statistics, ocean mask and baselines to a releasable folder."""
+    from oceanembed.export import export_weights
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        manifest = export_weights(cfg, out)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    total = sum(f["bytes"] for f in manifest["files"].values())
+    typer.echo(f"wrote {len(manifest['files'])} file(s), {total / 1e6:.1f} MB")
 
 
 @app.command()

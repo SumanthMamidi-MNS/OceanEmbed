@@ -23,7 +23,7 @@ Options: `--host` (default `127.0.0.1`, localhost only), `--port`, `--outputs-ro
 - Dates are `YYYY-MM-DD`. Depths are metres and must equal a grid depth (`depth=100`) **or** be given as a
   0-based `depth_index` (exactly one of the two). Points (`lat`, `lon`) must lie inside the grid; they are
   snapped to the nearest cell centre (ties go to the lower coordinate) and the snapped cell is returned.
-- **Methods.** `/fields`, `/profile`, `/section`, `/timeseries` and the product download take `method=` (default `model`): `model`, `ridge` or an ablation such as `model_scratch` - the same keys as the metrics. `field_methods` of the run detail lists which methods have day fields (the prediction NetCDF products written by `run-all`: `predictions/`, `predictions/ridge/`, `predictions/<tag>/`). A method without a product is a **404** whose message lists the available ones; `climatology` and `glorys` are not methods here (use `kind=climatology` / `kind=target`).
+- **Methods.** `/fields`, `/profile`, `/section`, `/timeseries` and the product download take `method=` (default `model`): `model`, `ridge`, `mlp` (the per-pixel MLP baseline, when the run has one) or an ablation such as `model_scratch` / `model_pretrained` - the same keys as the metrics. `field_methods` of the run detail lists which methods have day fields (the prediction NetCDF products written by `run-all`: `predictions/`, `predictions/ridge/`, `predictions/mlp/`, `predictions/<tag>/`). A method without a product is a **404** whose message lists the available ones; `climatology` and `glorys` are not methods here (use `kind=climatology` / `kind=target`).
 - Errors are always `{"detail": "<message>"}`: **400** bad parameter (malformed or out-of-range date, depth
   not on the grid, point outside the grid, unknown `kind`/`metric`, ...), **404** unknown run, unknown
   file / profile / method, or a missing artefact (no embeddings, no Argo, no target for that day, ...),
@@ -74,7 +74,7 @@ metrics_metadata}`:
 `basins` = `[{key, label, box{lat_min,lat_max,lon_min,lon_max}}]` (from `grid.py`);
 `methods` = `[{key, label, kind, tag, pretrained, epoch, val_rmse, in_glorys_metrics, in_argo_metrics,
 has_day_fields}]` (`model`, `model_scratch`, `ridge`, `climatology`, `glorys`);
-`field_methods` = `[{key, label, kind (model|baseline|ablation), tag, n_days, first, last}]`, the methods whose day fields can be requested with `method=`, `model` first, then `ridge`, then ablations;
+`field_methods` = `[{key, label, kind (model|baseline|ablation), tag, n_days, first, last}]`, the methods whose day fields can be requested with `method=`, `model` first, then `ridge`, `mlp`, then ablations; `kind` is `baseline` for ridge and mlp;
 `model` = encoder / pretrain / train config summary; `training_summary` = per log: epochs, best val value,
 total seconds; `products` = variable → product, `dataset_ids` (from the run config), native resolution,
 regridding, role (`input`/`target`/`validation`); `counts` = `n_prediction_days`, `n_train_days`, `n_val_days`, `n_test_days`,
@@ -186,7 +186,7 @@ Metric-major reshape of `metrics_glorys.json`, nothing dropped:
  "daily": {"dates": [...], "depths": [...], "pooled_range_m": [50, 200], "rmse": {...}, "bias": {...},
            "corr_anom": {...}, "pooled_rmse": {"model": [one value per day]},
            "pooled_bias": {"model": [...]}, "pooled_corr_anom": {"model": [...]}},
- "extra": {}}
+ "per_year": null, "extra": {}}
 ```
 Bias is method − reference. `daily` (vs GLORYS only, `null` for Argo) holds, per method, `rmse`, `bias` and `corr_anom` as `[day][depth]` and `pooled_rmse`, `pooled_bias` (method minus reference) and `pooled_corr_anom` as `[day]` over the pooled depth range (`pooled_range_m`, 50-200 m); `daily_rmse` is kept unchanged. A daily `corr_anom` is the *spatial* correlation of the anomalies (climatology removed) over the grid points of that day and depth, unlike `per_depth.corr_anom`, which is the temporal correlation per grid point pooled over the period; `pooled_corr_anom` is the same spatial correlation over the grid points of all pooled depths together of that day (one correlation, not an average of per-depth ones). All three pooled series come from the per-day, per-depth sums `evaluate` already accumulates. `bias`, `corr_anom` and `pooled_rmse` are absent from runs evaluated before they existed, `pooled_bias` / `pooled_corr_anom` from runs evaluated before 9e (re-run `oceanembed evaluate`; the older numbers do not change). The daily numbers equal the served fields: for ridge, the RMSE of `/fields?kind=difference&method=ridge` at a depth and day matches `daily.rmse.ridge` to 5e-6 degC; for the networks to < 1e-4 degC (fp16 autocast is not bit-identical between the batch layouts of `evaluate` and `predict`). `corr_anom` / `skill_vs_clim` of the climatology are `null`.
 
@@ -194,6 +194,8 @@ Bias is method − reference. `daily` (vs GLORYS only, `null` for Argo) holds, p
 Same structure vs Argo (methods include `glorys`; no `daily_rmse`); `metadata` carries profile counts, the
 interpolation rule and the **independence note** (GLORYS assimilates Argo and the model is trained on GLORYS),
 `extra.gridded_argo` appears when an INCOIS gridded file was scored.
+
+`per_year` (also in `/metrics/argo`) is `null` unless the evaluated period spans several calendar years (the final run: 2023 and 2024). It is `{ "2023": {n_days (or n_profiles, n_matchups for Argo), start, end, overall, pooled, per_depth, per_basin}, "2024": {...} }`, each block shaped like the whole-period fields above (metric-major), so a client can show each test year next to the pooled numbers; the whole-period fields are unchanged. The run detail's `model` block lists `inputs` (the surface variables the model uses), `input_groups`, `dropped_input_groups` and `main_init` (`pretrained` | `scratch`), and every entry of `products` has `used_by_model` (false for an input variable the model does not use).
 
 ### `GET /api/runs/{run}/metrics/maps/index` and `/metrics/maps`
 `index` → `{metrics: {rmse: ["model","ridge",...], bias: [...], corr_anom: [...], corr_raw: [...],

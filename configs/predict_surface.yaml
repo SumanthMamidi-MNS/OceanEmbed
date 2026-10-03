@@ -1,0 +1,38 @@
+# Prediction from released weights (models/final) without the training data.
+#
+# Only the five surface products are needed, for the days you want. Edit `time` (and, if you like,
+# the placeholder splits below, which are required by the config format but unused here), then:
+#   oceanembed download   --config configs/predict_surface.yaml -v sst -v sss -v sla -v currents -v winds
+#   oceanembed harmonize  --config configs/predict_surface.yaml --surface-only
+#   oceanembed predict    --config configs/predict_surface.yaml --weights models/final --start 2024-06-01 --end 2024-06-30
+# The model inputs (`model.input_groups`) must equal those of the weights (models/final/manifest.json).
+run_name: predict_surface
+label: "Prediction from released weights"
+description: "Surface inputs for the requested days only; the model, statistics and ocean mask come from models/final."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2024-06-01
+  end: 2024-06-30
+
+split:                       # placeholders (unused)
+  train: [2024-06-01, 2024-06-10]
+  val: [2024-06-11, 2024-06-20]
+  test: [2024-06-21, 2024-06-30]
+
+provider: real
+
+model:
+  main_init: scratch
+  input_groups: [sst, sla]

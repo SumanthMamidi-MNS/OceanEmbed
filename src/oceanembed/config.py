@@ -22,6 +22,19 @@ STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 
 # Canonical surface channels, in model-input order.
 SURFACE_VARS = ["sst", "sss", "sla", "uo", "vo", "uw", "vw"]
 
+# Input groups: the unit in which inputs are kept or dropped (a group is one product; currents and
+# winds are vectors, so both components go together).
+INPUT_GROUPS: dict[str, tuple[str, ...]] = {
+    "sst": ("sst",),
+    "sss": ("sss",),
+    "sla": ("sla",),
+    "currents": ("uo", "vo"),
+    "winds": ("uw", "vw"),
+}
+
+
+RESERVED_TAGS = ("ridge", "mlp")  # prediction product folders of the baselines
+
 
 class _Base(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -34,6 +47,11 @@ class PathsConfig(_Base):
     # folder so that fake and real raw files can never be mixed up.
     raw_dir: str = "raw"
     processed_dir: str = "processed"
+    # Name of an existing harmonised store (and statistics file, and array cache) to reuse
+    # instead of ``<run_name>``: ``processed/<store>.zarr``, ``processed/<store>_stats.nc``. Lets a
+    # run share the data of another run without copying it. ``harmonize`` / ``stats`` refuse to
+    # rebuild a shared store.
+    store: str | None = None
 
 
 class GridConfig(_Base):
@@ -214,6 +232,32 @@ class ModelConfig(_Base):
     # "transformer": the OceanEmbed encoder. "unet": the Transformer blocks are replaced by residual
     # convolution blocks of the same width (research baseline; see models/encoder.py).
     arch: Literal["transformer", "unet"] = "transformer"
+    # Input groups the model (and the ridge / per-pixel MLP baselines) may use. A group that is not
+    # listed is zeroed (the training mean, in standardised units) in every input channel of every
+    # consumer: training, prediction, evaluation, embedding export. Default: all seven inputs.
+    input_groups: list[str] = Field(default_factory=lambda: list(INPUT_GROUPS))
+    # How the *main* model (checkpoints/recon.pt) is initialised: "pretrained" = fine-tuned from
+    # the masked-surface pretraining (needs the `pretrain` step), "scratch" = random weights.
+    main_init: Literal["pretrained", "scratch"] = "pretrained"
+
+    @field_validator("input_groups")
+    @classmethod
+    def _groups_valid(cls, v: list[str]) -> list[str]:
+        bad = [g for g in v if g not in INPUT_GROUPS]
+        if bad:
+            raise ValueError(f"unknown input group(s) {bad}; choose from {list(INPUT_GROUPS)}")
+        if not v:
+            raise ValueError("input_groups must keep at least one group")
+        return [g for g in INPUT_GROUPS if g in v]  # canonical order, no duplicates
+
+    @property
+    def dropped_groups(self) -> list[str]:
+        return [g for g in INPUT_GROUPS if g not in self.input_groups]
+
+    @property
+    def input_variables(self) -> list[str]:
+        """Surface variables the model may use, in canonical order."""
+        return [v for g in self.input_groups for v in INPUT_GROUPS[g]]
 
 
 class PretrainConfig(_Base):
@@ -255,6 +299,9 @@ class BaselineConfig(_Base):
     ridge_alpha: float = 1.0
     ridge_max_points: int = 1_000_000  # random subsample of valid train-split ocean points
     seed: int = 0
+    # also fit the per-pixel MLP (the ``mlp`` section) in run-all and publish it next to ridge:
+    # checkpoints/mlp.pt, predictions/mlp/, scored by evaluate and validate-argo
+    mlp: bool = False
 
 
 class MlpConfig(_Base):
@@ -274,15 +321,19 @@ class MlpConfig(_Base):
 class AblationConfig(_Base):
     """Optional extra training run(s) that ``run-all`` performs and publishes next to the model."""
 
-    # Train the same network without the pretrained encoder, then predict it (predictions/<tag>/)
+    # Train the same network without the pretrained encoder, then predict it (predictions/<tag>/).
+    # For a config whose main model is pretrained (model.main_init: pretrained).
     no_pretrained: bool = False
+    # The reverse, for a config whose main model is trained from scratch: also pretrain, fine-tune
+    # and predict the pretrained variant (checkpoint recon_<tag>.pt, predictions/<tag>/).
+    pretrained: bool = False
     tag: str = Field(default="scratch", pattern=r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,30}$")
 
     @field_validator("tag")
     @classmethod
     def _tag_not_reserved(cls, v: str) -> str:
-        if v == "ridge":
-            raise ValueError("'ridge' is reserved for the ridge baseline product folder")
+        if v in RESERVED_TAGS:
+            raise ValueError(f"'{v}' is reserved for the {v} baseline product folder")
         return v
 
 
@@ -317,6 +368,20 @@ class Config(_Base):
         return merged
 
     @model_validator(mode="after")
+    def _ablation_matches_main(self) -> Config:
+        scratch_main = self.model.main_init == "scratch"
+        if scratch_main and self.ablation.no_pretrained:
+            raise ValueError(
+                "ablation.no_pretrained needs a pretrained main model; the main model of this "
+                "config is already trained from scratch (use ablation.pretrained instead)"
+            )
+        if not scratch_main and self.ablation.pretrained:
+            raise ValueError(
+                "ablation.pretrained needs model.main_init: scratch (the main model is pretrained)"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _splits_inside_time(self) -> Config:
         for name in ("train", "val", "test"):
             r = self.split.get(name)
@@ -343,12 +408,22 @@ class Config(_Base):
         return self.data_root / self.paths.processed_dir
 
     @property
+    def store_name(self) -> str:
+        """Name of the harmonised store this run reads: its own run name unless ``paths.store``."""
+        return self.paths.store or self.run_name
+
+    @property
+    def shares_store(self) -> bool:
+        """True when the run reads the harmonised store / statistics of another run."""
+        return self.store_name != self.run_name
+
+    @property
     def zarr_path(self) -> Path:
-        return self.processed_root / f"{self.run_name}.zarr"
+        return self.processed_root / f"{self.store_name}.zarr"
 
     @property
     def stats_path(self) -> Path:
-        return self.processed_root / f"{self.run_name}_stats.nc"
+        return self.processed_root / f"{self.store_name}_stats.nc"
 
     @property
     def outputs_root(self) -> Path:

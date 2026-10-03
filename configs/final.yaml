@@ -1,0 +1,99 @@
+# The project's main run: the long-period configuration of research stage R2 with the choices the
+# research settled -- the network is trained from scratch (masked-surface pretraining gave no benefit,
+# R1), on eleven training years (R2), with the input groups selected on the validation year
+# (docs/research/final_inputs.md). The pretrained variant is kept as an ablation.
+#
+# The data are those of configs/poc_long.yaml: this run reads its harmonised store, statistics and
+# array cache (paths.store) instead of rebuilding them, so build those first (download, harmonize,
+# stats with configs/poc_long.yaml; `oceanembed run-all --config configs/final.yaml` checks that they
+# exist and never rebuilds or downloads anything).
+run_name: final
+label: "Indian Ocean, final model (2011-2024)"
+description: "Final OceanEmbed model for the Indian Ocean (5-30 N, 45-105 E), 2011-2024: trained on 2011-2021, checkpoints chosen on 2022, tested on 2023 and 2024 (scored per year and together); the network is trained from scratch, without pretraining, and uses sea surface temperature and sea level anomaly only (selected on the validation year)."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw
+  store: poc_long     # reuse data/processed/poc_long.zarr, poc_long_stats.nc and its array cache
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2011-01-01
+  end: 2024-12-15
+
+split:
+  train: [2011-01-01, 2021-12-31]   # 11 years
+  val: [2022-01-01, 2022-12-31]     # 1 year
+  test: [2023-01-01, 2024-12-15]    # two test years, scored separately and together
+
+provider: real
+
+products:
+  sst:
+    provider: cmems
+    datasets:
+      - id: METOFFICE-GLO-SST-L4-REP-OBS-SST
+    variables: {sst: analysed_sst}
+  sss:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-mob_glo_phy-sss_my_multi_P1D
+    variables: {sss: sos}
+  sla:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D
+    variables: {sla: sla}
+  currents:
+    provider: podaac
+    datasets:
+      - id: OSCAR_L4_OC_FINAL_V2.0
+    variables: {uo: u, vo: v}
+  winds:
+    provider: podaac
+    datasets:
+      - id: CCMP_WINDS_10M6HR_L4_V3.1
+    variables: {uw: uwnd, vw: vwnd}
+  temp:
+    provider: cmems
+    datasets:
+      - id: cmems_mod_glo_phy_my_0.083deg_P1D-m
+    variables: {temp: thetao}
+    min_depth: 0.0
+    max_depth: 1100.0
+
+download:
+  halo_deg: 0.5
+  overwrite: false
+  podaac_mode: opendap
+  workers: 4
+  delete_global_granules: true
+
+argo:
+  source: erddap
+  qc_flags: [1, 2]
+
+model:
+  main_init: scratch                      # the headline model is trained from random weights
+  input_groups: [sst, sla]                # chosen on the validation year (final_inputs)
+
+# Eleven training years do not fit in RAM: the arrays are the on-disk cache of poc_long.
+train:
+  cache: memmap
+  cache_dtype: float16
+
+baseline:
+  mlp: true          # the per-pixel MLP next to ridge: predictions/mlp/, scored like ridge
+
+# The pretrained variant (masked-surface pretraining, then fine-tuning) as an ablation:
+# checkpoint recon_pretrained.pt, predictions/pretrained/.
+ablation:
+  pretrained: true
+  tag: pretrained

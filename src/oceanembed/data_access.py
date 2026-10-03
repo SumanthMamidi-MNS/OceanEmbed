@@ -27,7 +27,7 @@ import xarray as xr
 from oceanembed.config import SURFACE_VARS, Config
 from oceanembed.data.stats import Stats, harmonic_design
 from oceanembed.grid import build_grid
-from oceanembed.infer.predict import PRODUCT_FILE, RIDGE_PRODUCT_DIR
+from oceanembed.infer.predict import MLP_PRODUCT_DIR, PRODUCT_FILE, RIDGE_PRODUCT_DIR
 from oceanembed.runmeta import RUN_META_FILE, read_run_meta
 
 try:  # the lock xarray holds around netCDF4 / HDF5 calls: the C libraries are not thread-safe
@@ -191,10 +191,10 @@ def load_training_logs(run) -> dict[str, pd.DataFrame]:
 def prediction_methods(run) -> dict[str, Path]:
     """Methods that have a NetCDF day-field product, as ``{method key: folder}``.
 
-    ``model`` is ``predictions/`` itself, ``ridge`` is ``predictions/ridge/`` and every other
-    sub-folder ``predictions/<tag>/`` is the ablation ``model_<tag>`` (the same keys the metrics
-    use). Only folders that hold at least one product file are listed; ``model`` comes first,
-    then ``ridge``, then the ablations by name.
+    ``model`` is ``predictions/`` itself, ``ridge`` / ``mlp`` are ``predictions/ridge/`` and
+    ``predictions/mlp/`` and every other sub-folder ``predictions/<tag>/`` is the ablation
+    ``model_<tag>`` (the same keys the metrics use). Only folders that hold at least one product
+    file are listed; ``model`` comes first, then ``ridge``, ``mlp``, then the ablations by name.
     """
     base = _run(run) / "predictions"
     prefix = PRODUCT_FILE.split("{")[0]
@@ -207,9 +207,12 @@ def prediction_methods(run) -> dict[str, Path]:
                 continue
             if d.name == RIDGE_PRODUCT_DIR:
                 out["ridge"] = d
+            elif d.name == MLP_PRODUCT_DIR:
+                out["mlp"] = d
             elif _TAG_RE.match(d.name):
                 out[f"model_{d.name}"] = d
-    return dict(sorted(out.items(), key=lambda kv: (kv[0] != "model", kv[0] != "ridge", kv[0])))
+    rank = {"model": 0, "ridge": 1, "mlp": 2}
+    return dict(sorted(out.items(), key=lambda kv: (rank.get(kv[0], 3), kv[0])))
 
 
 def _prediction_files(run, method: str = "model") -> dict[str, Path]:

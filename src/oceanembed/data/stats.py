@@ -116,6 +116,13 @@ class Stats:
             )
 
 
+def load_mask(path: Path) -> np.ndarray | None:
+    """The ``ocean_mask`` ``(depth, lat, lon)`` stored next to the statistics of a released-weights
+    folder, or ``None`` when the file has none (the ordinary ``<run>_stats.nc``)."""
+    with xr.open_dataset(path) as ds:
+        return ds["ocean_mask"].values.astype(bool) if "ocean_mask" in ds else None
+
+
 def split_indices(time: np.ndarray, start, end) -> np.ndarray:
     t = pd.DatetimeIndex(time)
     return np.nonzero((t >= pd.Timestamp(start)) & (t <= pd.Timestamp(end)))[0]

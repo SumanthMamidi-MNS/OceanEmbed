@@ -15,6 +15,8 @@ from torch import nn
 
 from oceanembed.models.baselines import FEATURE_CHANNELS, N_FEATURES
 
+MLP_FILE = "mlp.pt"  # checkpoints/mlp.pt: the per-pixel MLP baseline of a run
+
 
 class PixelMLP(nn.Module):
     def __init__(

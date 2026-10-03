@@ -1,0 +1,62 @@
+# Tiny grid, ~90 days across a New Year (two calendar years in the test split). Used only by pytest
+# (data root is redirected to a temp dir). Exercises what the final run uses: the main model trained
+# from scratch, a reduced set of input groups, the per-pixel MLP baseline, the pretrained ablation
+# and per-year metrics.
+run_name: test_tiny_final
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw_synthetic
+
+grid:
+  lat_min: 8.0
+  lat_max: 12.0      # 16 cells
+  lon_min: 72.0
+  lon_max: 78.0      # 24 cells
+
+time:
+  start: 2021-11-01
+  end: 2022-01-31    # 92 days
+
+split:
+  train: [2021-11-01, 2021-12-10]   # 40 days (the climatology needs at least 30 per point)
+  val: [2021-12-11, 2021-12-24]
+  test: [2021-12-25, 2022-01-31]   # 7 days of 2021 and 31 days of 2022
+
+provider: synthetic
+
+synthetic:
+  seed: 3
+  argo_profiles_per_month: 40
+
+download:
+  halo_deg: 0.5
+
+model:
+  emb_dim: 16
+  dim: 32
+  depth: 2
+  heads: 2
+  stem_channels: 16
+  main_init: scratch
+  input_groups: [sst, sla, winds]
+pretrain:
+  epochs: 1
+  batch_size: 2
+  block: 4
+train:
+  epochs: 1
+  batch_size: 2
+baseline:
+  mlp: true
+mlp:
+  hidden: 16
+  layers: 2
+  max_points: 4000
+  val_points: 1000
+  epochs: 2
+
+ablation:
+  pretrained: true
+  tag: pretrained

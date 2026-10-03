@@ -174,6 +174,8 @@ Training holds the 5-year train split in RAM (about 5 GB float32); 16 GB is enou
 
 ## 5. View the results
 
+The project's final run (`configs/final.yaml`, built on the data of `poc_long`) and the clean-up / rebuild instructions are in [`reproduce.md`](reproduce.md).
+
 ```powershell
 .\.venv\Scripts\streamlit.exe run app/Home.py
 ```

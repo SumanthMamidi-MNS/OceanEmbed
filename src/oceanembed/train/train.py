@@ -77,8 +77,13 @@ def run_train(
     log_path: Path | None = None,
     pretrain_path: Path | None = None,
     datasets: tuple | None = None,
+    main: bool | None = None,
 ) -> dict:
     """Supervised training of the reconstruction model.
+
+    ``main`` says whether this run is the main model (checkpoint ``recon.pt``, log ``train.jsonl``)
+    or an ablation (``recon_<tag>.pt``, default tag ``scratch`` / ``pretrained``); ``None`` keeps
+    the original rule: the pretrained model is the main one, a from-scratch run is an ablation.
 
     ``seed`` overrides ``train.seed``; ``arch`` overrides ``model.arch`` (``"unet"`` needs
     ``pretrained=False``); ``ckpt_path`` / ``log_path`` / ``pretrain_path`` redirect the output
@@ -90,8 +95,10 @@ def run_train(
         cfg = cfg.model_copy(update={"model": cfg.model.model_copy(update={"arch": arch})})
     if pretrained and cfg.model.arch != "transformer":
         raise ValueError("a pretrained encoder exists only for the transformer architecture")
-    if not pretrained and not tag and ckpt_path is None:
-        tag = "scratch"  # never overwrite the pretrained model's recon.pt
+    if main is None:
+        main = pretrained
+    if not main and not tag and ckpt_path is None:
+        tag = "scratch" if not pretrained else "pretrained"  # never overwrite the main recon.pt
     seed = tc.seed if seed is None else seed
     set_seed(seed)
     dev = get_device(device)

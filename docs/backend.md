@@ -131,6 +131,9 @@ Paths are relative to `src/oceanembed/`. "-" = none.
 | [`research/physical.py`](../src/oceanembed/research/physical.py) | Derived quantities (isotherm depth, layer integral, heat content), terciles, seasons | `isotherm_depth`, `layer_integral`, `heat_content`, `derived_fields` | `(D, ...)` temperature | arrays |
 | [`research/r5.py`](../src/oceanembed/research/r5.py), [`r5_report.py`](../src/oceanembed/research/r5_report.py) | R5: streaming per-day sums for derived quantities and strata, report | `run_r5`, `make_r5_report` | predictions, Zarr, stats | `research/r5/` |
 | [`research/common.py`](../src/oceanembed/research/common.py) | Bootstrap scoring and number formatting shared by the R4 / R5 reports | `score_series`, `paired`, `interval` | per-day sums | dicts |
+| [`research/inputs.py`](../src/oceanembed/research/inputs.py) | R3 input manipulation: variable groups, `InputSpec`, masking (zeroed channels), history channels, `InputView` (training view of a preloaded dataset), test-time batch builder, within-month permutation | `InputSpec`, `EXPERIMENTS`, `InputView`, `make_test_batch_fn`, `sample_points_view`, `month_permutation`, `permute_batch` | preloaded datasets, store | tensors |
+| [`research/r3.py`](../src/oceanembed/research/r3.py), [`r3_report.py`](../src/oceanembed/research/r3_report.py) | R3: retrain-without / history / permutation jobs (resumable), multi-pass scoring with one reference read, report | `run_r3`, `plan_jobs`, `score_passes`, `region_sums`, `make_r3_report` | config, Zarr, stats, R1 jobs | `research/r3/` |
+| [`research/r2.py`](../src/oceanembed/research/r2.py), [`r2_report.py`](../src/oceanembed/research/r2_report.py) | R2: long-period jobs (Transformer, MLP, ridge, climatology, learning curve), Argo scoring of two test years, report | `run_r2`, `plan_jobs`, `train_days`, `make_r2_report` | long config, Zarr, stats, memmap caches, Argo files | `research/r2/` |
 | [`infer/predict.py`](../src/oceanembed/infer/predict.py) | Checkpoint loading, predictors, degC conversion, CF-1.8 NetCDF writer | `load_recon_model`, `model_predictor`, `predict_batch`, `predict_to_netcdf`, `expected_product_files` | checkpoint, surface dataset | `predictions/**/oceanembed_T_YYYYMM.nc` |
 | [`infer/embed.py`](../src/oceanembed/infer/embed.py) | Embedding export | `export_embeddings`, `embedding_path` | encoder weights, split | `embeddings/embeddings.zarr` |
 | [`eval/metrics.py`](../src/oceanembed/eval/metrics.py) | Streaming sums-based metrics | `MetricAccumulator`, `metrics_from_sums`, `skill_score`, `point_metrics` | pred / ref arrays | metric dicts |
@@ -469,6 +472,10 @@ All commands take `--config / -c <yaml>` (must exist) except `serve`. `--device`
 | `research r1-report` | `--n-boot`, `--block-length`, `--seed` | `research/r1/**/eval.npz` | `research/r1/summary.{json,md}`, `figures/` |
 | `research r4` | `--download/--no-download`, `--recompute`, `--n-boot`, `--block-length`, `--seed` | config, predictions, Zarr, stats, `argo_matchups.parquet`, CMEMS login (download only) | `data/raw/armor3d/`, `data/processed/<run>_armor3d/`, `research/r4/` |
 | `research r5` | `--recompute`, `--mlp-seed`, `--n-boot`, `--block-length`, `--seed` | config, predictions, Zarr, stats, R1 `mlp.pt` (optional) | `research/r5/` only |
+| `research r3` | `--seeds`, `--mlp-seeds`, `--models`, `--experiments`, `--permutation/--no-permutation`, `--perm-repeats`, `--skip-existing/--no-skip-existing`, `--device` | config, Zarr, stats, R1 `scratch` / `mlp` jobs | `research/r3/<model>_<experiment>/seed<k>/`, `research/r3/perm_<model>/seed<k>/` only |
+| `research r3-report` | `--n-boot`, `--block-length`, `--seed` | `research/r3/**`, R1 `scratch` / `mlp` / `climatology` | `research/r3/summary.{json,md}`, `figures/` |
+| `research r2` | `--seeds`, `--methods`, `--learning-curve/--no-learning-curve`, `--argo/--no-argo`, `--skip-existing/--no-skip-existing`, `--device` | long config, Zarr, stats, stored Argo months | `research/r2/<name>/seed<k>/`, `research/r2/argo/`, `data/processed/cache/<run>/` |
+| `research r2-report` | `--compare-config`, `--n-boot`, `--block-length`, `--seed` | `research/r2/**`, the compared run's `research/r1/**` (read only) | `research/r2/summary.{json,md}`, `figures/` |
 | `serve` | `--host` (127.0.0.1), `--port` (8000), `--outputs-root`, `--reload` | `outputs/` (exit 2 if missing) | serves the API; sets `OCEANEMBED_API_OUTPUTS_ROOT` for `--reload` |
 
 `predict` argument rules: `--start` and `--end` together, not with `--split`; `--ridge` and `--tag` exclusive; tag `ridge` rejected.
@@ -545,6 +552,44 @@ outputs/<run>/research/r1/
   [`physical.py`](../src/oceanembed/research/physical.py)) on a common sample and of the pooled 50-200 m temperature per stratum
   (`sums.npz`); the report turns them into tables and figures. Memory stays at a few fields.
 - Neither stage writes under `checkpoints`, `metrics`, `predictions`, `embeddings`, `report.md` or `research/r1`.
+
+### Research commands (stages R3 and R2)
+
+`oceanembed research r3` / `r3-report` and `research r2` / `r2-report` (usage: [`usage.md`](usage.md)). Both runners follow the R1
+conventions: one folder per job with `done.json` written last, `eval.npz` sufficient statistics (`raw`, `anom` of shape
+`(region, field, day, depth)`), skip-finished / resume-at-the-first-unfinished-stage, block bootstrap with shared replicates,
+"established" = paired interval excludes 0 **and** the per-seed RMSE ranges do not overlap. Scoring is `r3.score_passes`: several
+passes over the test split with the reference and climatology of a batch read once, and the per-region sums of the eight fields
+computed with one matrix product per field (checked equal to `sums_from_arrays`).
+
+- **R3 input groups.** `inputs.InputSpec` = the variable groups kept (`sst`, `sss`, `sla`, `currents` = u + v, `winds` = u + v) and
+  the history length `k`. A group that is not kept is zeroed in every channel of that variable (target day and every lag); the
+  network layout and initialisation are unchanged, so the R1 model of the same seed is the exact full-input reference (a test
+  shows the identity view trains bit-identically on the CPU). History adds, after the 12 channels, the 7 surface fields of day
+  `t-1`, `t-2`, ... (`12 + 7 (k - 1)` channels; `model.in_channels` is set per job and stored in the checkpoint). Training reads
+  the preloaded arrays through `InputView` (indexing, no copy); the first `k - 1` days of the training and validation splits are
+  dropped. Scoring builds the identical input for the test split (`make_test_batch_fn`), taking the days before the split from the
+  store (inputs only), so every `k` is scored on the same days. The per-pixel MLP gets the ridge features plus the lagged surface
+  values (`PixelMLP(channels=...)`, `run_train_mlp(sample_fn=..., model_kwargs=...)`); its sample of training points is the same
+  as the full-input MLP's.
+- **R3 permutation.** One pass per (group, repeat) plus an unpermuted pass from the same code; the permutation draws, for every
+  calendar month, a random derangement of the days and replaces *all channels of the group* by those of the donor day. Permuting
+  within the month keeps the inputs realistic for the season (a global shuffle would put July sea level next to January SST and
+  inflate the importance with the seasonal cycle that the day-of-year channels already carry) and measures the information in the
+  sub-monthly variations beyond the seasonal mean state, which is also why it can disagree with retrain-without. Repeats are
+  averaged at the level of the sums.
+- **R2 on-disk cache.** `OceanDataset.use_cache` writes the four standardised arrays (`surf`, `sv`, `y`, `valid`) once to
+  `data/processed/cache/<run>/<split>_<start>_<end>_<dtype>/*.npy` and reads them with `np.memmap` by day (`train.cache: memmap`).
+  The folder is built as `<name>.tmp` and renamed after `meta.json` (with the dtype's round-off, the statistics fingerprint, the
+  split and the store identity) is written, so a partial build is never used and a missing or stale cache is rebuilt.
+  `gather(t, p)` serves the ridge / MLP point samples day by day from the maps; `tail(n)` is a no-copy view of the last `n` days
+  (learning curve). `ram` (the default) is untouched.
+- **R2 jobs.** `scratch`, `mlp` (3 seeds), `ridge` (fitted on the long train split, saved in its job folder), `climatology`, the
+  learning-curve jobs `scratch_ty2` / `scratch_ty5` (the headline model on the last 2 / 5 years; normalisation and climatology stay
+  those of the full period) and `argo` (headline model seed 0, ridge, climatology and GLORYS at the stored Argo profiles of both
+  test years; never downloads). Every job scores the whole test split; the report slices it by year.
+- Neither stage writes under `checkpoints`, `metrics`, `predictions`, `embeddings`, `report.md` or any other stage's folder
+  (R2 reads the first run's `research/r1` for the 2024 comparison).
 
 ## 10. Data API
 
@@ -630,7 +675,7 @@ project root.
 | `harmonize` | `time_chunk` 8, `min_valid_fraction` 0.5 |
 | `model` | `in_channels` 12, `emb_dim` 128, `dim` 192, `depth` 6, `heads` 6, `mlp_ratio` 4.0, `stem_channels` 64, `n_depths` 15, `arch` `transformer` (`unet` = residual convolutions instead of attention, research R1) |
 | `pretrain` | `epochs` 20, `batch_size` 8, `lr` 3e-4, `weight_decay` 0.05, `warmup_epochs` 1, `grad_clip` 1, `mask_ratio` 0.5, `block` 16, `amp`, `seed` 0, `crop` null |
-| `train` | `epochs` 30, `batch_size` 8, `lr` 3e-4, `encoder_lr_scale` 0.1, `weight_decay` 0.01, `warmup_epochs` 1, `grad_clip` 1, `vertical_grad_weight` 0.05, `patience` 8, `amp`, `seed` 0, `crop` null, `num_workers` 0 |
+| `train` | `epochs` 30, `batch_size` 8, `lr` 3e-4, `encoder_lr_scale` 0.1, `weight_decay` 0.01, `warmup_epochs` 1, `grad_clip` 1, `vertical_grad_weight` 0.05, `patience` 8, `amp`, `seed` 0, `crop` null, `num_workers` 0, `cache` `ram` (`memmap` = on-disk array cache for periods that do not fit in RAM), `cache_dtype` `float16` (memmap cache only) |
 | `baseline` | `ridge_alpha` 1.0, `ridge_max_points` 1 000 000, `seed` 0 |
 | `mlp` | `hidden` 256, `layers` 3, `max_points` 1 000 000, `val_points` 200 000, `epochs` 30, `batch_size` 4096, `lr` 1e-3, `weight_decay` 1e-4, `patience` 5 (research R1 only) |
 | `ablation` | `no_pretrained` false, `tag` `scratch` |

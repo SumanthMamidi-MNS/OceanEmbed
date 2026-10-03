@@ -54,7 +54,8 @@ src/oceanembed/
     regrid.py           horizontal regrid (block-mean coarsen / bilinear), temporal daily mean, vertical interp
     harmonize.py        raw -> harmonised Zarr on the canonical grid
     stats.py            input mean/std, per-depth harmonic climatology + anomaly std (train period only)
-    dataset.py          torch Dataset over the harmonised Zarr (optional `preload()` of a split into RAM);
+    dataset.py          torch Dataset over the harmonised Zarr (optional `preload()` of a split into RAM, or
+                        `use_cache()`: on-disk memmap cache for periods that do not fit in RAM, `train.cache`);
                         `SurfaceOnlyDataset`: inputs only (never reads `temp`), batched reads, for predict/eval
   models/
     blocks.py           ResBlock / Up conv blocks shared by encoder and decoders
@@ -84,7 +85,9 @@ src/oceanembed/
                         outputs/<run>/research/r1/), `bootstrap.py` moving-block bootstrap, `r1_report.py`
                         summary tables / figures; see docs/backend.md section 9; stage R4 (`armor3d.py`, `r4.py`,
                         `r4_report.py`: ARMOR3D benchmark) and R5 (`physical.py`, `r5.py`, `r5_report.py`: derived
-                        physical quantities, stratified skill), shared `common.py`
+                        physical quantities, stratified skill), shared `common.py`; stage R3 (`inputs.py`, `r3.py`,
+                        `r3_report.py`: variable groups / history / permutation importance) and R2 (`r2.py`,
+                        `r2_report.py`: long training period, two test years, learning curve, Argo)
   data_access.py        read-only loaders shared by the Streamlit app and the HTTP API (no UI code, no Streamlit
                         import; documented below); `app/data_access.py` is a thin re-export of it
   api/                  read-only FastAPI data API (`oceanembed serve`), documented in docs/api.md

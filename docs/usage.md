@@ -138,6 +138,56 @@ ARMOR3D, a 100 m map example, error by local float density); `research/r5/summar
 derived-skill tables, skill by season and basin, by |SLA| tercile, Bay of Bengal by salinity tercile). Write-ups:
 [`research/r4_armor3d.md`](research/r4_armor3d.md), [`research/r5_physical.md`](research/r5_physical.md).
 
+### R3: which variable matters where, and does history help
+
+Uses the first run (`configs\poc.yaml`) and needs its R1 results (the full-input models are the references and the models that
+get permuted). Writes only under `outputs/<run>/research/r3/`.
+
+```powershell
+# retrain-without ablations, 3 / 7 days of history, permutation importance (long: about 6 h on the 6 GB GPU, resumable)
+.\.venv\Scripts\oceanembed.exe research r3 --config configs\poc.yaml
+# tables, paired intervals and figures from whatever has finished
+.\.venv\Scripts\oceanembed.exe research r3-report --config configs\poc.yaml
+```
+
+| Command | Options |
+|---|---|
+| `research r3` | `--seeds 0,1` (Transformer), `--mlp-seeds 0,1,2`, `--models scratch,mlp`, `--experiments no_sst,no_sss,no_sla,no_currents,no_winds,hist3,hist7,sst_only,sst_sla,sst_sla_winds` (default all; `full` re-runs the reference), `--permutation/--no-permutation`, `--perm-repeats 3`, `--skip-existing/--no-skip-existing`, `--device` |
+| `research r3-report` | `--n-boot 2000`, `--block-length` (default: from the autocorrelation), `--seed 0` |
+
+A removed variable group is zeroed in the model input (all days, every lag), so the network keeps its layout and initialisation and
+cannot use it; the reference is the R1 model of the same seeds. History `hist<k>` adds the surface fields of the previous `k - 1`
+days as extra channels; every test day is scored for every `k` (the days before the test split come from the store, inputs only),
+and the first `k - 1` days of the training and validation splits, which have no full history, are dropped. Permutation importance
+scores a finished R1 model with one group permuted across the test days **within the same calendar month** (all channels of a group
+from the same donor day), averaged over repeats. Jobs run seed by seed (Transformer and MLP of an experiment next to each other).
+
+Results: `research/r3/summary.md`, `summary.json`, `figures/ablation_heatmap_<model>.png` (depth x variable heat maps of the RMSE
+increase, whole domain and both basins), `permutation_by_depth.png`, `history_rmse_by_depth.png`.
+
+### R2: more training years, two test years
+
+Uses `configs\poc_long.yaml` (train 2011-2021, validation 2022, test 2023-2024). Eleven training years do not fit in RAM, so the
+config sets `train.cache: memmap`: the standardised train / validation arrays are written once to `data/processed/cache/<run>/` and
+read by day (float16 by default; the round-off is recorded in each cache's `meta.json`). A missing or stale cache (store, statistics
+or split changed) is rebuilt automatically; deleting the folder is always safe.
+
+```powershell
+.\.venv\Scripts\oceanembed.exe harmonize --config configs\poc_long.yaml     # ~80 min
+.\.venv\Scripts\oceanembed.exe stats --config configs\poc_long.yaml         # statistics and climatology on 2011-2021
+.\.venv\Scripts\oceanembed.exe research r2 --config configs\poc_long.yaml   # about 4 h, resumable
+.\.venv\Scripts\oceanembed.exe research r2-report --config configs\poc_long.yaml
+```
+
+| Command | Options |
+|---|---|
+| `research r2` | `--seeds 0,1,2`, `--methods scratch,mlp,ridge,climatology` (default all), `--learning-curve/--no-learning-curve` (headline model on the last 2 and 5 years, seed 0), `--argo/--no-argo` (2023 and 2024 Argo profiles, seed 0), `--skip-existing/--no-skip-existing`, `--device` |
+| `research r2-report` | `--compare-config configs\poc.yaml` (the first run whose R1 results are compared on 2024; read only), `--n-boot 2000`, `--block-length`, `--seed 0` |
+
+Every job scores the whole test split; the report splits it into 2023, 2024 and pooled, each with its own block bootstrap. Results:
+`research/r2/summary.md`, `summary.json`, `figures/` (RMSE by depth per year, long vs first run on 2024, bias by depth and RMSE per
+year, learning curve, Argo by depth).
+
 ## Project layout
 
 ```

@@ -86,7 +86,7 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 - [x] R4 external benchmark: ARMOR3D against Argo and GLORYS on the same matchups (`oceanembed research r4`); results in `docs/research/r4_armor3d.md`
 - [x] R5 physical metrics: thermocline depth, 0–300 m heat content, skill by monsoon season, eddy regime and Bay of Bengal salinity (`oceanembed research r5`); results in `docs/research/r5_physical.md`
 - [ ] R2 more training years and a second test year
-- [ ] R3 input-variable attribution by depth; several days of surface history as input
+- [x] R3 input-variable attribution by depth; several days of surface history as input (`oceanembed research r3`); results in `docs/research/r3_attribution.md` — sea level is the one indispensable input for the thermocline, SST + sea level reproduce the full seven-variable result, salinity and currents add nothing (dropping them improves the model by 0.027 °C), and 3 or 7 days of history do not help or reach below 300 m
 - [ ] R6 Argo-aware correction; R7 manuscript
 
 **R1 result (5 seeds, pooled 50–200 m RMSE vs GLORYS, 2024):** no pretraining 1.052 ± 0.015, pretrained 1.064 ± 0.016, per-pixel MLP 1.094 ± 0.005, plain U-Net 1.124 ± 0.031, ridge 1.155, climatology 1.390 °C. Pretraining gives no benefit; the Transformer beats the U-Net (established); the advantage over a per-pixel MLP is small, not established for the whole domain, and comes from the Bay of Bengal thermocline.

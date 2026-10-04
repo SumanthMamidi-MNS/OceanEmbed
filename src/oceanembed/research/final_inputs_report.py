@@ -259,7 +259,7 @@ def build_summary(
         "test": test,
         "test_vs_full": vs_full,
         "note": (
-            "The decision uses validation numbers only. The test-year scores below are reported "
+            "The decision uses validation numbers only. The test-year scores above are reported "
             "for every candidate after the fact and played no part in it."
         ),
     }

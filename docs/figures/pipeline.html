@@ -9,7 +9,7 @@
   .flow .box:not(:last-child)::before { content: ""; position: absolute; right: -19px; top: 50%; width: 17px; border-top: 2.5px solid #6A7280; }
   .big { font-family: "Newsreader", Georgia, serif; font-weight: 600; font-size: 34px; color: var(--ink); line-height: 1; display: block; margin: 10px 0 2px; }
   .sub { font-size: 14.5px; color: var(--muted); display: block; }
-  .years { margin-top: 30px; display: grid; grid-template-columns: 5fr 1fr 1fr; gap: 6px; }
+  .years { margin-top: 30px; display: grid; grid-template-columns: 11fr 1.6fr 2.4fr; gap: 6px; }
   .yr { border-radius: 8px; padding: 10px 16px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
   .yr b { font-weight: 600; }
   .train { background: var(--blue-bg); border: 2px solid var(--blue-bd); color: var(--blue-tx); }
@@ -21,22 +21,22 @@
 
 <div class="flow">
   <div class="box blue">
-    <span class="k">1 · INPUT</span><h2>Seven surface fields</h2>
-    <p>One satellite snapshot of the sea surface per day.</p>
+    <span class="k">1 · INPUT</span><h2>Satellite surface fields</h2>
+    <p>One snapshot of the sea surface per day. Seven fields are harmonised; the final model needs two.</p>
     <div style="margin-top:10px">
       <span class="chip">SST</span><span class="chip">salinity</span><span class="chip">sea level</span>
       <span class="chip">currents U V</span><span class="chip">winds U V</span>
     </div>
-    <span class="big">7</span><span class="sub">channels, nothing from below the surface</span>
+    <span class="big">2 of 7</span><span class="sub">used: SST and sea level; nothing from below the surface</span>
   </div>
   <div class="box tan">
     <span class="k">2 · HARMONISE</span><h2>One grid, one clock</h2>
     <p>Six products at 0.05° to 0.25°, daily or 6-hourly, regridded to 0.25° daily.</p>
-    <span class="big">2 541</span><span class="sub">gap-free days · 100 × 240 cells · 15 depths</span>
+    <span class="big">5 098</span><span class="sub">gap-free days · 100 × 240 cells · 15 depths</span>
   </div>
   <div class="box blue">
     <span class="k">3 · ENCODE</span><h2>Satellite embedding</h2>
-    <p>CNN stem + 6-layer Transformer. Pretrained by rebuilding hidden parts of the surface.</p>
+    <p>CNN stem + 6-layer Transformer: every patch of the basin attends to every other.</p>
     <span class="big">128</span><span class="sub">features on a 25 × 60 map of the basin</span>
   </div>
   <div class="box blue">
@@ -45,9 +45,9 @@
     <span class="big">15</span><span class="sub">depths, 0 to 1 000 m, in °C</span>
   </div>
   <div class="box gate">
-    <span class="k">5 · CHECK</span><h2>A year it never saw</h2>
-    <p>Against the GLORYS reanalysis and Argo floats, beside climatology, ridge regression and an ablation.</p>
-    <span class="big">350</span><span class="sub">test days · 2 826 Argo profiles</span>
+    <span class="k">5 · CHECK</span><h2>Two years it never saw</h2>
+    <p>Against the GLORYS reanalysis and Argo floats, beside climatology, ridge regression and a per-pixel network.</p>
+    <span class="big">715</span><span class="sub">test days · 5 512 Argo profiles</span>
   </div>
   <div class="box dark">
     <span class="k">6 · DELIVER</span><h2>Product and explorer</h2>
@@ -57,9 +57,9 @@
 </div>
 
 <div class="years">
-  <div class="yr train"><b>Train</b><span>2018 · 2019 · 2020 · 2021 · 2022 &nbsp;(1 826 days)</span></div>
-  <div class="yr val"><b>Validate</b><span>2023</span></div>
-  <div class="yr test"><b>Test</b><span>2024</span></div>
+  <div class="yr train"><b>Train</b><span>2011 – 2021 &nbsp;(11 years, 4 018 days)</span></div>
+  <div class="yr val"><b>Validate</b><span>2022</span></div>
+  <div class="yr test"><b>Test</b><span>2023 · 2024</span></div>
 </div>
 
 <div class="foot"><span>Split by time, never at random: neighbouring days look alike, so a random split would leak the answer.</span><span>North Indian Ocean · 5–30°N, 45–105°E</span></div>

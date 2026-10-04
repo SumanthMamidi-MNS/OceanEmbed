@@ -24,7 +24,7 @@
   .take .s { font-size: 13px; color: var(--muted); margin-top: 4px; }
 </style></head>
 <body>
-<div class="head"><h1>Measured on 2024, a year the model never saw</h1><span>350 test days · single training seed</span></div>
+<div class="head"><h1>Measured on 2023 and 2024, two years the model never saw</h1><span>715 test days · trained on 2011 – 2021</span></div>
 
 <div class="grid">
   <div class="panel">
@@ -33,7 +33,7 @@
     <svg id="rmse" viewBox="0 0 440 470" width="440" height="470"></svg>
     <div class="legend">
       <span><i style="border-color:var(--m-model)"></i>OceanEmbed</span>
-      <span><i style="border-color:var(--m-scratch);border-top-style:dashed"></i>no pretraining</span>
+      <span><i style="border-color:var(--m-scratch);border-top-style:dashed"></i>per-pixel network</span>
       <span><i style="border-color:var(--m-ridge);border-top-style:dotted"></i>ridge</span>
       <span><i style="border-color:var(--m-clim);border-top-style:dotted"></i>climatology</span>
     </div>
@@ -44,48 +44,48 @@
     <svg id="skill" viewBox="0 0 440 470" width="440" height="470"></svg>
     <div class="legend">
       <span><i style="border-color:var(--m-model)"></i>OceanEmbed</span>
-      <span><i style="border-color:var(--m-scratch);border-top-style:dashed"></i>no pretraining</span>
+      <span><i style="border-color:var(--m-scratch);border-top-style:dashed"></i>per-pixel network</span>
       <span><i style="border-color:var(--m-ridge);border-top-style:dotted"></i>ridge</span>
     </div>
   </div>
   <div class="panel bars">
     <h2>The thermocline, 50–200 m</h2>
-    <p class="cap">pooled RMSE in °C · the same test days for every method</p>
+    <p class="cap">pooled RMSE in °C over both test years · same days for every method</p>
     <h3>AGAINST THE GLORYS REANALYSIS</h3>
-    <div class="bar lead"><span>OceanEmbed</span><div class="track"><div class="fill" style="width:59.8%;background:var(--m-model)"></div></div><b>1.08</b></div>
-    <div class="bar"><span>No pretraining</span><div class="track"><div class="fill" style="width:57.8%;background:var(--m-scratch)"></div></div><b>1.04</b></div>
-    <div class="bar"><span>Ridge regression</span><div class="track"><div class="fill" style="width:64.1%;background:var(--m-ridge)"></div></div><b>1.15</b></div>
-    <div class="bar"><span>Climatology</span><div class="track"><div class="fill" style="width:77.2%;background:var(--m-clim)"></div></div><b>1.39</b></div>
-    <h3>AGAINST 2 826 ARGO FLOAT PROFILES</h3>
-    <div class="bar"><span>GLORYS itself</span><div class="track"><div class="fill" style="width:60.0%;background:var(--m-glorys)"></div></div><b>1.08</b></div>
-    <div class="bar lead"><span>OceanEmbed</span><div class="track"><div class="fill" style="width:78.6%;background:var(--m-model)"></div></div><b>1.41</b></div>
-    <div class="bar"><span>No pretraining</span><div class="track"><div class="fill" style="width:78.6%;background:var(--m-scratch)"></div></div><b>1.41</b></div>
-    <div class="bar"><span>Ridge regression</span><div class="track"><div class="fill" style="width:85.1%;background:var(--m-ridge)"></div></div><b>1.53</b></div>
-    <div class="bar"><span>Climatology</span><div class="track"><div class="fill" style="width:92.7%;background:var(--m-clim)"></div></div><b>1.67</b></div>
+    <div class="bar lead"><span>OceanEmbed</span><div class="track"><div class="fill" style="width:54.6%;background:var(--m-model)"></div></div><b>0.98</b></div>
+    <div class="bar"><span>Per-pixel network</span><div class="track"><div class="fill" style="width:56.3%;background:var(--m-scratch)"></div></div><b>1.01</b></div>
+    <div class="bar"><span>Ridge regression</span><div class="track"><div class="fill" style="width:67.7%;background:var(--m-ridge)"></div></div><b>1.22</b></div>
+    <div class="bar"><span>Climatology</span><div class="track"><div class="fill" style="width:81.1%;background:var(--m-clim)"></div></div><b>1.46</b></div>
+    <h3>AGAINST 5 512 ARGO FLOAT PROFILES</h3>
+    <div class="bar"><span>GLORYS itself</span><div class="track"><div class="fill" style="width:58.4%;background:var(--m-glorys)"></div></div><b>1.05</b></div>
+    <div class="bar lead"><span>OceanEmbed</span><div class="track"><div class="fill" style="width:73.4%;background:var(--m-model)"></div></div><b>1.32</b></div>
+    <div class="bar"><span>Per-pixel network</span><div class="track"><div class="fill" style="width:71.7%;background:var(--m-scratch)"></div></div><b>1.29</b></div>
+    <div class="bar"><span>Ridge regression</span><div class="track"><div class="fill" style="width:76.4%;background:var(--m-ridge)"></div></div><b>1.38</b></div>
+    <div class="bar"><span>Climatology</span><div class="track"><div class="fill" style="width:84.2%;background:var(--m-clim)"></div></div><b>1.52</b></div>
     <p class="cap" style="margin-top:10px">GLORYS assimilates Argo, so its own distance from the floats is the floor for any model trained on it.</p>
     <h3>SKILL BY BASIN, AGAINST GLORYS (0 = CLIMATOLOGY, 1 = PERFECT)</h3>
-    <div class="bar lead"><span>Bay of Bengal</span><div class="track"><div class="fill" style="width:55.3%;background:var(--m-model)"></div></div><b>0.55</b></div>
-    <div class="bar"><span>&nbsp; ridge</span><div class="track"><div class="fill" style="width:39.7%;background:var(--m-ridge)"></div></div><b>0.40</b></div>
-    <div class="bar lead"><span>Arabian Sea</span><div class="track"><div class="fill" style="width:28.7%;background:var(--m-model)"></div></div><b>0.29</b></div>
-    <div class="bar"><span>&nbsp; ridge</span><div class="track"><div class="fill" style="width:25.2%;background:var(--m-ridge)"></div></div><b>0.25</b></div>
+    <div class="bar lead"><span>Bay of Bengal</span><div class="track"><div class="fill" style="width:66.9%;background:var(--m-model)"></div></div><b>0.67</b></div>
+    <div class="bar"><span>&nbsp; per-pixel</span><div class="track"><div class="fill" style="width:60.1%;background:var(--m-scratch)"></div></div><b>0.60</b></div>
+    <div class="bar lead"><span>Arabian Sea</span><div class="track"><div class="fill" style="width:44.8%;background:var(--m-model)"></div></div><b>0.45</b></div>
+    <div class="bar"><span>&nbsp; per-pixel</span><div class="track"><div class="fill" style="width:45.4%;background:var(--m-scratch)"></div></div><b>0.45</b></div>
   </div>
 </div>
 
 <div class="takes">
-  <div class="take"><div class="n">22 %</div><div class="t">lower error than climatology over 50–200 m</div><div class="s">26 % at 100 m · 7 % below ridge regression</div></div>
-  <div class="take"><div class="n">0.64</div><div class="t">anomaly correlation, seasonal cycle removed</div><div class="s">ridge 0.56</div></div>
-  <div class="take"><div class="n">0.55 / 0.29</div><div class="t">skill in the Bay of Bengal / Arabian Sea</div><div class="s">0 = climatology, 1 = perfect</div></div>
-  <div class="take lim"><div class="n">≈ 300 m</div><div class="t">below this depth there is no skill over climatology</div><div class="s">and pretraining gave no measurable gain</div></div>
+  <div class="take"><div class="n">33 %</div><div class="t">lower error than climatology over 50–200 m</div><div class="s">0.97 °C in 2023, 0.99 °C in 2024 · 19 % below ridge regression</div></div>
+  <div class="take"><div class="n">0.73</div><div class="t">anomaly correlation, seasonal cycle removed</div><div class="s">ridge 0.53</div></div>
+  <div class="take"><div class="n">0.67 / 0.45</div><div class="t">skill in the Bay of Bengal / Arabian Sea</div><div class="s">0 = climatology, 1 = perfect</div></div>
+  <div class="take lim"><div class="n">≈ 300 m</div><div class="t">below this depth there is no skill over climatology</div><div class="s">with eleven training years and either input set</div></div>
 </div>
 
 <script>
 (function () {
   var depths = [0,5,10,20,30,50,75,100,125,150,200,300,500,700,1000];
   var R = {
-    clim:  [0.793,0.792,0.792,0.829,0.913,1.179,1.545,1.657,1.556,1.359,0.894,0.545,0.352,0.356,0.380],
-    ridge: [0.727,0.728,0.726,0.762,0.828,0.997,1.213,1.313,1.303,1.199,0.827,0.532,0.351,0.354,0.380],
-    scr:   [0.558,0.562,0.571,0.615,0.722,0.919,1.084,1.183,1.178,1.064,0.753,0.517,0.350,0.358,0.409],
-    model: [0.572,0.567,0.570,0.631,0.725,0.921,1.100,1.222,1.241,1.121,0.790,0.532,0.357,0.366,0.408]
+    clim:  [0.814,0.808,0.805,0.844,0.937,1.220,1.621,1.762,1.646,1.412,0.925,0.531,0.345,0.344,0.363],
+    ridge: [0.725,0.722,0.715,0.751,0.830,1.051,1.352,1.446,1.351,1.182,0.810,0.504,0.338,0.338,0.360],
+    scr:   [0.482,0.491,0.480,0.537,0.638,0.840,1.083,1.173,1.140,1.034,0.742,0.496,0.339,0.336,0.359],
+    model: [0.469,0.474,0.483,0.552,0.644,0.819,1.014,1.123,1.117,1.024,0.740,0.503,0.345,0.349,0.373]
   };
   var style = { clim: ["var(--m-clim)", "2 5"], ridge: ["var(--m-ridge)", "2 5"], scr: ["var(--m-scratch)", "8 5"], model: ["var(--m-model)", ""] };
   var ns = "http://www.w3.org/2000/svg";
@@ -114,7 +114,7 @@
       if (k === "model") vals.forEach(function (v, i) { el("circle", {cx: x(v), cy: y(depths[i]), r: 3.2, fill: style[k][0]}); });
     });
   }
-  chart("rmse", 0, 1.8, [0, 0.5, 1.0, 1.5], ["clim", "ridge", "scr", "model"], function (v) { return v; }, "RMSE (°C)", false);
+  chart("rmse", 0, 1.9, [0, 0.5, 1.0, 1.5], ["clim", "ridge", "scr", "model"], function (v) { return v; }, "RMSE (°C)", false);
   chart("skill", -0.2, 0.6, [-0.2, 0, 0.2, 0.4, 0.6], ["ridge", "scr", "model"], function (v, i) { return 1 - (v * v) / (R.clim[i] * R.clim[i]); }, "Skill vs climatology", true);
 })();
 </script>

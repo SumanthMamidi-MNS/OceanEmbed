@@ -24,7 +24,7 @@
 
 <p class="label">ENCODER — THE SATELLITE EMBEDDING ENGINE (3.2 M PARAMETERS)</p>
 <div class="row enc">
-  <div class="box tan"><h2>Input</h2><p>7 surface fields, ocean mask, day of year (sin, cos), latitude, longitude</p><span class="shape">12 × 100 × 240</span></div>
+  <div class="box tan"><h2>Input</h2><p>SST and sea level (the other five surface channels are zeroed), ocean mask, day of year, latitude, longitude</p><span class="shape">12 × 100 × 240</span></div>
   <div class="box blue"><h2>Stem 0</h2><p>3×3 conv + residual block</p><span class="shape">32 × 100 × 240 &nbsp;→ skip A</span></div>
   <div class="box blue"><h2>Stem 1</h2><p>stride-2 conv + residual block</p><span class="shape">64 × 50 × 120 &nbsp;→ skip B</span></div>
   <div class="box blue"><h2>Stem 2</h2><p>stride-2 conv + residual block</p><span class="shape">128 × 25 × 60</span></div>
@@ -43,9 +43,9 @@
 </div>
 
 <div class="skips">
-  <div class="note"><b>Masked pretraining (no labels needed).</b> Half of the surface is hidden in 16 × 16 blocks; a small decoder must rebuild all seven fields from the embedding alone. The encoder never sees the hidden pixels, so the skips cannot leak them.</div>
-  <div class="note"><b>Supervised training.</b> Masked mean-squared error on the anomaly, plus a small penalty on the vertical gradient between neighbouring depths. AdamW, cosine schedule, mixed precision, early stopping on the 2023 validation year.</div>
+  <div class="note"><b>Tested and set aside: masked pretraining.</b> Hiding half of the surface and rebuilding it from the embedding works (error 0.16 against 1.04 for mean-fill) but gives no gain in temperature skill over five seeds, so the released model is trained end to end.</div>
+  <div class="note"><b>Supervised training.</b> Masked mean-squared error on the anomaly, plus a small penalty on the vertical gradient between neighbouring depths. AdamW, cosine schedule, mixed precision, early stopping on the 2022 validation year.</div>
 </div>
 
-<div class="foot"><span>Pretraining 14 min + supervised training 11 min on a 6 GB laptop GPU (RTX 3050), about 1.3 GB of GPU memory at batch size 8.</span><span>src/oceanembed/models/</span></div>
+<div class="foot"><span>About 20 minutes of training on eleven years of data on a 6 GB laptop GPU (RTX 3050), about 1.3 GB of GPU memory at batch size 8.</span><span>src/oceanembed/models/</span></div>
 </body></html>

@@ -107,8 +107,8 @@
 <!-- 1 inputs -->
 <div class="row">
   <div class="box blue">
-    <h2>Seven satellite surface fields</h2>
-    <p>one snapshot of the sea surface per day — nothing from below it</p>
+    <h2>Satellite surface fields</h2>
+    <p>one snapshot of the sea surface per day — seven harmonised, two used by the final model</p>
     <div class="chips">
       <span class="chip">SST · OSTIA</span><span class="chip">salinity · SMOS/SMAP</span><span class="chip">sea level · DUACS</span>
       <span class="chip">currents U,V · OSCAR</span><span class="chip">winds U,V · CCMP</span>
@@ -128,9 +128,9 @@
       <div class="subbox"><b>Daily means</b><span>6-hourly winds averaged to one value per day</span></div>
       <div class="subbox"><b>Standard depths</b><span>GLORYS levels interpolated to 15 depths, 0 – 1 000 m</span></div>
     </div>
-    <p class="small">2 541 days, 2018-01-01 → 2024-12-15, no gaps</p>
+    <p class="small">5 098 days, 2011-01-01 → 2024-12-15, no gaps</p>
   </div>
-  <div class="note">Currents and winds are <b>subset on the server</b> (OPeNDAP): about 16 GB transferred for seven years instead of about 180 GB of global files.</div>
+  <div class="note">Currents and winds are <b>subset on the server</b> (OPeNDAP): a few hundred kilobytes per day instead of 33 MB global files, over fourteen years.</div>
 </div>
 <div class="arrow"></div>
 
@@ -139,7 +139,7 @@
   <div class="box gate">
     <span class="tag">GATE</span>
     <h2>Split by time, never at random</h2>
-    <p>train 2018 – 2022 · validate 2023 · test 2024 — statistics come from the training years only</p>
+    <p>train 2011 – 2021 · validate 2022 · test 2023 and 2024 — statistics come from the training years only</p>
   </div>
   <div class="note">Neighbouring days look alike. A random split would <b>leak the answer</b> into training; a whole unseen year cannot.</div>
 </div>
@@ -161,11 +161,11 @@
     <h2>Satellite embedding engine</h2>
     <p>CNN stem + Transformer encoder → <b style="color:var(--ink)">128 features on a 25 × 60 map</b> of the basin</p>
     <div class="subs c2">
-      <div class="subbox"><b>Masked pretraining</b><span>half the surface hidden in 16 × 16 blocks and rebuilt from the rest — needs no subsurface labels</span></div>
+      <div class="subbox"><b>Two inputs are enough</b><span>SST and sea level, chosen on the validation year; salinity, currents and winds add nothing</span></div>
       <div class="subbox"><b>Attention over the whole basin</b><span>1 500 tokens: every patch can use eddies and fronts anywhere in the domain</span></div>
     </div>
   </div>
-  <div class="note">Hidden surface blocks are rebuilt with error <b>0.16</b> against <b>1.04</b> for filling in the mean (standardised units, 2023 validation year).</div>
+  <div class="note">Without sea level the error rises by <b>0.04 °C</b> for this model and <b>0.27 °C</b> for a per-pixel network; with SST alone, by <b>0.28 °C</b>.</div>
 </div>
 <div class="arrow"></div>
 
@@ -175,7 +175,7 @@
     <h2>Reconstruction decoder</h2>
     <p>U-Net-style decoder with skip connections → temperature anomaly at 15 depths, then + climatology = °C</p>
   </div>
-  <div class="note"><b>3.7 M parameters.</b> Trains in about 25 minutes on a 6 GB laptop GPU (14 pretraining, 11 supervised); the loss ignores land and the sea floor.</div>
+  <div class="note"><b>3.7 M parameters.</b> Trains in about 20 minutes on a 6 GB laptop GPU; the loss ignores land and the sea floor.</div>
 </div>
 <div class="arrow"></div>
 
@@ -183,8 +183,8 @@
 <div class="row">
   <div class="box gate">
     <span class="tag">TEST</span>
-    <h2>A held-out year against GLORYS</h2>
-    <p>350 days of 2024 — RMSE, bias, anomaly correlation and skill per depth, basin and grid cell</p>
+    <h2>Two held-out years against GLORYS</h2>
+    <p>715 days of 2023 and 2024 — RMSE, bias, anomaly correlation and skill per depth, basin, cell and year</p>
   </div>
   <div class="stop">
     <span class="lbl">no skill</span>
@@ -202,7 +202,7 @@
     <h2>Argo float profiles</h2>
     <p>in-situ profiles matched to the same cell and day; every method scored on the same sample</p>
   </div>
-  <div class="note"><b>2 826 profiles</b> in 2024. GLORYS assimilates Argo, so Argo is independent of the model's <b>inputs</b>, not of its training target; GLORYS-vs-Argo is shown as the floor.</div>
+  <div class="note"><b>5 512 profiles</b> in 2023 – 2024. GLORYS assimilates Argo, so Argo is independent of the model's <b>inputs</b>, not of its training target; GLORYS-vs-Argo is shown as the floor.</div>
 </div>
 <div class="arrow"></div>
 
@@ -210,14 +210,14 @@
 <div class="row">
   <div class="box tan">
     <h2>Baselines and ablation, always alongside</h2>
-    <div class="chips"><span class="chip">climatology</span><span class="chip">ridge regression</span><span class="chip">no pretraining</span></div>
+    <div class="chips"><span class="chip">climatology</span><span class="chip">ridge regression</span><span class="chip">per-pixel network</span><span class="chip">pretrained variant</span></div>
     <p class="small">a result only counts if it beats the simple alternatives on the same days</p>
   </div>
   <div class="stop">
     <span class="lbl">no gain</span>
     <div class="k">ABLATION RESULT</div>
     <h3>Pretraining did not help</h3>
-    <p>trained from scratch: 1.04 °C; with pretraining: 1.08 °C (50–200 m, one seed) — kept on the page</p>
+    <p>five seeds each: 1.05 °C from scratch, 1.06 °C with masked pretraining (50–200 m) — reported, then dropped</p>
   </div>
 </div>
 <div class="arrow"></div>
@@ -245,13 +245,13 @@
 </div>
 
 <div class="measured">
-  <div class="head"><h2>Measured, not claimed</h2><span>RESULTS ON 2024, A YEAR THE MODEL NEVER SAW</span></div>
+  <div class="head"><h2>Measured, not claimed</h2><span>RESULTS ON 2023 AND 2024, TWO YEARS THE MODEL NEVER SAW</span></div>
   <div class="stats">
-    <div class="stat"><div class="n">1.08<small> °C</small></div><div class="t">RMSE in the thermocline, 50–200 m</div><div class="s">climatology 1.39 · ridge 1.15</div></div>
-    <div class="stat"><div class="n">22<small> %</small></div><div class="t">lower error than climatology</div><div class="s">26 % at 100 m, where it matters most</div></div>
-    <div class="stat"><div class="n">0.64</div><div class="t">anomaly correlation, 50–200 m</div><div class="s">ridge 0.56 · seasonal cycle removed</div></div>
-    <div class="stat"><div class="n">0.55</div><div class="t">skill in the Bay of Bengal</div><div class="s">Arabian Sea 0.29 · 0 = climatology</div></div>
-    <div class="stat"><div class="n">1.41<small> °C</small></div><div class="t">RMSE against Argo floats, 50–200 m</div><div class="s">climatology 1.67 · GLORYS itself 1.08 · 40 059 matchups</div></div>
+    <div class="stat"><div class="n">0.98<small> °C</small></div><div class="t">RMSE in the thermocline, 50–200 m</div><div class="s">climatology 1.46 · ridge 1.22</div></div>
+    <div class="stat"><div class="n">33<small> %</small></div><div class="t">lower error than climatology</div><div class="s">36 % at 100 m, where it matters most</div></div>
+    <div class="stat"><div class="n">0.73</div><div class="t">anomaly correlation, 50–200 m</div><div class="s">ridge 0.53 · seasonal cycle removed</div></div>
+    <div class="stat"><div class="n">0.67</div><div class="t">skill in the Bay of Bengal</div><div class="s">Arabian Sea 0.45 · 0 = climatology</div></div>
+    <div class="stat"><div class="n">1.32<small> °C</small></div><div class="t">RMSE against Argo floats, 50–200 m</div><div class="s">climatology 1.52 · GLORYS itself 1.05 · 77 388 matchups</div></div>
     <div class="stat limit"><div class="n">0</div><div class="t">skill below 300 m</div><div class="s">no better than climatology at 500–1 000 m</div></div>
   </div>
 </div>

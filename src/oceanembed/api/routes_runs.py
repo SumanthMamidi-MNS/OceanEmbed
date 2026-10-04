@@ -13,7 +13,7 @@ from starlette.responses import FileResponse
 from oceanembed import data_access as da
 from oceanembed.api import schemas as S
 from oceanembed.api.deps import file_headers, get_store, reply, run_dep
-from oceanembed.api.encode import array_to_list
+from oceanembed.api.encode import NaNSafeJSONResponse, array_to_list
 from oceanembed.api.metrics import experiment_rows, method_infos
 from oceanembed.api.store import FILE_NAME_RE, MAIN_METHOD, ApiError, Run, Store, method_kind
 from oceanembed.eval.evaluate import method_label
@@ -141,6 +141,10 @@ def _describe(run: Run, counts: dict[str, int], terms: int | None) -> tuple[str,
     return str(label), text
 
 
+def _is_live(run: Run) -> bool:
+    return bool((run.meta.get("live") or {}).get("nrt"))
+
+
 def summarize(store: Store, run: Run) -> dict[str, Any]:
     meta, grid = run.meta, run.meta.get("grid", {})
     logs = (
@@ -176,9 +180,12 @@ def summarize(store: Store, run: Run) -> dict[str, Any]:
             "training_logs": logs,
             "n_figures": len(figure_files(run)),
             "n_product_files": len(files),
+            "live": _is_live(run),
         },
         "n_prediction_days": len(store.dates(run)),
         "note": SYNTHETIC_NOTE if run.data_source == "synthetic" else None,
+        "live": _is_live(run),
+        "live_last_day": (meta.get("live") or {}).get("last_day") if _is_live(run) else None,
         **_run_facts(store, run),
     }
 
@@ -186,6 +193,149 @@ def summarize(store: Store, run: Run) -> dict[str, Any]:
 # ----------------------------------------------------------------------------------------------
 # runs
 # ----------------------------------------------------------------------------------------------
+LIVE_HINT = (
+    "this is not a live run: only the rolling near-real-time run written by `oceanembed live update` "
+    "has live provenance"
+)
+
+
+def _read_json(path) -> dict | None:
+    import json
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _days_table(run: Run) -> list[dict[str, Any]]:
+    path = run.file("live_days.parquet")
+    if not path.is_file():
+        return []
+    try:
+        df = pd.read_parquet(path)
+    except (OSError, ValueError):
+        return []
+    df = df.sort_values("date")
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    df = df.drop(columns=[c for c in ("inputs_digest",) if c in df])
+    df = df.astype(object).where(df.notna(), None)
+    return df.to_dict(orient="records")
+
+
+def _window_days(state: dict, days_table: list[dict], inputs: list[dict]) -> list[dict]:
+    """Every calendar day of the window with a completeness flag: reconstructed means every input
+    the model uses had data for it."""
+    win = state.get("window") or {}
+    if not win:
+        return []
+    have = {d["date"]: d for d in days_table}
+    names = [i["product"] for i in inputs]
+    out = []
+    for day in pd.date_range(win["start"], win["end"], freq="D").strftime("%Y-%m-%d"):
+        row = have.get(day)
+        out.append(
+            {
+                "date": day,
+                "reconstructed": row is not None,
+                "complete": row is not None,
+                "inputs": {n: row is not None for n in names},
+            }
+        )
+    return out
+
+
+def _shift_summary(shift: dict | None) -> dict | None:
+    """The input-shift check for a client: overlap period, headline and the by-depth tables."""
+    if shift is None:
+        return None
+    vs = {
+        region: {
+            depth: {
+                "rmse_reprocessed": (c.get("rmse_reprocessed") or {}).get("point"),
+                "rmse_nrt": (c.get("rmse_nrt") or {}).get("point"),
+                "change": c.get("rmse_change"),
+            }
+            for depth, c in cells.items()
+        }
+        for region, cells in (shift.get("vs_glorys") or {}).items()
+    }
+    return {
+        "headline": shift.get("headline"),
+        "headline_text": shift.get("headline_text"),
+        "updated": shift.get("updated"),
+        "period": {"start": shift.get("first_day"), "end": shift.get("last_day")},
+        "n_days": shift.get("n_days"),
+        "inputs": shift.get("inputs"),
+        "recon_difference": shift.get("recon_difference"),
+        "vs_glorys": vs,
+        "note": (
+            "near-real-time archive as it is now vs the reprocessed products the model was "
+            "trained on, same days; change = NRT minus reprocessed RMSE against GLORYS "
+            "(positive = NRT worse)"
+        ),
+    }
+
+
+def live_payload(run: Run) -> dict[str, Any]:
+    state = _read_json(run.file("live_state.json")) or {}
+    shift = _read_json(run.file("checks", "input_shift", "summary.json"))
+    verification = _read_json(run.file("checks", "verification", "verification.json"))
+    days_table = _days_table(run)
+    inputs = [
+        {
+            "product": p,
+            "dataset": i.get("dataset"),
+            "version": i.get("version"),
+            "first": i.get("first"),
+            "last": i.get("last"),
+            "latest_data_date": i.get("latest_data_date"),
+            "age_days": i.get("age_days"),
+            "delay_days_catalogue": i.get("delay_days_catalogue"),
+            "available": i.get("latest_data_date") == state.get("last_day"),
+        }
+        for p, i in (state.get("inputs") or {}).items()
+    ]
+    revision = {
+        "policy": state.get("revision_policy"),
+        **(state.get("revision_stats") or {}),
+    }
+    return {
+        "run": run.name,
+        "note": (run.meta.get("live") or {}).get("note")
+        or "nowcast of the same day from near-real-time inputs, not a forecast",
+        "last_update": state.get("last_update"),
+        "window": state.get("window"),
+        "last_day": state.get("last_day"),
+        "inputs": inputs,
+        "pending": state.get("pending", []),
+        "window_days": _window_days(state, days_table, inputs),
+        "model": state.get("model"),
+        "days": days_table,
+        "revision": revision,
+        "input_shift": _shift_summary(shift),
+        "verification": (
+            None
+            if verification is None
+            else {k: v for k, v in verification.items() if k != "analysis_raw"}
+        ),
+        "history": state.get("history", []),
+    }
+
+
+@router.get(
+    "/runs/{run}/live",
+    response_model=S.LiveResponse,
+    responses=ERRORS,
+    summary="Live nowcast run: window, input freshness, provenance, revisions, checks",
+)
+def live(run: Run = Depends(run_dep)):
+    if not _is_live(run):
+        raise ApiError(404, LIVE_HINT)
+    # the live files change on every update without run_meta.json changing: never cache this one
+    return NaNSafeJSONResponse(live_payload(run), headers={"Cache-Control": "no-store"})
+
+
 @router.get("/runs", response_model=S.RunsResponse, summary="List runs with a summary")
 def list_runs(request: Request, store: Store = Depends(get_store)):
     runs = []

@@ -18,6 +18,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live nowcast run: window, input freshness, provenance, revisions, checks */
+        get: operations["live_api_runs__run__live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs": {
         parameters: {
             query?: never;
@@ -646,6 +663,12 @@ export interface components {
             n_figures: number;
             /** N Product Files */
             n_product_files: number;
+            /**
+             * Live
+             * @description True when the run holds live nowcast state (live_state.json).
+             * @default false
+             */
+            live: boolean;
         };
         /** Basin */
         Basin: {
@@ -1107,6 +1130,123 @@ export interface components {
              * @description True when web/dist/index.html exists and is served at /.
              */
             ui_built: boolean;
+        };
+        /** LiveInput */
+        LiveInput: {
+            /**
+             * Product
+             * @description Model input group: sst or sla.
+             */
+            product: string;
+            /** Dataset */
+            dataset: string;
+            /** Version */
+            version: string | null;
+            /**
+             * First
+             * @description First day the catalogue publishes.
+             */
+            first?: string | null;
+            /**
+             * Last
+             * @description Last day the catalogue published at the last update.
+             */
+            last?: string | null;
+            /**
+             * Latest Data Date
+             * @description Newest day held for the window.
+             */
+            latest_data_date?: string | null;
+            /**
+             * Age Days
+             * @description Days between the last update and that day.
+             */
+            age_days?: number | null;
+            /**
+             * Delay Days Catalogue
+             * @description Days between the last update and the catalogue's last day.
+             */
+            delay_days_catalogue?: number | null;
+            /**
+             * Available
+             * @description True when this input has data for the newest reconstructed day.
+             * @default false
+             */
+            available: boolean;
+        };
+        /** LiveResponse */
+        LiveResponse: {
+            /** Run */
+            run: string;
+            /** Note */
+            note: string;
+            /** Last Update */
+            last_update: string | null;
+            /**
+             * Window
+             * @description start, end, n_days, window_days
+             */
+            window: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Last Day
+             * @description Newest reconstructed day (a nowcast of that day).
+             */
+            last_day: string | null;
+            /** Inputs */
+            inputs: components["schemas"]["LiveInput"][];
+            /**
+             * Pending
+             * @description Days published for one input but not yet for all.
+             */
+            pending: string[];
+            /**
+             * Window Days
+             * @description Every day of the window: date, reconstructed, complete, per-input availability.
+             */
+            window_days: {
+                [key: string]: unknown;
+            }[];
+            /** Model */
+            model: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Days
+             * @description Per-day provenance: dataset and age of each input, update times, revision size.
+             */
+            days: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Revision
+             * @description Revision policy and statistics by the age at which a day was checked.
+             */
+            revision: {
+                [key: string]: unknown;
+            };
+            /**
+             * Input Shift
+             * @description Headline numbers of `live input-shift` (near-real-time vs reprocessed inputs).
+             */
+            input_shift: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Verification
+             * @description Running verification: daily and rolling error against Argo and the analysis.
+             */
+            verification: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * History
+             * @description The latest updates: timings and sizes.
+             */
+            history: {
+                [key: string]: unknown;
+            }[];
         };
         /** MapResponse */
         MapResponse: {
@@ -1603,6 +1743,17 @@ export interface components {
              * @description Terms of the climatology fit: 1 = mean only, 3 = + annual, 5 = + semi-annual.
              */
             n_harmonic_terms?: number | null;
+            /**
+             * Live
+             * @description True for the rolling near-real-time nowcast run (`oceanembed live update`). A live run has no evaluation against the reanalysis and its days keep being revised; a client should not choose it as the default run.
+             * @default false
+             */
+            live: boolean;
+            /**
+             * Live Last Day
+             * @description Newest reconstructed day of a live run (YYYY-MM-DD).
+             */
+            live_last_day?: string | null;
         };
         /** RunsResponse */
         RunsResponse: {
@@ -1812,6 +1963,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    live_api_runs__run__live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveResponse"];
+                };
+            };
+            /** @description Invalid parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unknown run, missing artefact or no data */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

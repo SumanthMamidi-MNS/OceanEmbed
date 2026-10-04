@@ -24,6 +24,65 @@
     }
    }
   },
+  "/api/runs/{run}/live": {
+   "get": {
+    "summary": "Live nowcast run: window, input freshness, provenance, revisions, checks",
+    "operationId": "live_api_runs__run__live_get",
+    "parameters": [
+     {
+      "name": "run",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LiveResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid parameter",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown run, missing artefact or no data",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/runs": {
    "get": {
     "summary": "List runs with a summary",
@@ -2556,6 +2615,12 @@
      "n_product_files": {
       "type": "integer",
       "title": "N Product Files"
+     },
+     "live": {
+      "type": "boolean",
+      "title": "Live",
+      "description": "True when the run holds live nowcast state (live_state.json).",
+      "default": false
      }
     },
     "type": "object",
@@ -3870,6 +3935,255 @@
     ],
     "title": "Health"
    },
+   "LiveInput": {
+    "properties": {
+     "product": {
+      "type": "string",
+      "title": "Product",
+      "description": "Model input group: sst or sla."
+     },
+     "dataset": {
+      "type": "string",
+      "title": "Dataset"
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     },
+     "first": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First",
+      "description": "First day the catalogue publishes."
+     },
+     "last": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last",
+      "description": "Last day the catalogue published at the last update."
+     },
+     "latest_data_date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latest Data Date",
+      "description": "Newest day held for the window."
+     },
+     "age_days": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Age Days",
+      "description": "Days between the last update and that day."
+     },
+     "delay_days_catalogue": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Delay Days Catalogue",
+      "description": "Days between the last update and the catalogue's last day."
+     },
+     "available": {
+      "type": "boolean",
+      "title": "Available",
+      "description": "True when this input has data for the newest reconstructed day.",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "product",
+     "dataset",
+     "version"
+    ],
+    "title": "LiveInput"
+   },
+   "LiveResponse": {
+    "properties": {
+     "run": {
+      "type": "string",
+      "title": "Run"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note"
+     },
+     "last_update": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Update"
+     },
+     "window": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Window",
+      "description": "start, end, n_days, window_days"
+     },
+     "last_day": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Day",
+      "description": "Newest reconstructed day (a nowcast of that day)."
+     },
+     "inputs": {
+      "items": {
+       "$ref": "#/components/schemas/LiveInput"
+      },
+      "type": "array",
+      "title": "Inputs"
+     },
+     "pending": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Pending",
+      "description": "Days published for one input but not yet for all."
+     },
+     "window_days": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Window Days",
+      "description": "Every day of the window: date, reconstructed, complete, per-input availability."
+     },
+     "model": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     },
+     "days": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Days",
+      "description": "Per-day provenance: dataset and age of each input, update times, revision size."
+     },
+     "revision": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Revision",
+      "description": "Revision policy and statistics by the age at which a day was checked."
+     },
+     "input_shift": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Input Shift",
+      "description": "Headline numbers of `live input-shift` (near-real-time vs reprocessed inputs)."
+     },
+     "verification": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Verification",
+      "description": "Running verification: daily and rolling error against Argo and the analysis."
+     },
+     "history": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "History",
+      "description": "The latest updates: timings and sizes."
+     }
+    },
+    "type": "object",
+    "required": [
+     "run",
+     "note",
+     "last_update",
+     "window",
+     "last_day",
+     "inputs",
+     "pending",
+     "window_days",
+     "model",
+     "days",
+     "revision",
+     "input_shift",
+     "verification",
+     "history"
+    ],
+    "title": "LiveResponse"
+   },
    "MapResponse": {
     "properties": {
      "run": {
@@ -5047,6 +5361,24 @@
       ],
       "title": "N Harmonic Terms",
       "description": "Terms of the climatology fit: 1 = mean only, 3 = + annual, 5 = + semi-annual."
+     },
+     "live": {
+      "type": "boolean",
+      "title": "Live",
+      "description": "True for the rolling near-real-time nowcast run (`oceanembed live update`). A live run has no evaluation against the reanalysis and its days keep being revised; a client should not choose it as the default run.",
+      "default": false
+     },
+     "live_last_day": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Live Last Day",
+      "description": "Newest reconstructed day of a live run (YYYY-MM-DD)."
      }
     },
     "type": "object",

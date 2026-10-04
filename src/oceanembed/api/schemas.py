@@ -44,6 +44,9 @@ class Artefacts(BaseModel):
     training_logs: list[str] = Field(description="Log stems, e.g. pretrain, train, train_scratch.")
     n_figures: int
     n_product_files: int
+    live: bool = Field(
+        False, description="True when the run holds live nowcast state (live_state.json)."
+    )
 
 
 class GridSummary(BaseModel):
@@ -81,6 +84,17 @@ class RunSummary(BaseModel):
     n_harmonic_terms: int | None = Field(
         None,
         description="Terms of the climatology fit: 1 = mean only, 3 = + annual, 5 = + semi-annual.",
+    )
+    live: bool = Field(
+        False,
+        description=(
+            "True for the rolling near-real-time nowcast run (`oceanembed live update`). A live run "
+            "has no evaluation against the reanalysis and its days keep being revised; a client "
+            "should not choose it as the default run."
+        ),
+    )
+    live_last_day: str | None = Field(
+        None, description="Newest reconstructed day of a live run (YYYY-MM-DD)."
     )
 
 
@@ -579,3 +593,48 @@ class ProductResponse(BaseModel):
     extra_products: list[ExtraProduct] = Field(
         default_factory=list, description="Ridge and ablation products, clearly labelled."
     )
+
+
+class LiveInput(BaseModel):
+    product: str = Field(description="Model input group: sst or sla.")
+    dataset: str
+    version: str | None
+    first: str | None = Field(None, description="First day the catalogue publishes.")
+    last: str | None = Field(
+        None, description="Last day the catalogue published at the last update."
+    )
+    latest_data_date: str | None = Field(None, description="Newest day held for the window.")
+    age_days: int | None = Field(None, description="Days between the last update and that day.")
+    delay_days_catalogue: int | None = Field(
+        None, description="Days between the last update and the catalogue's last day."
+    )
+    available: bool = Field(
+        False, description="True when this input has data for the newest reconstructed day."
+    )
+
+
+class LiveResponse(BaseModel):
+    run: str
+    note: str
+    last_update: str | None
+    window: dict[str, Any] | None = Field(description="start, end, n_days, window_days")
+    last_day: str | None = Field(description="Newest reconstructed day (a nowcast of that day).")
+    inputs: list[LiveInput]
+    pending: list[str] = Field(description="Days published for one input but not yet for all.")
+    window_days: list[dict[str, Any]] = Field(
+        description="Every day of the window: date, reconstructed, complete, per-input availability."
+    )
+    model: dict[str, Any] | None
+    days: list[dict[str, Any]] = Field(
+        description="Per-day provenance: dataset and age of each input, update times, revision size."
+    )
+    revision: dict[str, Any] = Field(
+        description="Revision policy and statistics by the age at which a day was checked."
+    )
+    input_shift: dict[str, Any] | None = Field(
+        description="Headline numbers of `live input-shift` (near-real-time vs reprocessed inputs)."
+    )
+    verification: dict[str, Any] | None = Field(
+        description="Running verification: daily and rolling error against Argo and the analysis."
+    )
+    history: list[dict[str, Any]] = Field(description="The latest updates: timings and sizes.")

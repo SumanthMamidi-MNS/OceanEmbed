@@ -1,0 +1,85 @@
+# Live nowcast: the released model (models/final) run on near-real-time satellite inputs, a rolling
+# window of the most recent days. A nowcast of the same day as the inputs, not a forecast; the inputs
+# are daily maps that appear a day or two late (see docs/research/live_nowcast.md).
+#
+#   oceanembed live update --config configs/live.yaml      # bring the window up to date
+#   oceanembed live status --config configs/live.yaml      # what is there, how old, what is pending
+#
+# The model uses sea surface temperature and sea level anomaly only (models/final/MODEL_CARD.md), so
+# those are the two near-real-time products fetched; salinity, currents and winds are not used and
+# not downloaded. Raw near-real-time files live in data/raw_nrt/, never in data/raw/.
+#
+# `time` and `split` are the data period and splits of the released weights (they are what the model
+# was trained on; the live run does not use them to build anything and the live window moves).
+run_name: live
+label: "Live nowcast (near-real-time inputs)"
+description: "Same-day reconstruction of the temperature profile from near-real-time sea surface temperature and sea level anomaly with the released final model, for a rolling window of the latest days. A nowcast, not a forecast; the inputs are daily maps published with a delay and revised for a few days."
+
+paths:
+  data_root: data
+  outputs_root: outputs
+  raw_dir: raw_nrt
+
+grid:
+  lat_min: 5.0
+  lat_max: 30.0
+  lon_min: 45.0
+  lon_max: 105.0
+  resolution: 0.25
+
+time:
+  start: 2011-01-01
+  end: 2024-12-15
+
+split:
+  train: [2011-01-01, 2021-12-31]
+  val: [2022-01-01, 2022-12-31]
+  test: [2023-01-01, 2024-12-15]
+
+provider: real
+
+products:
+  sst:
+    provider: cmems
+    datasets:
+      - id: METOFFICE-GLO-SST-L4-NRT-OBS-SST-V2      # OSTIA near-real-time, 0.05 deg daily
+    variables: {sst: analysed_sst}
+  sla:
+    provider: cmems
+    datasets:
+      - id: cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D   # DUACS near-real-time L4
+    variables: {sla: sla}
+
+download:
+  halo_deg: 0.5
+  retries: 4
+  retry_backoff_s: 2.0
+
+argo:
+  source: erddap
+  qc_flags: [1, 2]
+
+model:
+  main_init: scratch
+  input_groups: [sst, sla]       # must equal the released weights' inputs
+
+live:
+  weights: models/final          # recon.pt, stats.nc (normalisation, climatology, ocean mask)
+  window_days: 60                # days kept in the rolling run
+  revision_days: 7               # re-fetch and re-reconstruct the newest N days on every update
+  request_days: 31               # longest range asked from the server in one request
+  reprocessed:                   # what the model was trained on, for the overlap checks
+    sst: METOFFICE-GLO-SST-L4-REP-OBS-SST
+    sla: cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D
+    temp: cmems_mod_glo_phy_my_0.083deg_P1D-m
+  input_shift:                   # `oceanembed live input-shift`: overlap of all products
+    start: 2025-10-01
+    end: 2026-03-31
+    n_boot: 1000
+    seed: 0
+  verification:                  # part of `live update` (--no-verify switches it off)
+    enabled: true
+    rolling_days: 30
+    analysis_max_mb: 1500
+    analysis_dataset: cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m
+    analysis_variable: thetao

@@ -337,6 +337,51 @@ class AblationConfig(_Base):
         return v
 
 
+# ----- live nowcast (docs/research/live_nowcast.md) -----
+
+
+class InputShiftConfig(_Base):
+    """Overlap period of the input-shift check: days where the reprocessed products (the ones the
+    model was trained on), the near-real-time products and the GLORYS target all exist."""
+
+    start: date = date(2025, 10, 1)
+    end: date = date(2026, 3, 31)
+    n_boot: int = Field(default=1000, ge=100)
+    seed: int = 0
+
+
+class VerificationConfig(_Base):
+    enabled: bool = True
+    rolling_days: int = Field(default=30, ge=5)
+    # score against the operational analysis only when its download for the window is at most this
+    analysis_max_mb: float = Field(default=1500.0, gt=0)
+    analysis_dataset: str = "cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m"
+    analysis_variable: str = "thetao"
+
+
+class LiveConfig(_Base):
+    """Rolling near-real-time nowcast: released weights, window, revision policy.
+
+    The near-real-time datasets themselves are the ``products`` of the config (``sst``, ``sla``)."""
+
+    weights: Path = Path("models/final")
+    window_days: int = Field(default=60, ge=7, le=400)
+    # every update re-fetches and re-reconstructs the newest ``revision_days`` days of the window
+    revision_days: int = Field(default=7, ge=0)
+    # longest range (days) asked from the server in one request
+    request_days: int = Field(default=31, ge=1)
+    # the reprocessed products the model was trained on, for the overlap checks
+    reprocessed: dict[str, str] = Field(
+        default_factory=lambda: {
+            "sst": "METOFFICE-GLO-SST-L4-REP-OBS-SST",
+            "sla": "cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D",
+            "temp": "cmems_mod_glo_phy_my_0.083deg_P1D-m",
+        }
+    )
+    input_shift: InputShiftConfig = Field(default_factory=InputShiftConfig)
+    verification: VerificationConfig = Field(default_factory=VerificationConfig)
+
+
 class Config(_Base):
     run_name: str
     # Human display name / one-paragraph description for the dashboard; derived when left out.
@@ -358,6 +403,8 @@ class Config(_Base):
     baseline: BaselineConfig = Field(default_factory=BaselineConfig)
     mlp: MlpConfig = Field(default_factory=MlpConfig)
     ablation: AblationConfig = Field(default_factory=AblationConfig)
+    # only the live nowcast config (configs/live.yaml) has this section
+    live: LiveConfig | None = None
 
     @field_validator("products")
     @classmethod

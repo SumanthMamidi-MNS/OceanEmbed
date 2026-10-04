@@ -65,7 +65,9 @@ never shadowed: an unknown `/api/foo` is a JSON `404`.
 `artefacts{predictions, metrics_glorys, metrics_argo, argo_matchups, maps, embeddings, report,
 training_logs[stems], n_figures, n_product_files}`, `n_prediction_days`, `note` (set for synthetic runs),
 `label` (human display name), `description` (one paragraph: source, period, splits, climatology), `n_train_days`, `n_val_days`, `n_test_days` (days of each split present in the harmonised data) and
-`n_harmonic_terms` (climatology fit: 1 = mean only, 3 = + annual cycle, 5 = + semi-annual; `null` without statistics file). `label` / `description` come from the config keys of the same name, else they are derived (e.g. `"Synthetic demo, 2021-01 to 2023-12"`).
+`n_harmonic_terms` (climatology fit: 1 = mean only, 3 = + annual cycle, 5 = + semi-annual; `null` without statistics file),
+`live` (true only for the rolling near-real-time nowcast run, which also has `live_last_day`; a client that needs a default
+run must not choose a `live` run: it has no evaluation against the reanalysis and its days are revised) and `live_last_day`. `label` / `description` come from the config keys of the same name, else they are derived (e.g. `"Synthetic demo, 2021-01 to 2023-12"`).
 
 ### `GET /api/runs/{run}`
 `{summary, grid, basins, prediction_dates, methods, field_methods, model, training_summary, products, counts,
@@ -79,6 +81,26 @@ has_day_fields}]` (`model`, `model_scratch`, `ridge`, `climatology`, `glorys`);
 total seconds; `products` = variable → product, `dataset_ids` (from the run config), native resolution,
 regridding, role (`input`/`target`/`validation`); `counts` = `n_prediction_days`, `n_train_days`, `n_val_days`, `n_test_days`,
 `n_embedding_days`, `n_argo_profiles`, `n_argo_matchups`, `n_argo_profiles_loaded`.
+
+### `GET /api/runs/{run}/live`
+Only for the live run (`oceanembed live update`; `summary.live` is true); any other run is `404` with the hint "this is not a
+live run". Never cached (`Cache-Control: no-store`): the files change on every update. Payload:
+`{run, note, last_update, window{start,end,n_days,window_days}, last_day, inputs[{product (sst|sla), dataset, version, first,
+last, latest_data_date, age_days, delay_days_catalogue}], pending[dates], model{checkpoint, weights}, days[...], revision,
+input_shift, verification, history[...]}`.
+`last_day` is a nowcast of that day, not a forecast. `age_days` is the age of the newest day held for that input at the last update;
+`pending` are days one input already has and another does not. `days` is the provenance table, one row per window day: `date`,
+`<input>_dataset`, `_version`, `_product_version`, `_age_days` (when the day was first used), `first_update_ts`, `last_update_ts`,
+`n_checks`, `n_revisions`, `revised`, `rev_sst_rmse`, `rev_sla_rmse`, `rev_recon_rmse_50_200`, `rev_recon_maxabs` (the size of the
+revision against the first-published version), `checkpoint`, `device`. `revision` = `{policy, n_days_checked, n_days_revised,
+by_age[{age_days, n_checks, n_changed_since_first, sst_rmse_mean, sla_rmse_mean, recon_rmse_50_200_mean, recon_rmse_50_200_max}]}`.
+`input_shift` = `{headline, headline_text, updated}` from `live input-shift` (`null` until it has run); `verification` = the content
+of `checks/verification/verification.json` (`null` until the first update with verification): `argo` and `analysis` blocks, each
+with `daily[{date, n_profiles, bands{0_30|50_200|300_1000{day{n, model_rmse, model_bias, clim_rmse, clim_bias}, rolling{...,
+n_days}}}}]`, `latest`, a `note` (the analysis is a model, not an observation), and for Argo `arrival_by_age`; `headline` = the
+rolling numbers of the newest day. The other endpoints work on the live run like on any run (fields, profile, section, time
+series, surface, product); kinds that need the target (`target`, `difference`, `anomaly_target`) return the usual `404` hint,
+and `metrics/*`, `training`, `experiments` have nothing to show for it.
 
 ### `GET /api/runs/{run}/dates`
 `{dates, target_dates, embedding_dates, first, last}` — which days have a prediction, a GLORYS target and an

@@ -1054,6 +1054,145 @@ def research_final_inputs_report(
     )
 
 
+# ----------------------------------------------------------------------------------------
+# live nowcast
+# ----------------------------------------------------------------------------------------
+live_app = typer.Typer(
+    name="live",
+    help="Live nowcast: the released model on near-real-time inputs, a rolling window of days.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+app.add_typer(live_app, name="live")
+
+LiveConfigOpt = Annotated[
+    Path,
+    typer.Option(
+        "--config", "-c", exists=True, dir_okay=False, help="Live config YAML (configs/live.yaml)."
+    ),
+]
+
+
+def _load_live(config: Path) -> Config:
+    cfg = load_config(config)
+    if cfg.live is None:
+        typer.echo(f"error: {config} has no `live` section (use configs/live.yaml)", err=True)
+        raise typer.Exit(code=2)
+    return cfg
+
+
+@live_app.command("update")
+def live_update(
+    config: LiveConfigOpt = Path("configs/live.yaml"),
+    verify: Annotated[
+        bool | None,
+        typer.Option(
+            "--verify/--no-verify", help="Score the window against Argo (default: config)."
+        ),
+    ] = None,
+    device: DeviceOpt = None,
+) -> None:
+    """Fetch the newly published days, reconstruct them and bring the rolling window up to date."""
+    import json
+
+    from oceanembed.data.providers.base import MissingCredentialsError
+    from oceanembed.live.nrt import LiveError
+    from oceanembed.live.state import LockedError
+    from oceanembed.live.update import run_update
+
+    _setup_logging()
+    cfg = _load_live(config)
+    try:
+        s = run_update(cfg, device=device, verify=verify)
+    except (MissingCredentialsError, LiveError, LockedError, FileNotFoundError) as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    w = s["window"]
+    typer.echo(
+        f"window {w['start']} .. {w['end']} ({w['n_days']} days); newest day {s['last_day']}"
+    )
+    typer.echo(
+        f"new days {s['n_new_days']}, revision checks {s['n_revision_checks']} "
+        f"(changed {s['n_revised_days']}), reconstructed {s['n_reconstructed']} "
+        f"on {s['device']}"
+        + (f" at {s['seconds_per_day']} s/day" if s["seconds_per_day"] is not None else "")
+    )
+    for p, i in s["inputs"].items():
+        typer.echo(
+            f"  {p}: {i['dataset']} (version {i['version']}), newest {i['latest_data_date']}, "
+            f"{i['age_days']} day(s) old"
+        )
+    if s["pending"]:
+        typer.echo(f"pending (waiting for an input): {', '.join(s['pending'])}")
+    typer.echo(
+        f"downloaded {s['bytes_downloaded'] / 1e6:.1f} MB in {s['requests']} request(s); "
+        f"{s['seconds_total']:.0f} s in total"
+    )
+    v = s.get("verification")
+    if v:
+        typer.echo("verification: " + json.dumps(v.get("headline", v), default=str)[:400])
+
+
+@live_app.command("status")
+def live_status(
+    config: LiveConfigOpt = Path("configs/live.yaml"),
+    check: Annotated[
+        bool, typer.Option("--check", help="Also ask the catalogue what is published now.")
+    ] = False,
+) -> None:
+    """Print the window, the newest day, the age of each input and the pending days (no writes)."""
+    from oceanembed.live.update import status
+
+    _setup_logging()
+    cfg = _load_live(config)
+    s = status(cfg, check=check)
+    if not s["initialised"]:
+        typer.echo("the live run has not been updated yet: run `oceanembed live update`")
+        return
+    w = s["window"]
+    typer.echo(f"live run '{s['run']}', last update {s['last_update']}")
+    typer.echo(
+        f"window {w['start']} .. {w['end']} ({s['n_reconstructed_days']} reconstructed days)"
+    )
+    typer.echo(f"newest reconstructed day: {s['last_day']}")
+    for p, i in s["inputs"].items():
+        typer.echo(
+            f"  {p}: {i['dataset']} (version {i['version']}), newest data {i['latest_data_date']}, "
+            f"{i['age_days']} day(s) old"
+        )
+    typer.echo("pending days: " + (", ".join(s["pending"]) if s["pending"] else "none"))
+    if s["checked_catalogue"]:
+        cl = ", ".join(f"{p} {d}" for p, d in s["catalogue_last"].items())
+        typer.echo(f"catalogue now: {cl}; {s['new_days_available']} new day(s) can be added")
+
+
+@live_app.command("input-shift")
+def live_input_shift(
+    config: LiveConfigOpt = Path("configs/live.yaml"),
+    download: Annotated[
+        bool, typer.Option("--download/--no-download", help="Fetch missing overlap data.")
+    ] = True,
+    recompute: Annotated[
+        bool, typer.Option("--recompute", help="Redo the scoring from the stored inputs.")
+    ] = False,
+    device: DeviceOpt = None,
+) -> None:
+    """Near-real-time vs reprocessed inputs: how the inputs and the reconstruction differ."""
+    from oceanembed.data.providers.base import MissingCredentialsError
+    from oceanembed.live.nrt import LiveError
+    from oceanembed.live.shift import run_input_shift
+
+    _setup_logging()
+    cfg = _load_live(config)
+    try:
+        s = run_input_shift(cfg, download=download, recompute=recompute, device=device)
+    except (MissingCredentialsError, LiveError, FileNotFoundError) as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(s["headline_text"])
+    typer.echo(f"wrote {s['out_dir']}")
+
+
 @app.command("export-results")
 def export_results_cmd(
     config: ConfigOpt,

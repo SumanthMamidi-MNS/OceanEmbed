@@ -246,3 +246,53 @@ Expected content (from `load_incois_gridded` in `src/oceanembed/data/providers/a
 Daily files are compared with the same day of the model; monthly files with the model's monthly mean for fully covered months.
 If no file is present the step is silently skipped. Re-run `harmonize` (it regrids the file) and `validate-argo`; the result
 appears as the `gridded_argo` block of `metrics\metrics_argo.json`.
+
+## 8. Live mode (near-real-time nowcast)
+
+A rolling window of the newest days, reconstructed from near-real-time SST and sea level with the released model in `models\final`
+(a nowcast of the same day, not a forecast; results and limits: [`research/live_nowcast.md`](research/live_nowcast.md)).
+
+**Setup (once).** Nothing beyond the normal setup: the Copernicus Marine login of section 2, the `.venv`, and `models\final\recon.pt`
+and `stats.nc` (in the repository). The Argo verification needs no login.
+
+```powershell
+.\.venv\Scripts\oceanembed.exe live update --config configs\live.yaml     # cold start, then every update
+.\.venv\Scripts\oceanembed.exe live status --config configs\live.yaml     # window, newest day, age of each input, pending days (writes nothing)
+.\.venv\Scripts\oceanembed.exe live status --config configs\live.yaml --check   # also ask the catalogue what is published now
+.\.venv\Scripts\oceanembed.exe live input-shift --config configs\live.yaml      # near-real-time vs reprocessed inputs (once, then when the weights change)
+```
+
+`live update` downloads only the days that are new for **both** inputs (the newest day is set by the slower product, 1 – 2 days
+for SST), fetches the newest 7 reconstructed days again to catch revisions, reconstructs, prunes days that left the 60-day window
+and updates the running verification against Argo and the operational analysis (`--no-verify` skips it). It is safe to run
+repeatedly and to interrupt (the next run continues); a second update that finds nothing new changes nothing. `--device cpu` works
+(0.5 s per day while the machine was busy, against 0.03 s on the GPU).
+
+**What an update costs (measured 2026-10-04).** Cold start of 60 days: 22 MB downloaded in 4 requests, 2 min on the GPU (6 min on
+the CPU). Incremental update with one new day: about 3 MB for the inputs, 10 MB for the verification analysis (300 MB the first time,
+for 30 days), the Argo query of the window; 1.5 – 3 min. Disk of the live run: `outputs\live` 40 MB, `data\raw_nrt` 80 MB (window),
+`data\processed\live.zarr` 5 MB, `data\processed\live_analysis` 16 MB. `live input-shift` is a one-off of about 3.4 GB downloaded
+(GLORYS 2.9 GB for six months) and 0.5 GB on disk (`data\raw_nrt\overlap_*`, `data\processed\live_shift*`) for 182 days; it took
+about 90 min, almost all download.
+
+**Daily schedule (Windows Task Scheduler; you create it, nothing here does).** `scripts\live_update.cmd` runs the update from the
+project root and writes one log per run to `outputs\live\logs\update_<date>_<time>.log` (exit code = that of the update). Create the
+task for the current user (runs while you are logged on; the laptop must be awake at that time):
+
+```powershell
+schtasks /Create /SC DAILY /ST 09:30 /TN "OceanEmbed live update" /TR "\"C:\Users\mamid\OneDrive\Documents\Claude\SIH-Project-4\scripts\live_update.cmd\"" /RL LIMITED
+schtasks /Run /TN "OceanEmbed live update"            # test it once now
+schtasks /Query /TN "OceanEmbed live update" /V /FO LIST
+```
+
+An update that finds nothing new is harmless, so the time is not critical; the products appear a day or two late.
+
+**Stop it.** `schtasks /Delete /TN "OceanEmbed live update" /F`. A running update has a lock file `outputs\live\.update.lock`; a second
+update refuses to start while it exists and takes it over after 3 hours (delete the file if an update was killed).
+
+**Reset.** The live data is only in `data\raw_nrt\`, `data\processed\live*` and `outputs\live\`; deleting those folders returns to
+a cold start (the evaluated runs are never touched).
+
+**Troubleshooting.** `no Copernicus Marine credentials` - log in (section 2). `no day has data for every input yet` - the products
+have not published a common day; try later. `verification failed ...` appears in the summary but the update is kept; check the network
+and re-run. Files in `outputs\live\predictions` held open by the dashboard are replaced after a short wait.

@@ -15,9 +15,9 @@
   <br>
   <a href="docs/architecture.md"><img src="docs/assets/badges/model.svg" alt="Architecture: CNN + Transformer" height="30"></a>
   <a href="docs/backend.md"><img src="docs/assets/badges/resolution.svg" alt="Resolution: 0.25-deg Daily" height="30"></a>
-  <a href="docs/backend.md#7-evaluation"><img src="docs/assets/badges/argo.svg" alt="In-Situ Check: 2,826 Argo Profiles" height="30"></a>
+  <a href="docs/backend.md#7-evaluation"><img src="docs/assets/badges/argo.svg" alt="In-Situ Check: 5,512 Argo Profiles" height="30"></a>
   <br>
-  <a href="tests/"><img src="docs/assets/badges/tests.svg" alt="252 Py · 163 UI Passing" height="30"></a>
+  <a href="tests/"><img src="docs/assets/badges/tests.svg" alt="316 Py · 174 UI Passing" height="30"></a>
   <a href="LICENSE"><img src="docs/assets/badges/license.svg" alt="MIT License" height="30"></a>
 </p>
 
@@ -47,16 +47,16 @@
 <p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
 
 <p align="center">
-  <strong>1.08&deg;C pooled RMSE</strong> across the thermocline (50&ndash;200&nbsp;m) &bull;
-  <strong>0.64 anomaly correlation</strong> (ridge regression 0.56) &bull;
-  <strong>2,826 Argo float profiles</strong> for in-situ validation &bull;
-  trains in 25 minutes on a laptop GPU
+  <strong>0.98&deg;C pooled RMSE</strong> across the thermocline (50&ndash;200&nbsp;m), 33% below climatology &bull;
+  <strong>0.73 anomaly correlation</strong> (ridge regression 0.53) &bull;
+  <strong>two unseen test years</strong> and <strong>5,512 Argo float profiles</strong> &bull;
+  trains in 20 minutes on a laptop GPU
 </p>
 
 <p align="center">
   <a href="docs/images/overview.png"><img src="docs/images/overview.png" alt="OceanEmbed dashboard: reconstruction, reanalysis and difference at 100 m with the skill tables" width="100%"></a>
   <br>
-  <sub>A typical day of the test year at 100&nbsp;m: reconstructed from the surface (left), the GLORYS reanalysis it never saw (centre), and the difference (right).</sub>
+  <sub>A typical test day at 100&nbsp;m: reconstructed from the surface (left), the GLORYS reanalysis it never saw (centre), and the difference (right).</sub>
 </p>
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
@@ -65,7 +65,7 @@
 
 Subsurface temperature drives ocean heat content, stratification, marine heatwaves, cyclone intensification and fisheries.
 It is measured by Argo floats, moorings and ships, which leave most of the ocean unsampled on any given day:
-in all of 2024, 2 826 float profiles fell inside a domain of about 12 000 ocean grid cells — roughly eight a day.
+over the two test years, 5 512 float profiles fell inside a domain of about 12 000 ocean grid cells — fewer than eight a day.
 
 Satellites do the opposite. They see every cell every day, but only its surface. The surface still carries a signature of
 what lies beneath: a raised sea level means a deeper thermocline and warmer water at 100 m; eddies, salinity fronts and
@@ -82,31 +82,31 @@ ocean temperature using only surface satellite observations, daily, at 0.25°, a
 <p align="center">
   <a href="docs/images/flowchart.png"><img src="docs/images/flowchart.png" alt="OceanEmbed full pipeline flowchart with measured results" width="100%"></a>
   <br>
-  <sub><b>End-to-end architecture flowchart</b>: from raw satellite ingestion and physical regridding to encoder-decoder training, multi-baseline validation against 2,826 Argo profiles, and delivery.</sub>
+  <sub><b>End-to-end architecture flowchart</b>: from raw satellite ingestion and physical regridding to encoder-decoder training, multi-baseline validation against 5,512 Argo profiles, and delivery.</sub>
 </p>
 
 </details>
 
 <p align="center">
-  <a href="docs/images/pipeline.png"><img src="docs/images/pipeline.png" alt="Pipeline: seven surface fields, harmonisation, embedding, decoding, validation, product" width="100%"></a>
+  <a href="docs/images/pipeline.png"><img src="docs/images/pipeline.png" alt="Pipeline: surface fields, harmonisation, embedding, decoding, validation, product" width="100%"></a>
   <br>
-  <sub><b>The six pipeline stages</b>: 7 surface satellite fields &rarr; 0.25&deg; grid harmonisation &rarr; latent embedding &rarr; 3D anomaly decoding &rarr; Argo validation &rarr; CF-compliant NetCDF delivery.</sub>
+  <sub><b>The six pipeline stages</b>: surface satellite fields &rarr; 0.25&deg; grid harmonisation &rarr; latent embedding &rarr; 3D anomaly decoding &rarr; Argo validation &rarr; CF-compliant NetCDF delivery.</sub>
 </p>
 
 | Step | What happens |
 |---|---|
-| **1. Input** | Seven daily satellite fields: sea surface temperature, salinity, sea level anomaly, surface currents (U, V), surface winds (U, V). |
-| **2. Harmonise** | Six products at different resolutions and time steps are brought to one 0.25° daily grid: 100 × 240 cells, 2 541 gap-free days (2018 – 2024). |
+| **1. Input** | Daily satellite fields of the sea surface. Seven are harmonised (temperature, salinity, sea level anomaly, currents U and V, winds U and V); the final model needs only two: **sea surface temperature and sea level anomaly**. |
+| **2. Harmonise** | Six products at different resolutions and time steps are brought to one 0.25° daily grid: 100 × 240 cells, 5 098 gap-free days (2011 – 2024). |
 | **3. Encode** | A CNN + Transformer encoder compresses each day's surface into a *satellite embedding*: 128 features on a 25 × 60 map of the basin. |
 | **4. Decode** | A U-Net-style decoder predicts the temperature *anomaly* from the seasonal climatology at 15 standard depths. |
-| **5. Check** | A whole unseen year is scored against the GLORYS reanalysis and Argo floats, always beside climatology, ridge regression and a no-pretraining ablation. |
-| **6. Deliver** | Daily CF-compliant NetCDF files, metrics and a generated report, a data API, and an interactive dashboard. |
+| **5. Check** | Two whole unseen years are scored against the GLORYS reanalysis and Argo floats, always beside climatology, ridge regression and a per-pixel network. |
+| **6. Deliver** | Daily CF-compliant NetCDF files, metrics and a generated report, released model weights, a data API, and an interactive dashboard. |
 
 Everything runs from one command and one config file.
 
 ## Results
 
-Scored on **2024, a year the model never saw** (350 days; trained on 2018 – 2022, checkpoints chosen on 2023).
+Scored on **2023 and 2024, two years the model never saw** (715 days; trained on 2011 – 2021, checkpoints chosen on 2022).
 
 <p align="center">
   <a href="docs/images/results.png"><img src="docs/images/results.png" alt="Results: error and skill by depth, thermocline comparison against GLORYS and Argo, skill by basin" width="100%"></a>
@@ -114,56 +114,60 @@ Scored on **2024, a year the model never saw** (350 days; trained on 2018 – 20
 
 **The thermocline, 50 – 200 m** — where temperature varies most and the surface says least:
 
-| Method | RMSE vs GLORYS (°C) | Anomaly correlation | Skill vs climatology | RMSE vs Argo floats (°C) |
-|---|---|---|---|---|
-| **OceanEmbed** | **1.08** | **0.64** | **0.40** | **1.41** |
-| OceanEmbed, no pretraining (ablation) | 1.04 | 0.67 | 0.44 | 1.41 |
-| Ridge regression | 1.15 | 0.56 | 0.31 | 1.53 |
-| Climatology (no skill) | 1.39 | – | 0 | 1.67 |
-| GLORYS reanalysis itself | – | – | – | 1.08 |
+| Method | RMSE vs GLORYS (°C), 2023 / 2024 | Both years | Anomaly correlation | Skill vs climatology | RMSE vs Argo floats (°C) |
+|---|---|---|---|---|---|
+| **OceanEmbed** | **0.97 / 0.99** | **0.98** | **0.73** | **0.55** | **1.32** |
+| Per-pixel network (no spatial context) | 0.98 / 1.04 | 1.01 | 0.71 | 0.52 | 1.29 |
+| Ridge regression | 1.28 / 1.15 | 1.22 | 0.53 | 0.30 | 1.38 |
+| Climatology (no skill) | 1.52 / 1.39 | 1.46 | – | 0 | 1.52 |
+| GLORYS reanalysis itself | – | – | – | – | 1.05 |
 
 What the numbers say:
 
-- **22 % lower error than climatology** over 50 – 200 m, and 26 % at 100 m; 7 % below ridge regression.
-- **The same ordering holds against independent observations**: 2 826 Argo profiles, 40 059 matchups.
-- **The basins differ**: skill is 0.55 in the Bay of Bengal and 0.29 in the Arabian Sea.
-- **Skill ends near 300 m.** Below that the reconstruction is no better than climatology.
-- **Pretraining gave no measurable gain.** The same network trained from scratch scored 1.04 °C against 1.08 °C in this run; five seeds confirm it (table below).
-- **The reference is not the truth.** GLORYS itself is 1.08 °C from the floats over 50 – 200 m in 2024, which is the floor for any model trained on it.
+- **33 % lower error than climatology** over 50 – 200 m, 36 % at 100 m, and 19 % below ridge regression, on both test years.
+- **It holds against observations**: against 5 512 Argo profiles (77 388 matchups) the reconstruction beats ridge regression and climatology; the per-pixel network is level with it.
+- **Two satellite fields are enough.** Sea surface temperature and sea level anomaly reproduce the result of all seven inputs; without sea level the thermocline skill collapses.
+- **The basins differ**: skill is 0.67 in the Bay of Bengal and 0.45 in the Arabian Sea.
+- **A simple per-pixel network comes close.** Seeing the whole basin helps in the Bay of Bengal (skill 0.67 against 0.60) and not in the Arabian Sea (0.45 for both).
+- **Skill ends near 300 m.** Below that no model beats climatology, with five or eleven training years, with or without input history.
+- **The reference is not the truth.** GLORYS itself is 1.05 °C from the floats over 50 – 200 m, which is the floor for any model trained on it.
 
-**Tested further** — five training seeds, stronger baselines and an external benchmark ([R1](docs/research/r1_rigour.md), [R4](docs/research/r4_armor3d.md), [R5](docs/research/r5_physical.md)):
+**Tested further** — every claim above was checked with repeated training seeds, block-bootstrap confidence intervals and stronger baselines ([seeds and baselines](docs/research/r1_rigour.md), [long period](docs/research/r2_long_period.md), [input attribution](docs/research/r3_attribution.md), [ARMOR3D benchmark](docs/research/r4_armor3d.md), [physical metrics](docs/research/r5_physical.md), [input selection](docs/research/final_inputs.md)):
 
 | Finding | Evidence |
 |---|---|
-| The gain over climatology and ridge regression is robust | 5 seeds: 1.05 ± 0.02 °C (no pretraining) and 1.06 ± 0.02 °C (pretrained) against 1.16 and 1.39 °C; block-bootstrap intervals exclude zero |
-| Pretraining gives no benefit | pretrained minus from-scratch: +0.013 °C; seed ranges overlap |
-| The Transformer matters | a plain U-Net of the same size scores 1.12 ± 0.03 °C, no better than ridge regression |
-| Most of the skill needs no spatial context | a per-pixel network reaches 1.09 °C; the spatial model's advantage is confined to the Bay of Bengal (0.99 against 1.12 °C), strongest in the winter monsoon and in fresh surface water |
-| Products that use the floats do far better against the floats | against Argo: ARMOR3D 0.63, GLORYS 1.08, OceanEmbed 1.41 °C; ARMOR3D and GLORYS themselves differ by 1.20 °C on the grid |
-| It carries over to physical quantities | depth of the 20 °C isotherm: 13.8 m RMSE against 17.6 m for climatology; 0 – 300 m heat content error 29 % lower |
+| The gain holds across seeds and years | 3 seeds on eleven training years: 0.975 ± 0.007 °C (2023) and 1.004 ± 0.014 °C (2024), against 1.52 and 1.39 °C for climatology |
+| More training years help, with diminishing returns | thermocline error with 2, 5 and 11 training years: 1.15, 1.04 and 1.00 °C |
+| Sea level is the indispensable input | retraining without it costs 0.04 °C for the spatial model and 0.27 °C for a per-pixel network; with SST alone the error rises by 0.28 °C |
+| Masked pretraining gives no benefit | 5 seeds: 1.064 ± 0.016 °C with it, 1.052 ± 0.015 °C without; the released model is trained end to end |
+| The Transformer matters, a plain U-Net does not match it | U-Net of the same size: 1.12 ± 0.03 °C, no better than ridge regression |
+| Spatial context pays in the Bay of Bengal only | better than the per-pixel network there on both years (by 0.05 and 0.11 °C), slightly worse in the Arabian Sea; the advantage is largest in the winter monsoon and in fresh surface water |
+| Several days of input history do not help | 3 or 7 days of history change the error by less than its uncertainty and bring no skill below 300 m |
+| Products that use the floats do far better against the floats | against Argo in 2024: ARMOR3D 0.63, GLORYS 1.08, OceanEmbed 1.41 °C (five-year model); ARMOR3D and GLORYS themselves differ by 1.20 °C on the grid |
+| It carries over to physical quantities | depth of the 20 °C isotherm: 13.8 m RMSE against 17.6 m for climatology; 0 – 300 m heat content error 29 % lower (five-year model) |
 
 <details>
 <summary><strong>RMSE and skill at every depth</strong></summary>
 
-RMSE in °C against GLORYS over the 350 test days. Skill = 1 − MSE / MSE of climatology.
+RMSE in °C against GLORYS over the 715 test days. Skill = 1 − MSE / MSE of climatology.
 
-| Depth (m) | OceanEmbed | No pretraining | Ridge | Climatology | Skill (OceanEmbed) |
+| Depth (m) | OceanEmbed | Per-pixel network | Ridge | Climatology | Skill (OceanEmbed) |
 |---|---|---|---|---|---|
-| 0 | 0.57 | 0.56 | 0.73 | 0.79 | 0.48 |
-| 5 | 0.57 | 0.56 | 0.73 | 0.79 | 0.49 |
-| 10 | 0.57 | 0.57 | 0.73 | 0.79 | 0.48 |
-| 20 | 0.63 | 0.62 | 0.76 | 0.83 | 0.42 |
-| 30 | 0.73 | 0.72 | 0.83 | 0.91 | 0.37 |
-| 50 | 0.92 | 0.92 | 1.00 | 1.18 | 0.39 |
-| 75 | 1.10 | 1.08 | 1.21 | 1.55 | 0.49 |
-| 100 | 1.22 | 1.18 | 1.31 | 1.66 | 0.46 |
-| 125 | 1.24 | 1.18 | 1.30 | 1.56 | 0.36 |
-| 150 | 1.12 | 1.06 | 1.20 | 1.36 | 0.32 |
-| 200 | 0.79 | 0.75 | 0.83 | 0.89 | 0.22 |
-| 300 | 0.53 | 0.52 | 0.53 | 0.55 | 0.05 |
-| 500 | 0.36 | 0.35 | 0.35 | 0.35 | −0.03 |
-| 700 | 0.37 | 0.36 | 0.35 | 0.36 | −0.06 |
-| 1000 | 0.41 | 0.41 | 0.38 | 0.38 | −0.15 |
+| 0 | 0.47 | 0.48 | 0.73 | 0.81 | 0.67 |
+| 5 | 0.47 | 0.49 | 0.72 | 0.81 | 0.66 |
+| 10 | 0.48 | 0.48 | 0.72 | 0.81 | 0.64 |
+| 20 | 0.55 | 0.54 | 0.75 | 0.84 | 0.57 |
+| 30 | 0.64 | 0.64 | 0.83 | 0.94 | 0.53 |
+| 50 | 0.82 | 0.84 | 1.05 | 1.22 | 0.55 |
+| 75 | 1.01 | 1.08 | 1.35 | 1.62 | 0.61 |
+| 100 | 1.12 | 1.17 | 1.45 | 1.76 | 0.59 |
+| 125 | 1.12 | 1.14 | 1.35 | 1.65 | 0.54 |
+| 150 | 1.02 | 1.03 | 1.18 | 1.41 | 0.47 |
+| 200 | 0.74 | 0.74 | 0.81 | 0.93 | 0.36 |
+| 300 | 0.50 | 0.50 | 0.50 | 0.53 | 0.10 |
+| 500 | 0.35 | 0.34 | 0.34 | 0.35 | 0.00 |
+| 700 | 0.35 | 0.34 | 0.34 | 0.34 | −0.03 |
+| 1000 | 0.37 | 0.36 | 0.36 | 0.36 | −0.06 |
 
 </details>
 
@@ -180,8 +184,9 @@ A vertical section through both basins on one test day shows the reconstruction 
 | Question | How it is answered |
 |---|---|
 | Is it better than knowing the season? | Every score is shown beside the **climatology** fitted on the training years. |
-| Is the deep model needed? | A per-pixel **ridge regression** on the same inputs is scored on the same days. |
-| Does the pretraining help? | The same network is trained **without pretraining** and reported in every table. |
+| Is the deep model needed? | A **ridge regression** and a **per-pixel network** on the same inputs are scored on the same days. |
+| Is it luck? | Training is repeated with **several seeds**, and intervals come from a **block bootstrap** over test days, because daily errors stay correlated for weeks. |
+| Does the pretraining help? | The same network is trained **with and without masked pretraining**; it did not help, so the released model does not use it. |
 | Is the correlation real? | The **anomaly correlation** removes the climatology from both sides; the raw correlation is shown only for reference because seasons and depth inflate it. |
 | Does it hold against observations? | **Argo profiles** are interpolated to the standard depths (no extrapolation, no interpolation across large gaps), matched to the same cell and day, and every method is scored on the identical sample. |
 | Where does it fail? | Metrics are computed per depth, per basin, per grid cell and per day. |
@@ -190,7 +195,7 @@ One caveat is stated wherever Argo appears: GLORYS assimilates Argo, so the floa
 
 ## Data
 
-All inputs are open products. The target is used only to train and to score; it is never an input.
+All inputs are open products. The target is used only to train and to score; it is never an input. The pipeline harmonises all seven surface fields; the released model uses sea surface temperature and sea level anomaly.
 
 | Variable | Product | Source | Native grid | Brought to 0.25° daily by |
 |---|---|---|---|---|
@@ -203,8 +208,8 @@ All inputs are open products. The target is used only to train and to score; it 
 | Independent check | Argo float profiles | Argo GDAC (argopy) | profiles | same cell, same day |
 
 - **Domain:** 5 – 30°N, 45 – 105°E. **Depths (m):** 0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000.
-- **Split by time, never at random:** train 2018 – 2022, validate 2023, test 2024. Neighbouring days look alike, so a random split would leak the answer.
-- **Efficient downloads:** currents and winds are subset on NASA's servers (OPeNDAP), about 16 GB transferred for seven years instead of about 180 GB of global files. Downloads are resumable and logged.
+- **Split by time, never at random:** train 2011 – 2021, validate 2022, test 2023 and 2024. Neighbouring days look alike, so a random split would leak the answer.
+- **Efficient downloads:** currents and winds are subset on NASA's servers (OPeNDAP), a few hundred kilobytes per day instead of 33 MB global files. Downloads are resumable and logged.
 - **Synthetic twin:** an analytic ocean with eddies, a thermocline and fake floats, written in the same file formats, lets the whole pipeline and test-suite run with no accounts.
 
 ## Model
@@ -213,12 +218,12 @@ All inputs are open products. The target is used only to train and to score; it 
   <a href="docs/images/architecture.png"><img src="docs/images/architecture.png" alt="Model architecture: encoder with CNN stem and Transformer, embedding, decoder with skip connections" width="100%"></a>
 </p>
 
-- **12 input channels:** the seven standardised surface fields, the ocean mask, day of year (sin, cos), latitude and longitude.
+- **Inputs:** standardised sea surface temperature and sea level anomaly (chosen on the validation year; the other five surface channels are switched off), the ocean mask, day of year (sin, cos), latitude and longitude.
 - **Encoder (the embedding engine):** a three-stage CNN stem brings the 100 × 240 grid down to 25 × 60; six Transformer blocks let each of the 1 500 patches attend to the whole basin; the result is a 128-feature embedding map.
-- **Masked pretraining:** half of the surface is hidden in 16 × 16 blocks and must be rebuilt from the embedding. It needs no subsurface labels. Rebuild error: 0.16 against 1.04 for filling in the mean.
+- **Masked pretraining, tested and set aside:** hiding half of the surface and rebuilding it from the embedding works (error 0.16 against 1.04 for mean-fill) but did not improve temperature skill over five seeds, so the released model is trained end to end.
 - **Decoder:** upsampling with skip connections to the standardised anomaly at 15 depths; the harmonic climatology (mean + annual + semi-annual cycle per cell and depth) is added back.
 - **Loss:** masked mean-squared error that ignores land and cells below the sea floor, plus a small vertical-gradient term.
-- **Size and cost:** 3.7 M parameters; 14 min pretraining + 11 min supervised training on a 6 GB laptop GPU.
+- **Size and cost:** 3.7 M parameters; about 20 minutes of training on eleven years of data on a 6 GB laptop GPU. The weights are in [`models/final/`](models/final/MODEL_CARD.md).
 
 <a id="a-look-inside"></a><a id="the-dashboard"></a>
 ## A look inside
@@ -228,11 +233,11 @@ A React app served by a FastAPI data API. Every number on screen is computed fro
 <table>
 <tr>
 <td width="50%" valign="top"><a href="docs/images/explorer.png"><img src="docs/images/explorer.png" alt="Explorer: linked maps at 100 m with depth rail and water-column profile"></a><br><sub><b>Explorer.</b> Any day, depth and point; linked maps at 100&nbsp;m with interactive depth rail and vertical profile of every method, section and time&ndash;depth view.</sub></td>
-<td width="50%" valign="top"><a href="docs/images/explorer-compare.png"><img src="docs/images/explorer-compare.png" alt="Compare mode: three estimates beside GLORYS and their differences"></a><br><sub><b>Compare mode.</b> Three estimates beside GLORYS on a unified scale with daily error metrics.</sub></td>
+<td width="50%" valign="top"><a href="docs/images/explorer-compare.png"><img src="docs/images/explorer-compare.png" alt="Compare mode: every estimate beside GLORYS and their differences"></a><br><sub><b>Compare mode.</b> Every estimate beside GLORYS on one colour scale, with the differences and the day’s error table.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="docs/images/validation.png"><img src="docs/images/validation.png" alt="Validation: pooled tables and metrics by depth"></a><br><sub><b>Validation.</b> Error, bias, anomaly correlation and skill by depth, per basin, as maps and as daily series.</sub></td>
-<td width="50%" valign="top"><a href="docs/images/validation-argo.png"><img src="docs/images/validation-argo.png" alt="Argo validation: profile map, sortable list and an opened profile"></a><br><sub><b>Argo in-situ validation.</b> Map of the 2,826 float profiles, sortable matchup ledger, and individual water-column sounding.</sub></td>
+<td width="50%" valign="top"><a href="docs/images/validation-argo.png"><img src="docs/images/validation-argo.png" alt="Argo validation: profile map, sortable list and an opened profile"></a><br><sub><b>Argo in-situ validation.</b> Map of the 5,512 float profiles, sortable matchup ledger, and individual water-column sounding.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="docs/images/representation.png"><img src="docs/images/representation.png" alt="Representation: embedding as a colour map, similarity map and correlation table"></a><br><sub><b>Representation.</b> What the 128-feature embedding encodes: principal components, similarity between places, and which surface field each component follows.</sub></td>
@@ -258,14 +263,21 @@ cd web; npm install; npm run build; cd ..
 .\.venv\Scripts\oceanembed.exe serve          # http://127.0.0.1:8000
 ```
 
-**Real data** needs free Copernicus Marine and NASA Earthdata accounts. Try the three-month trial first, then the full run:
+**Use the released model** without retraining: the weights, statistics and baselines are in [`models/final/`](models/final/MODEL_CARD.md), and `predict --weights` reconstructs any period for which the surface fields have been downloaded and harmonised.
+
+**Real data** needs free Copernicus Marine and NASA Earthdata accounts. Try the three-month trial first, then the full runs:
 
 ```powershell
 .\.venv\Scripts\oceanembed.exe run-all --config configs/poc_trial.yaml    # 2024-01 to 2024-03, about 0.6 GB
-.\.venv\Scripts\oceanembed.exe run-all --config configs/poc.yaml          # 2018 to 2024, about 16 GB
+# the full period, 2011 to 2024: download, harmonise, statistics (the data store)
+.\.venv\Scripts\oceanembed.exe download --config configs/poc_long.yaml
+.\.venv\Scripts\oceanembed.exe harmonize --config configs/poc_long.yaml
+.\.venv\Scripts\oceanembed.exe stats --config configs/poc_long.yaml
+# the released model, trained and evaluated on that store
+.\.venv\Scripts\oceanembed.exe run-all --config configs/final.yaml
 ```
 
-The step-by-step guide, with download sizes and troubleshooting, is in [docs/runbook.md](docs/runbook.md).
+The step-by-step guide is in [docs/runbook.md](docs/runbook.md). What can be deleted afterwards, how much space each folder takes and how to rebuild everything from a fresh clone are in [docs/reproduce.md](docs/reproduce.md). The measured results are kept in [`results/`](results/README.md), so they survive deleting the data.
 
 <details>
 <summary><strong>Command-line interface</strong></summary>
@@ -279,16 +291,17 @@ All commands take `--config <yaml>`.
 | `harmonize` | raw files → one Zarr store on the 0.25° daily grid |
 | `stats` | training-period statistics and the harmonic climatology |
 | `pretrain` | masked-surface pretraining of the encoder |
-| `train` | supervised 15-depth reconstruction (`--no-pretrained` for the ablation) |
-| `baseline` | fit the ridge regression baseline |
+| `train` | supervised 15-depth reconstruction (from scratch or from the pretrained encoder) |
+| `baseline` / `train-mlp` | fit the ridge regression and the per-pixel network baselines |
 | `embed` | export the embedding maps |
-| `predict` | write the NetCDF product, one file per month |
+| `predict` | write the NetCDF product, one file per month (`--weights models/final` uses the released model) |
 | `evaluate` | metrics against GLORYS for every method |
 | `validate-argo` | collocate Argo profiles and score every method |
 | `report` | figures and a markdown report |
 | `run-all` | the whole chain; `--skip-existing` resumes |
 | `serve` | the data API and the dashboard |
-| `research r1` / `r4` / `r5` | multi-seed study, ARMOR3D benchmark, physical metrics |
+| `export-results` / `export-weights` | write the small result files and the released weights kept in the repository |
+| `research r1` … `r5`, `final-inputs` | seeds and baselines, long period, input attribution, ARMOR3D benchmark, physical metrics, input selection |
 
 </details>
 
@@ -306,28 +319,31 @@ Reference: [docs/api.md](docs/api.md).
 <summary><strong>Folders</strong></summary>
 
 ```
-configs/            synthetic.yaml · poc.yaml (2018-2024) · poc_trial.yaml (3 months) · test_tiny.yaml
+configs/            final.yaml (released model) · poc_long.yaml (2011-2024 data) · poc.yaml (2018-2024) · poc_trial.yaml · synthetic.yaml
 src/oceanembed/
   data/             providers (synthetic, Copernicus Marine, PO.DAAC, Argo), regridding, harmonisation, statistics, dataset
   models/           encoder, masked pretraining, reconstruction decoder, baselines
   train/            pretraining and supervised loops, losses
   eval/             streaming metrics, GLORYS evaluation, Argo validation, report
   infer/            NetCDF product, embedding export
+  research/         multi-seed runner, block bootstrap, attribution, benchmark and physical-metric studies
   api/              FastAPI data API
   cli.py            the `oceanembed` command
 web/                React + TypeScript dashboard (canvas map renderer, typed API client)
 app/                earlier Streamlit dashboard, kept as a fallback
 tests/              pytest suite, runs on a tiny synthetic grid
-docs/               architecture, backend and frontend references, API, runbook, design system, decisions
+docs/               architecture, backend and frontend references, API, runbook, reproduction guide, research notes
+results/            metrics, report and research summaries of the final run (small, tracked)
+models/final/       released weights, statistics, baselines and the model card
 ```
 
 </details>
 
 ## Engineering quality
 
-- **Tested:** 252 Python tests (regridding against analytic answers, providers with mocked network, the full chain on a tiny grid, every API endpoint) and 163 UI tests.
-- **Reproducible:** one config file per run; every figure and number is produced by a command; outputs follow a documented contract.
-- **Honest by construction:** baselines and the ablation are part of the pipeline, not an afterthought; synthetic runs are labelled as demonstrations everywhere.
+- **Tested:** 316 Python tests (regridding against analytic answers, providers with mocked network, the full chain on a tiny grid, every API endpoint, the bootstrap against hand-computed cases) and 174 UI tests.
+- **Reproducible:** one config file per run; every figure and number is produced by a command; results and weights are kept in the repository and the data can be rebuilt from a fresh clone.
+- **Honest by construction:** baselines and ablations are part of the pipeline; negative results (pretraining, input history, deep skill) are reported; synthetic runs are labelled as demonstrations everywhere.
 - **Careful with data:** temporal split, statistics from training years only, mask-aware losses and metrics, an identical sample for every method in the Argo comparison.
 - **Runs on a laptop:** mixed precision, about 1.3 GB of GPU memory, streaming metrics that never hold the test year in memory.
 
@@ -335,22 +351,19 @@ docs/               architecture, backend and frontend references, API, runbook,
 
 **Limitations**
 
-- No skill below about 300 m on daily time scales.
-- One test year: the confidence intervals describe 2024, not year-to-year variability.
-- A simple per-pixel network gets within 0.03 – 0.04 °C of the full model outside the Bay of Bengal.
-- Trained on a reanalysis, and inherits its bias against Argo (GLORYS is about 0.5 – 0.8 °C warmer than the floats at 100 – 150 m in 2024).
-- A surface bias of about −0.3 °C in 2024, a year warmer than every training year.
-- Single-day inputs: the model sees no history.
+- No skill below about 300 m on daily time scales, with any model, input set or training length tried.
+- A simple per-pixel network is within 0.03 °C of the full model overall; the spatial model earns its place in the Bay of Bengal only.
+- Trained on a reanalysis, and inherits its bias against Argo (GLORYS is about 0.4 – 0.5 °C warmer than the floats over 50 – 200 m in both test years). Products that ingest the floats, such as ARMOR3D, are far closer to them.
+- A surface cold bias of 0.1 – 0.2 °C in the test years, which are warmer than the training period.
+- One region and two test years; the released model is a single training run (seed-to-seed spread about 0.01 °C).
 - No uncertainty estimate on the predictions.
 
 **Roadmap**
 
-- More training years and a second test year.
-- Several days of surface history as input, and attribution of skill to each surface variable by depth.
+- A live mode: daily reconstruction from near-real-time satellite products, with the shift between near-real-time and reprocessed inputs measured and a running check against new Argo profiles.
 - A correction towards Argo to remove the inherited reanalysis bias.
 - Uncertainty estimates on the predictions.
-
-Done since the first release: five training seeds with confidence intervals, U-Net and per-pixel baselines, the ARMOR3D benchmark, and physical metrics (thermocline depth, heat content, skill by season and salinity regime).
+- Other basins.
 
 ## Acknowledgements and license
 

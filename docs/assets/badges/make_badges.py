@@ -160,7 +160,7 @@ BADGES = [
     (
         "argo",
         "In-Situ Check",
-        "2,826 Argo Profiles",
+        "5,512 Argo Profiles",
         "#FBBF24",
         "#F59E0B",
         "#D97706",
@@ -171,7 +171,7 @@ BADGES = [
     (
         "tests",
         "Tests",
-        "252 Py · 163 UI",
+        "316 Py · 174 UI",
         "#059669",
         "#047857",
         "#064E3B",

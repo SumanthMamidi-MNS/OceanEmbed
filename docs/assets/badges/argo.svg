@@ -21,5 +21,5 @@
   <text x="32" y="20" class="badge-label">In-Situ Check</text>
   <rect x="125" y="3.5" width="150" height="25" rx="4.5" fill="url(#argo-grad)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
   <rect x="125" y="3.5" width="150" height="25" rx="4.5" fill="url(#argo-gloss)"/>
-  <text x="200.0" y="20" text-anchor="middle" class="badge-value">2,826 Argo Profiles</text>
+  <text x="200.0" y="20" text-anchor="middle" class="badge-value">5,512 Argo Profiles</text>
 </svg>

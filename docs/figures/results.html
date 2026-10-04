@@ -115,7 +115,7 @@
     });
   }
   chart("rmse", 0, 1.9, [0, 0.5, 1.0, 1.5], ["clim", "ridge", "scr", "model"], function (v) { return v; }, "RMSE (°C)", false);
-  chart("skill", -0.2, 0.6, [-0.2, 0, 0.2, 0.4, 0.6], ["ridge", "scr", "model"], function (v, i) { return 1 - (v * v) / (R.clim[i] * R.clim[i]); }, "Skill vs climatology", true);
+  chart("skill", -0.2, 0.8, [-0.2, 0, 0.2, 0.4, 0.6, 0.8], ["ridge", "scr", "model"], function (v, i) { return 1 - (v * v) / (R.clim[i] * R.clim[i]); }, "Skill vs climatology", true);
 })();
 </script>
 </body></html>

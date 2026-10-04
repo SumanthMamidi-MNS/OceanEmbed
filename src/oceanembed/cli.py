@@ -1054,6 +1054,86 @@ def research_final_inputs_report(
     )
 
 
+@research_app.command("benchmark")
+def research_benchmark(
+    config: ConfigOpt,
+    seeds: Annotated[
+        list[str] | None,
+        typer.Option("--seeds", help="Seeds, comma separated or repeated (default 0,1,2)."),
+    ] = None,
+    families: Annotated[
+        list[str] | None,
+        typer.Option("--families", help="rf, gbt, unet, mlp, ridge (default: all)."),
+    ] = None,
+    sets: Annotated[
+        list[str] | None,
+        typer.Option("--sets", help="all7, sst_sla (default: both)."),
+    ] = None,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing/--no-skip-existing",
+            help="Skip finished jobs; --no-skip-existing retrains them.",
+        ),
+    ] = True,
+    threads: Annotated[
+        int | None,
+        typer.Option(help="CPU threads of the tree models (default: all cores but two)."),
+    ] = None,
+    device: DeviceOpt = None,
+) -> None:
+    """Comparison study: boosted trees, random forest, plain U-Net (and the SST + sea level
+    ridge / MLP) under the protocol of R2 (resumable).
+
+    Run on configs/poc_long.yaml. Writes only under outputs/<run>/research/benchmark/."""
+    from oceanembed.research.benchmark import DEFAULT_SEEDS, bench_dir, run_benchmark
+
+    _setup_logging()
+    cfg = load_config(config)
+    t0 = time.time()
+    try:
+        results = run_benchmark(
+            cfg,
+            _csv(seeds, int) or list(DEFAULT_SEEDS),
+            _csv(families),
+            _csv(sets),
+            skip_existing,
+            device,
+            threads,
+        )
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    n_done = sum(r["status"] == "done" for r in results)
+    typer.echo(
+        f"benchmark: {n_done} job(s) run, {len(results) - n_done} skipped in "
+        f"{time.time() - t0:.0f}s -> {bench_dir(cfg)}"
+    )
+
+
+@research_app.command("benchmark-report")
+def research_benchmark_report(
+    config: ConfigOpt,
+    n_boot: Annotated[int, typer.Option(help="Bootstrap replicates.")] = 2000,
+    block_length: Annotated[
+        int | None,
+        typer.Option(help="Block length in days (default: from the autocorrelation of the data)."),
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Bootstrap random seed.")] = 0,
+) -> None:
+    """Benchmark: summary.json, summary.md and figures from the finished jobs."""
+    from oceanembed.research.benchmark import bench_dir
+    from oceanembed.research.benchmark_report import make_benchmark_report
+
+    _setup_logging()
+    cfg = load_config(config)
+    try:
+        make_benchmark_report(cfg, n_boot=n_boot, block_length=block_length, seed=seed)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(f"wrote {bench_dir(cfg)}/summary.json, summary.md, figures/")
+
+
 # ----------------------------------------------------------------------------------------
 # live nowcast
 # ----------------------------------------------------------------------------------------

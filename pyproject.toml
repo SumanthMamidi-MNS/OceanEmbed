@@ -19,6 +19,7 @@ dependencies = [
 
   "pyarrow",
   "scikit-learn",
+  "lightgbm",  # boosted-tree baseline of the comparison study (research benchmark)
   "pydantic>=2",
   "pyyaml",
   "typer",

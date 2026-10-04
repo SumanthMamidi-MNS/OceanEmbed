@@ -65,6 +65,11 @@ RESEARCH_STAGES: dict[str, tuple[str, str, str]] = {
         "Input-set selection for the final model (decided on the validation year only)",
         "oceanembed research final-inputs / final-inputs-report --config configs/poc_long.yaml",
     ),
+    "benchmark": (
+        "poc_long",
+        "Comparison study: boosted trees, random forest, plain U-Net and the other families",
+        "oceanembed research benchmark / benchmark-report --config configs/poc_long.yaml",
+    ),
 }
 RUN_FILES = ("metrics/metrics_glorys.json", "metrics/metrics_argo.json", RUN_META_FILE, "report.md")
 

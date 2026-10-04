@@ -27,5 +27,6 @@ Each folder holds `summary.md` (the tables), `summary.json` (the same numbers wi
 | `research/r4/` | R4: comparison with ARMOR3D, an observation-based product | `oceanembed research r4 --config configs/poc.yaml` |
 | `research/r5/` | R5: derived physical quantities (D20, D23, heat content) and stratified skill | `oceanembed research r5 --config configs/poc.yaml` |
 | `research/final_inputs/` | Input-set selection for the final model (decided on the validation year only) | `oceanembed research final-inputs / final-inputs-report --config configs/poc_long.yaml` |
+| `research/benchmark/` | Comparison study: boosted trees, random forest, plain U-Net and the other families | `oceanembed research benchmark / benchmark-report --config configs/poc_long.yaml` |
 
 The written-up interpretation of each stage is in `docs/research/`.

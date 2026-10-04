@@ -90,7 +90,7 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 - [x] Input selection on eleven years, by the validation year only (`oceanembed research final-inputs`); results in `docs/research/final_inputs.md` — SST + sea level adopted (validation 0.6921 against 0.6988 for all seven inputs); on the test years the input sets tie
 - [x] Final run `final` (`configs/final.yaml`): from-scratch model on SST + sea level, per-pixel MLP and ridge baselines, pretrained variant as ablation, per-year metrics, Argo for 2023 and 2024 — 0.974 (2023) / 0.991 (2024) °C over 50–200 m against 1.519 / 1.394 for climatology
 - [x] Results and weights kept in the repository (`results/`, `models/final/` with a model card; `oceanembed export-results`, `predict --weights`); `docs/reproduce.md` explains what can be deleted and how to rebuild
-- [ ] Dashboard content pass and screenshots on `final`; README figures and numbers
+- [x] Dashboard content pass and screenshots on `final`; README figures and numbers
 - [ ] R6 Argo-aware correction (optional); the manuscript is written separately
 
 **R1 result (5 seeds, pooled 50–200 m RMSE vs GLORYS, 2024):** no pretraining 1.052 ± 0.015, pretrained 1.064 ± 0.016, per-pixel MLP 1.094 ± 0.005, plain U-Net 1.124 ± 0.031, ridge 1.155, climatology 1.390 °C. Pretraining gives no benefit; the Transformer beats the U-Net (established); the advantage over a per-pixel MLP is small, not established for the whole domain, and comes from the Bay of Bengal thermocline.
@@ -106,9 +106,9 @@ Starts after R2 and R3 have finished, so that it uses the final headline model a
 - [x] L1 Near-real-time inputs: `configs/live.yaml` with the NRT counterparts of the seven surface fields (dataset ids and publication delays verified against the live catalogues), a rolling window of recent days, the same grid and the training statistics of the headline model
 - [x] L2 `oceanembed live update`: fetch the days that are newly available (resumable), harmonise, reconstruct with the headline model, append to a rolling `live` run that follows the normal run contract; record per day which inputs were available and how old they were
 - [x] L3 Honesty checks before anything is shown as "live": (a) input shift — for an overlap period run the model on reprocessed and on NRT inputs and measure the difference by depth; (b) running verification — score each new day against Argo profiles as they are published, and against the operational Mercator analysis where available; rolling 30-day error next to climatology
-- [ ] L4 Dashboard: a sixth view, "Live" — latest reconstructed day, freshness of each input, rolling accuracy, clearly labelled as a same-day reconstruction (nowcast), not a forecast; the five existing views and their numbers do not change
+- [x] L4 Dashboard: a sixth view, "Live" — latest reconstructed day, freshness of each input, rolling accuracy, clearly labelled as a same-day reconstruction (nowcast), not a forecast; the five existing views and their numbers do not change
 - [x] L5 Operation: one command to update; an optional scheduled daily run that the owner enables; documented in the runbook
-- [ ] L6 README: a short "Live mode" section at the end
+- [x] L6 README: a short "Live mode" section at the end
 
 **Success:** `oceanembed live update` brings the window up to the latest available day from a cold start and from a previous state; the Live view shows the date of each input and the rolling error; the input-shift check is reported with numbers.
 
@@ -122,7 +122,7 @@ research material stays in the repository (`docs/research/`, `results/`) and in 
 - [x] Primary navigation for users: **Overview** (what it gives you, the latest map, how accurate it is, where not to trust it), **Explorer**, **Live**, **Accuracy** (error by depth and basin against the reanalysis and Argo, per year — the numbers a user needs to decide whether to trust a value), **Data & downloads** (inputs used, the NetCDF product, the released model)
 - [x] Out of the user's path: model comparisons, ablations (pretraining, per-pixel network, U-Net), training curves, embedding analysis and research findings move to a single secondary **Research** area linked from the footer / About, not from the first page; the Overview shows no ablation verdicts and no method comparisons beyond "against the seasonal climatology"
 - [x] What stays on the first page because users need it: accuracy by depth, the limit below ~300 m, the difference between basins, and that the reference used for training differs from floats
-- [ ] README and screenshots follow the same split: product first, research in a linked section
+- [x] README and screenshots follow the same split: product first, research in a linked section
 
 Done together with the Live view (Phase 11, L4) in one dashboard pass.
 

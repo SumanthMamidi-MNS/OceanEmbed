@@ -1,0 +1,54 @@
+{
+ "run": "final",
+ "created": "2026-10-04T01:15:15Z",
+ "train_period": [
+  "2011-01-01",
+  "2021-12-31"
+ ],
+ "validation_period": [
+  "2022-01-01",
+  "2022-12-31"
+ ],
+ "test_period": [
+  "2023-01-01",
+  "2024-12-15"
+ ],
+ "domain": {
+  "lat": [
+   5.0,
+   30.0
+  ],
+  "lon": [
+   45.0,
+   105.0
+  ],
+  "resolution_deg": 0.25
+ },
+ "main_init": "scratch",
+ "input_groups": [
+  "sst",
+  "sla"
+ ],
+ "input_variables": [
+  "sst",
+  "sla"
+ ],
+ "files": {
+  "mlp.pt": {
+   "bytes": 561301,
+   "sha256": "cc37d7c054f656d7381b770afc97429890e986080424651bef8df44ac0c4d0e0"
+  },
+  "recon.pt": {
+   "bytes": 15012403,
+   "sha256": "14540d6b748c86a3edf949ecfe4ced0faa368ea1515ac16a3909c94738937ab2"
+  },
+  "ridge.joblib": {
+   "bytes": 925,
+   "sha256": "ed50d227d858d67b40bebbcddacfdd1587f62467d70597fa48e9e124408500d1"
+  },
+  "stats.nc": {
+   "bytes": 2910114,
+   "sha256": "b049be122bcdcc964e4704d800c73b3b36fc939a76cc942d2da7a9cbdf9e453a"
+  }
+ }
+}

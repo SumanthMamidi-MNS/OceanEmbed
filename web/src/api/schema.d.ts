@@ -696,6 +696,12 @@ export interface components {
             /** Variable */
             variable: string;
             /**
+             * Used By Model
+             * @description False for an input variable the run's model does not use (input_groups).
+             * @default true
+             */
+            used_by_model: boolean;
+            /**
              * Role
              * @enum {string}
              */
@@ -936,7 +942,7 @@ export interface components {
             label: string;
             /**
              * Kind
-             * @description model | baseline (ridge) | ablation (model_<tag>)
+             * @description model | baseline (ridge, mlp) | ablation (model_<tag>)
              */
             kind: string;
             /**
@@ -1313,6 +1319,13 @@ export interface components {
              * @description Daily series vs GLORYS: {dates, depths, pooled_range_m, rmse, bias, corr_anom: {method: [time][depth]}, pooled_rmse / pooled_bias / pooled_corr_anom: {method: [time]} over pooled_range_m}; corr_anom is the spatial anomaly correlation of that day. Keys missing from older runs are absent (re-run `evaluate`).
              */
             daily?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Per Year
+             * @description Present when the evaluated period spans several calendar years: {year: {n_days | n_profiles, ..., overall, pooled, per_depth, per_basin}}, each block shaped like the whole-period fields above. The whole-period fields stay as they were.
+             */
+            per_year?: {
                 [key: string]: unknown;
             } | null;
             /**

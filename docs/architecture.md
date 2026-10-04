@@ -278,6 +278,8 @@ Model input per day: 12 channels on the canonical grid —
 
 ## Evaluation outputs (contract used by the dashboard)
 
+Additions of the final run (all optional keys, existing ones unchanged): `metadata.inputs` (input groups / variables the model uses, `main_init`), `metadata.years`, and for a test split over several calendar years a top-level `per_year` block (`{year: {n_days, start, end, methods: {method: block}}}` in `metrics_glorys.json`, `{year: {n_profiles, n_matchups, methods}}` in `metrics_argo.json`) next to the pooled blocks. Methods: `model`, `model_<tag>` ablations, `ridge`, `mlp` (when `baseline.mlp`), `climatology`; product folders `predictions/`, `predictions/<tag>/`, `predictions/ridge/`, `predictions/mlp/`.
+
 ```
 outputs/<run>/
   run_meta.json                   config snapshot, data_source, split dates, grid, data paths (as the config

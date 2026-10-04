@@ -124,17 +124,30 @@ export function accuracyHeadline(metrics: MetricsResponse, clim: string = SEASON
   return { range, model, climatology, vsClimatology, beatsClimatology: vsClimatology?.direction === "lower", sentence };
 }
 
-/** A skill against climatology below this is called marginal: the MSE is within 10 % of the climatology's. */
-export const CLEAR_SKILL = 0.1;
+/**
+ * Skill against climatology (1 − MSE / MSE of the climatology) of a depth level, in three bands:
+ * clearly useful at or above {@link CLEAR_SKILL}, marginal from {@link MARGINAL_SKILL} up to it,
+ * and no better than the climatology below that.
+ */
+export const CLEAR_SKILL = 0.2;
+export const MARGINAL_SKILL = 0.05;
+
+/**
+ * Down to this depth the model is close to its own input: it is given the sea surface temperature,
+ * so a high skill there says little. The depth where the reconstruction "helps most" is looked for
+ * below it.
+ */
+export const SURFACE_INPUT_DEPTH_M = 30;
 
 export interface DepthClasses {
+  /** the level with the highest skill among the levels below {@link SURFACE_INPUT_DEPTH_M} (any level if there is none) */
   bestDepth: number | null;
   bestSkill: number | null;
   /** depths where the skill against climatology is at least {@link CLEAR_SKILL} */
   clearDepths: number[];
-  /** depths where it is positive but below {@link CLEAR_SKILL} */
+  /** depths where it is at least {@link MARGINAL_SKILL} but below {@link CLEAR_SKILL} */
   marginalDepths: number[];
-  /** depths where it is zero or negative */
+  /** depths where it is below {@link MARGINAL_SKILL}: no better than the climatology */
   noSkillDepths: number[];
 }
 
@@ -142,14 +155,15 @@ export interface DepthClasses {
 export function classifyDepths(metrics: MetricsResponse): DepthClasses {
   const skill = metrics.per_depth.skill_vs_clim?.model ?? [];
   const out: DepthClasses = { bestDepth: null, bestSkill: null, clearDepths: [], marginalDepths: [], noSkillDepths: [] };
+  const below = metrics.depths.some((d, k) => d > SURFACE_INPUT_DEPTH_M && skill[k] != null && Number.isFinite(skill[k]));
   metrics.depths.forEach((d, k) => {
     const s = skill[k];
     if (s == null || !Number.isFinite(s)) return;
-    if (out.bestSkill == null || s > out.bestSkill) {
+    if ((!below || d > SURFACE_INPUT_DEPTH_M) && (out.bestSkill == null || s > out.bestSkill)) {
       out.bestSkill = s;
       out.bestDepth = d;
     }
-    if (s <= 0) out.noSkillDepths.push(d);
+    if (s < MARGINAL_SKILL) out.noSkillDepths.push(d);
     else if (s < CLEAR_SKILL) out.marginalDepths.push(d);
     else out.clearDepths.push(d);
   });
@@ -165,10 +179,23 @@ export interface TrustLimits extends DepthClasses {
   limited: boolean;
 }
 
+/** "down to 200 m" when the levels are the top of the column, "from 500 m" when they are its bottom, else "at ...". */
+function where(selected: readonly number[], levels: readonly number[]): string {
+  const sorted = [...selected].sort((a, b) => a - b);
+  const index = sorted.map((d) => levels.indexOf(d));
+  const contiguous = index.every((k, i) => k >= 0 && (i === 0 || k === index[i - 1] + 1));
+  if (contiguous && sorted.length > 1 && sorted.length < levels.length) {
+    if (index[0] === 0) return `down to ${fmtDepth(sorted[sorted.length - 1])}`;
+    if (index[index.length - 1] === levels.length - 1) return `from ${fmtDepth(sorted[0])}`;
+  }
+  return `at ${describeDepths(sorted, levels)}`;
+}
+
 /**
- * Where not to trust it, from the skill against the seasonal climatology at each depth: the levels
- * where the reconstruction clearly improves on the climatology, and the levels where it does not
- * (marginal or no skill), where the climatology is as good an estimate.
+ * Where to use the reconstruction and where not to trust it, from the skill against the
+ * climatology at each depth: clearly useful, marginal, no better than the climatology. The depth
+ * where it helps most is named among the levels below the near-surface layer, because near the
+ * surface the model is given the sea surface temperature.
  */
 export function trustLimits(metrics: MetricsResponse, clim: string = SEASONAL): TrustLimits {
   const c = classifyDepths(metrics);
@@ -185,12 +212,14 @@ export function trustLimits(metrics: MetricsResponse, clim: string = SEASONAL): 
       limited: true,
     };
   }
-  const use = `Use it at ${describeDepths(c.clearDepths, levels)}, where it clearly improves on ${clim} (most at ${fmtDepth(c.bestDepth)}, skill ${fmt(c.bestSkill)}).`;
+  const surface = levels.some((d) => d <= SURFACE_INPUT_DEPTH_M) && c.bestDepth > SURFACE_INPUT_DEPTH_M ? "; near the surface the model is given the sea surface temperature" : "";
+  const use = `It clearly improves on ${clim} ${where(c.clearDepths, levels)} (most at ${fmtDepth(c.bestDepth)}, skill ${fmt(c.bestSkill)})${surface}.`;
   if (c.marginalDepths.length + c.noSkillDepths.length === 0) return { ...c, use, limit: null, limited: false };
   const parts: string[] = [];
-  if (c.noSkillDepths.length > 0) parts.push(`At ${describeDepths(c.noSkillDepths, levels)} it is no better than ${clim}`);
-  if (c.marginalDepths.length > 0) parts.push(`${parts.length ? "at" : "At"} ${describeDepths(c.marginalDepths, levels)} the gain is marginal (skill below ${fmt(CLEAR_SKILL, 1)})`);
-  return { ...c, use, limit: `${parts.join("; ")}: there the climatology is as good an estimate.`, limited: true };
+  if (c.marginalDepths.length > 0) parts.push(`the gain is marginal ${where(c.marginalDepths, levels)}`);
+  if (c.noSkillDepths.length > 0) parts.push(`it is no better than ${clim} ${where(c.noSkillDepths, levels)}`);
+  const text = parts.join(" and ");
+  return { ...c, use, limit: `${text[0].toUpperCase()}${text.slice(1)}: there the climatology is as good an estimate.`, limited: true };
 }
 
 /** Anomaly correlation next to the raw one, with the reason the raw one is inflated. */
@@ -288,7 +317,12 @@ function warmer(bias: number): string {
  * `baselines = "all"`, the Research area), GLORYS itself as the floor, and the mean difference
  * that GLORYS and the model share, when there is one. Numbers only; no interpretation beyond them.
  */
-export function argoSentence(argo: MetricsResponse, scope: "pooled" | "overall" = "pooled", baselines: "climatology" | "all" = "climatology"): string | null {
+export function argoSentence(
+  argo: MetricsResponse,
+  scope: "pooled" | "overall" = "pooled",
+  baselines: "climatology" | "all" = "climatology",
+  clim: string = SEASONAL,
+): string | null {
   const pooled = scope === "pooled" && rmseOf(argo.pooled?.model) != null;
   const blocks = pooled ? argo.pooled : argo.overall;
   const model = rmseOf(blocks.model);
@@ -296,12 +330,12 @@ export function argoSentence(argo: MetricsResponse, scope: "pooled" | "overall" 
   const nProfiles = argo.metadata.n_profiles_used ?? null;
   const matchups = pooled ? (blocks.model?.n ?? null) : (argo.metadata.n_matchups ?? blocks.model?.n ?? null);
   const where = pooled ? `between ${rangeText(argo.pooled_range_m)}` : "over all depths";
-  const clim = rmseOf(blocks.climatology);
+  const climRmse = rmseOf(blocks.climatology);
   const ridge = baselines === "all" ? rmseOf(blocks.ridge) : null;
   const glorys = rmseOf(blocks.glorys);
   const bits: string[] = [];
-  const vsClim = compare(model, clim);
-  if (vsClim) bits.push(`${describeComparison(vsClim, "climatology")} (${fmt(clim)}\u00A0°C)`);
+  const vsClim = compare(model, climRmse);
+  if (vsClim) bits.push(`${describeComparison(vsClim, clim)} (${fmt(climRmse)}\u00A0°C)`);
   const vsRidge = compare(model, ridge);
   if (vsRidge) bits.push(`${describeComparison(vsRidge, "ridge regression")} (${fmt(ridge)}\u00A0°C)`);
   const sample = nProfiles != null ? `Against ${fmtInt(nProfiles)} Argo profiles` : "Against the Argo profiles";
@@ -473,9 +507,11 @@ export function runCaveats(run: RunSummary): RunCaveats {
  * Run shown when the link names none. A run that has a reconstruction to show comes first (a run
  * still being produced must not be the landing page), then real data before synthetic, a run
  * trained on at least one annual cycle before a shorter one, an evaluated run before an
- * unevaluated one, and the longest predicted period.
+ * unevaluated one, and the longest predicted period. The live run is never the default: it has no
+ * evaluation against the reanalysis and its days are revised; it has its own view.
  */
-export function defaultRun(runs: readonly RunSummary[]): RunSummary | null {
+export function defaultRun(all: readonly RunSummary[]): RunSummary | null {
+  const runs = evaluatedRuns(all);
   if (runs.length === 0) return null;
   const score = (r: RunSummary) =>
     (r.artefacts.predictions && r.n_prediction_days > 0 ? 8 : 0) +
@@ -483,6 +519,16 @@ export function defaultRun(runs: readonly RunSummary[]): RunSummary | null {
     (runCaveats(r).shortTraining ? 0 : 2) +
     (r.artefacts.metrics_glorys ? 1 : 0);
   return [...runs].sort((a, b) => score(b) - score(a) || b.n_prediction_days - a.n_prediction_days || a.name.localeCompare(b.name))[0];
+}
+
+/** The runs the evaluated pages can show: every run except the live (rolling, near-real-time) one. */
+export function evaluatedRuns(runs: readonly RunSummary[]): RunSummary[] {
+  return runs.filter((r) => !r.live);
+}
+
+/** The live run, when the API reports one. */
+export function liveRun(runs: readonly RunSummary[]): RunSummary | null {
+  return runs.find((r) => r.live) ?? null;
 }
 
 /** Methods of a metrics payload in legend order, with short labels. */

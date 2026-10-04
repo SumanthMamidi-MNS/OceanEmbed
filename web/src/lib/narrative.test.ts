@@ -11,6 +11,8 @@ import {
   correlationSentence,
   defaultRun,
   describeComparison,
+  evaluatedRuns,
+  liveRun,
   describeDepths,
   methodList,
   scopeToYear,
@@ -103,25 +105,46 @@ describe("where not to trust it", () => {
   const depths = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000];
   const at = (skill: number[]) => metrics({ model: 1, climatology: 1.4 }, { depths, per_depth: { skill_vs_clim: { model: skill } } });
 
-  it("names the depths to use and the depths where the climatology is as good (the real run's shape)", () => {
-    const t = trustLimits(at([0.479, 0.488, 0.482, 0.421, 0.369, 0.39, 0.493, 0.456, 0.364, 0.319, 0.219, 0.045, -0.034, -0.056, -0.152]));
+  it("reads three bands: clearly useful, marginal, no better than the climatology (the final run's shape)", () => {
+    // the surface skill is the highest, and 300 m sits at 0.10: clearly useful needs 0.2
+    const t = trustLimits(at([0.67, 0.66, 0.64, 0.58, 0.5, 0.48, 0.55, 0.52, 0.45, 0.4, 0.3, 0.1, 0.02, -0.01, -0.05]));
     expect(t.limited).toBe(true);
-    expect(t.use).toBe("Use it at 0–200\u00A0m, where it clearly improves on the seasonal climatology (most at 75\u00A0m, skill 0.49).");
-    expect(t.limit).toBe(
-      "At 500\u00A0m and below it is no better than the seasonal climatology; at 300\u00A0m the gain is marginal (skill below 0.1): there the climatology is as good an estimate.",
+    expect([t.clearDepths[t.clearDepths.length - 1], t.marginalDepths, t.noSkillDepths]).toEqual([200, [300], [500, 700, 1000]]);
+    expect(t.use).toBe(
+      "It clearly improves on the seasonal climatology down to 200\u00A0m (most at 75\u00A0m, skill 0.55); near the surface the model is given the sea surface temperature.",
     );
-    expect(t.noSkillDepths).toEqual([500, 700, 1000]);
+    expect(t.limit).toBe(
+      "The gain is marginal at 300\u00A0m and it is no better than the seasonal climatology from 500\u00A0m: there the climatology is as good an estimate.",
+    );
+  });
+
+  it("never names the near-surface layer as the depth where it helps most", () => {
+    const t = trustLimits(at([0.9, 0.9, 0.9, 0.9, 0.9, 0.3, 0.31, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]));
+    expect([t.bestDepth, t.bestSkill]).toEqual([75, 0.31]);
+    expect(t.use).toContain("most at 75\u00A0m");
+    // a grid without levels below the near-surface layer falls back to the best level there is
+    const shallow = trustLimits(metrics({ model: 1 }, { depths: [0, 10, 30], per_depth: { skill_vs_clim: { model: [0.5, 0.6, 0.4] } } }));
+    expect(shallow.bestDepth).toBe(10);
+    expect(shallow.use).not.toContain("near the surface");
+  });
+
+  it("uses the thresholds 0.2 and 0.05", () => {
+    const t = trustLimits(at([0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.199, 0.05, 0.049, 0.3, 0.3, 0.3, 0, -0.2, -0.3]));
+    expect(t.clearDepths).toEqual([0, 5, 10, 20, 30, 50, 150, 200, 300]);
+    expect(t.marginalDepths).toEqual([75, 100]);
+    expect(t.noSkillDepths).toEqual([125, 500, 700, 1000]);
+    expect(t.limit).toContain("marginal at 75–100\u00A0m");
   });
 
   it("has no limit when every depth is clearly better, and says it plainly when none is", () => {
     const good = trustLimits(at(depths.map(() => 0.4)));
     expect(good.limited).toBe(false);
     expect(good.limit).toBeNull();
-    expect(good.use).toContain("Use it at every depth");
+    expect(good.use).toContain("clearly improves on the seasonal climatology at every depth (most at 50\u00A0m, skill 0.40)");
     const none = trustLimits(at(depths.map(() => -0.2)));
     expect(none.use).toBeNull();
     expect(none.limit).toMatch(/^The reconstruction does not beat the seasonal climatology at any depth .*do not rely on it\.$/);
-    const marginal = trustLimits(at(depths.map(() => 0.04)));
+    const marginal = trustLimits(at(depths.map(() => 0.1)));
     expect(marginal.limit).toMatch(/only marginally better/);
     expect(trustLimits(metrics({ model: 1 })).limit).toBeNull();
   });
@@ -293,9 +316,10 @@ describe("depth skill", () => {
     expect(d.bestSkill).toBe(0.75);
     expect(d.noSkillDepths).toEqual([1000]);
     expect(d.ridgeWinsDepths).toEqual([500, 1000]);
-    expect(d.sentence).toContain("highest at 0\u00A0m (0.75) and at least 0.1 at 0–500\u00A0m");
-    expect(d.clearDepths).toEqual([0, 100, 500]);
-    expect(d.sentence).toContain("does not beat climatology at 1000\u00A0m");
+    expect(d.sentence).toContain("highest at 0\u00A0m (0.75) and at least 0.2 at 0–100\u00A0m");
+    expect(d.clearDepths).toEqual([0, 100]);
+    expect(d.sentence).toContain("it is marginal (0.05 to 0.2) at 500\u00A0m");
+    expect(d.sentence).toContain("is no better than climatology (skill below 0.05) at 1000\u00A0m");
     expect(d.sentence).toContain("ridge regression has the lower RMSE at 500\u00A0m and below");
   });
 
@@ -306,9 +330,9 @@ describe("depth skill", () => {
     const ridge = depths.map((d) => (d <= 30 || d >= 500 ? 0.9 : 1.2));
     const m = metrics({ model: 2, ridge: 3, climatology: 4 }, { depths, per_depth: { skill_vs_clim: { model: skill }, rmse: { model, ridge } } });
     const s = depthSkill(m).sentence!;
-    expect(s).toContain("does not beat climatology at 300\u00A0m and below");
+    expect(s).toContain("is no better than climatology (skill below 0.05) at 300\u00A0m and below");
     expect(s).toContain("ridge regression has the lower RMSE at 0–30\u00A0m and 500\u00A0m and below");
-    expect(s.length).toBeLessThan(240);
+    expect(s.length).toBeLessThan(260);
   });
 
   it("says where the skill is clear, where it is marginal and where there is none (the real run's shape)", () => {
@@ -318,8 +342,8 @@ describe("depth skill", () => {
     const ridge = [0.727, 0.728, 0.726, 0.762, 0.828, 0.997, 1.213, 1.313, 1.303, 1.199, 0.827, 0.532, 0.351, 0.354, 0.38];
     const s = depthSkill(metrics({ model: 1.08, ridge: 1.15, climatology: 1.39 }, { depths, per_depth: { skill_vs_clim: { model: skill }, rmse: { model, ridge } } })).sentence!;
     expect(s).toBe(
-      "Skill against climatology is highest at 75\u00A0m (0.49) and at least 0.1 at 0–200\u00A0m; it is marginal (below 0.1) at 300\u00A0m; " +
-        "the model does not beat climatology at 500\u00A0m and below; ridge regression has the lower RMSE at 500\u00A0m and below.",
+      "Skill against climatology is highest at 75\u00A0m (0.49) and at least 0.2 at 0–200\u00A0m; " +
+        "the model is no better than climatology (skill below 0.05) at 300\u00A0m and below; ridge regression has the lower RMSE at 500\u00A0m and below.",
     );
   });
 
@@ -357,7 +381,8 @@ describe("Argo sentence", () => {
     );
     const s = argoSentence(m)!;
     expect(s).toContain("Against 2\u202F826 Argo profiles, between 50–200\u00A0m (16\u202F241 profile–depth matchups), OceanEmbed's RMSE is 1.42\u00A0°C");
-    expect(s).toContain("15\u00A0% lower than climatology (1.67\u00A0°C)");
+    expect(s).toContain("15\u00A0% lower than the seasonal climatology (1.67\u00A0°C)");
+    expect(argoSentence(m, "pooled", "climatology", climatologyName(1))).toContain("15\u00A0% lower than the mean climatology (1.67\u00A0°C)");
     // ridge regression is named only when the Research area asks for every baseline
     expect(s).not.toContain("ridge");
     expect(argoSentence(m, "pooled", "all")).toContain("8\u00A0% lower than ridge regression (1.53\u00A0°C)");
@@ -471,6 +496,31 @@ describe("default run", () => {
     // once it has a reconstruction it takes over, even before it is evaluated
     const predicted = run({ name: "poc", artefacts: arte({ metrics_glorys: false }) });
     expect(defaultRun([predicted, trial])?.name).toBe("poc");
+  });
+});
+
+describe("the live run", () => {
+  const evaluated = run({ name: "final", n_prediction_days: 715 });
+  const live = run({
+    name: "live",
+    live: true,
+    live_last_day: "2026-10-03",
+    n_prediction_days: 60,
+    n_train_days: 0,
+    artefacts: { ...evaluated.artefacts, metrics_glorys: false },
+  } as Partial<RunSummary>);
+
+  it("is never the default run, even when it is the only run with predictions", () => {
+    expect(defaultRun([live, evaluated])?.name).toBe("final");
+    const unfinished = run({ name: "next", n_prediction_days: 0, artefacts: { ...evaluated.artefacts, predictions: false, metrics_glorys: false } });
+    expect(defaultRun([live, unfinished])?.name).toBe("next");
+    expect(defaultRun([live])).toBeNull();
+  });
+
+  it("is kept out of the runs the evaluated pages offer, and found for the Live view", () => {
+    expect(evaluatedRuns([live, evaluated]).map((r) => r.name)).toEqual(["final"]);
+    expect(liveRun([evaluated, live])?.name).toBe("live");
+    expect(liveRun([evaluated])).toBeNull();
   });
 });
 

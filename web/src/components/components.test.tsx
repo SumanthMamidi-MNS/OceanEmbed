@@ -36,6 +36,37 @@ function run(over: Partial<RunSummary>): RunSummary {
   } as RunSummary;
 }
 
+describe("Shell and the live run", () => {
+  const evaluated = run({});
+  const live = run({ name: "live", label: "Live nowcast", live: true, live_last_day: "2026-10-03", n_train_days: 0 } as Partial<RunSummary>);
+
+  it("lists Live third when a live run exists, and never offers the live run in the selector", () => {
+    render(
+      <Shell runs={[evaluated]} run={evaluated} selected={evaluated} live={live} caveats={runCaveats(evaluated)}>
+        <p>content</p>
+      </Shell>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Views" });
+    expect([...nav.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Overview", "Explorer", "Live", "Accuracy", "Data & downloads"]);
+    const select = screen.getByLabelText("Run") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(["demo"]);
+    expect(screen.getByText(/350 days/)).toBeTruthy();
+  });
+
+  it("shows the live run as a fixed label on the Live view, without the evaluated run's test period", () => {
+    render(
+      <Shell runs={[evaluated]} run={live} selected={evaluated} live={live} caveats={runCaveats(live)}>
+        <p>content</p>
+      </Shell>,
+    );
+    expect(screen.queryByLabelText("Run")).toBeNull();
+    expect(document.querySelector(".runpick__fixed")?.textContent).toContain("Live nowcast");
+    expect(screen.getByText(/Latest day 3 Oct 2026/)).toBeTruthy();
+    expect(screen.queryByText(/350 days/)).toBeNull();
+    expect(screen.queryAllByRole("note")).toHaveLength(0);
+  });
+});
+
 describe("Segmented", () => {
   it("marks the active option and reports a change", () => {
     const onChange = vi.fn();

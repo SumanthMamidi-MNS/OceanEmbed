@@ -2,13 +2,14 @@ import { lazy, Suspense, useEffect, useMemo } from "react";
 import { useDates, useOceanMask, useRun, useRuns } from "@/api/queries";
 import { Shell } from "@/components/shell/Shell";
 import { Empty, ErrorState, Loading } from "@/components/ui/primitives";
-import { defaultRun, runCaveats } from "@/lib/narrative";
+import { defaultRun, evaluatedRuns, liveRun, runCaveats } from "@/lib/narrative";
 import { navigate, useUrlState } from "@/state/router";
 import { RunProvider, useRunContext } from "@/state/runContext";
 import type { ViewKey } from "@/state/url";
 
 const Overview = lazy(() => import("@/views/overview/Overview"));
 const Explorer = lazy(() => import("@/views/explorer/Explorer"));
+const Live = lazy(() => import("@/views/live/Live"));
 const Accuracy = lazy(() => import("@/views/accuracy/Accuracy"));
 const Data = lazy(() => import("@/views/data/Data"));
 const Research = lazy(() => import("@/views/research/Research"));
@@ -19,8 +20,7 @@ const Embedding = lazy(() => import("@/views/research/Embedding"));
 const VIEW_COMPONENTS: Record<ViewKey, React.LazyExoticComponent<() => React.JSX.Element>> = {
   overview: Overview,
   explore: Explorer,
-  // reserved: the route resolves to the Overview until the Live view ships (state/url LIVE_ENABLED)
-  live: Overview,
+  live: Live,
   accuracy: Accuracy,
   data: Data,
   research: Research,
@@ -66,16 +66,28 @@ export function App() {
   const [url] = useUrlState();
   const runsQ = useRuns();
   const runs = useMemo(() => runsQ.data ?? [], [runsQ.data]);
-  const wanted = url.run ? (runs.find((r) => r.name === url.run) ?? null) : null;
-  const run = wanted ?? (url.run ? null : defaultRun(runs));
+  // the evaluated pages show an evaluated run; the Live view always shows the live run, whatever run the link names
+  const live = useMemo(() => liveRun(runs), [runs]);
+  const evaluated = useMemo(() => evaluatedRuns(runs), [runs]);
+  const wanted = url.run ? (evaluated.find((r) => r.name === url.run) ?? null) : null;
+  const namesLive = !!url.run && live?.name === url.run;
+  const selected = wanted ?? (url.run && !namesLive ? null : defaultRun(runs));
+  const onLive = url.view === "live" && !!live;
+  const run = onLive ? live : selected;
   const detailQ = useRun(run?.name ?? null);
   const datesQ = useDates(run?.name ?? null);
   const maskQ = useOceanMask(run?.artefacts.predictions ? run.name : null);
 
   // pin the resolved run in the URL so every link that is copied names it
   useEffect(() => {
-    if (run && !url.run) navigate({ run: run.name }, "replace");
-  }, [run, url.run]);
+    if (runsQ.isPending || runsQ.isError) return;
+    // a link that names the live run belongs to the Live view; the run parameter is the evaluated run
+    if (namesLive) navigate({ view: "live", run: selected?.name ?? null, date: url.date }, "replace");
+    // without a live run there is no Live view: its route opens the Overview
+    else if (url.view === "live" && !live) navigate({ view: "overview" }, "replace");
+    // naming the run must not cost the link its day or its options
+    else if (selected && !url.run) navigate({ run: selected.name, date: url.date, est: url.est, opts: url.opts }, "replace");
+  }, [runsQ.isPending, runsQ.isError, namesLive, live, selected, url.run, url.view, url.date, url.est, url.opts]);
 
   useEffect(() => {
     document.title = run ? `${VIEW_TITLES[url.view]} · ${run.label || run.name} · OceanEmbed` : "OceanEmbed";
@@ -95,10 +107,12 @@ export function App() {
         The outputs folder has no run with a run_meta.json. Produce one with “oceanembed run-all --config configs/synthetic.yaml”.
       </Empty>
     );
+  } else if (url.view === "live" && !live) {
+    body = <Loading height={420} label="Opening the overview" />;
   } else if (!run) {
     body = (
       <Empty title={`Run “${url.run}” was not found`} height={280}>
-        Available runs: {runs.map((r) => (r.label ? `${r.label} (${r.name})` : r.name)).join(", ")}. Choose one in the run selector above.
+        Available runs: {evaluated.map((r) => (r.label ? `${r.label} (${r.name})` : r.name)).join(", ")}. Choose one in the run selector above.
       </Empty>
     );
   } else if (detailQ.isError) {
@@ -117,7 +131,7 @@ export function App() {
   }
 
   return (
-    <Shell runs={runs} run={run} caveats={caveats}>
+    <Shell runs={evaluated} run={run} selected={selected} live={live} caveats={caveats}>
       {body}
     </Shell>
   );

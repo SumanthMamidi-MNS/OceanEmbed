@@ -5,11 +5,11 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { RunSummary } from "@/api/types";
 import { SelectionBarSlot } from "@/components/controls/SelectionBar";
-import { fmtSpan } from "@/lib/dates";
+import { fmtDate, fmtSpan } from "@/lib/dates";
 import { fmtInt } from "@/lib/format";
 import type { RunCaveats } from "@/lib/narrative";
 import { useUrlState } from "@/state/router";
-import { PRIMARY_VIEWS, viewHref, type UrlPatch, type ViewKey } from "@/state/url";
+import { primaryViews, viewHref, type UrlPatch, type ViewKey } from "@/state/url";
 
 function Wordmark() {
   // three shortening strokes: the surface and the levels beneath it
@@ -60,12 +60,20 @@ export function runLabel(r: Pick<RunSummary, "name" | "label">): string {
 }
 
 export function Shell(props: {
+  /** the runs the selector offers: the evaluated runs (the live run has its own view and is never listed) */
   runs: RunSummary[];
+  /** the run on screen: the selected evaluated run, or the live run on the Live view */
   run: RunSummary | null;
+  /** the evaluated run the other views show (the selector's value); defaults to `run` */
+  selected?: RunSummary | null;
+  /** the live run, when the API reports one: it puts Live in the navigation */
+  live?: RunSummary | null;
   caveats: RunCaveats | null;
   children: ReactNode;
 }) {
-  const { runs, run, caveats, children } = props;
+  const { runs, run, caveats, children, live = null } = props;
+  const selected = props.selected === undefined ? run : props.selected;
+  const showsLive = !!run?.live;
   const [url, setUrl] = useUrlState();
   const sticky = useRef<HTMLDivElement | null>(null);
   // the views render their selection bar into this element, so it is docked in one place
@@ -98,25 +106,34 @@ export function Shell(props: {
               OceanEmbed
             </ViewLink>
             <nav className="nav" aria-label="Views">
-              {PRIMARY_VIEWS.map((v) => (
+              {primaryViews(!!live).map((v) => (
                 <ViewLink key={v.key} view={v.key} className="nav__link" current={url.view === v.key}>
                   {v.label}
                 </ViewLink>
               ))}
             </nav>
             <div className="runpick">
-              {run && (
+              {run && showsLive && (
+                <span className="runpick__meta num">{run.live_last_day ? `Latest day ${fmtDate(run.live_last_day)}` : ""}</span>
+              )}
+              {run && showsLive && (
+                <span className="runpick__fixed" title="The Live view always shows the live run. The other views show the run chosen there.">
+                  <span className="select__prefix">Run</span>
+                  {runLabel(run)}
+                </span>
+              )}
+              {run && !showsLive && (
                 <span className="runpick__meta num">
                   {test?.start ? `Test ${fmtSpan(test.start, test.end)}` : ""}
                   {run.n_test_days != null ? `${test?.start ? " · " : ""}${fmtInt(run.n_test_days)} days` : ""}
                 </span>
               )}
-              {runs.length > 0 && (
-                <div className="select select--run" title={run?.description || undefined}>
+              {runs.length > 0 && !showsLive && (
+                <div className="select select--run" title={selected?.description || undefined}>
                   <label htmlFor="run-select" className="select__prefix">
                     Run
                   </label>
-                  <select id="run-select" value={run?.name ?? ""} onChange={(e) => setUrl({ run: e.target.value }, "push")}>
+                  <select id="run-select" value={selected?.name ?? ""} onChange={(e) => setUrl({ run: e.target.value }, "push")}>
                     {runs.map((r) => (
                       <option key={r.name} value={r.name}>
                         {runLabel(r)}

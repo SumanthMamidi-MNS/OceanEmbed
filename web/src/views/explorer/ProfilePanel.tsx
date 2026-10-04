@@ -56,7 +56,9 @@ export function ProfilePanel({ day, compact = false }: { day: DayVolumes; compac
 
   // legend and table: estimates first (selected one leading), then the references
   const ordered = useMemo(() => [...series].reverse(), [series]);
-  const glorys = series.find((s) => s.key === "glorys")?.points[depthIndex]?.x ?? null;
+  // differences are read against GLORYS; a day without a reanalysis (the live days) reads against the climatology
+  const refKey = day.target ? "glorys" : "climatology";
+  const glorys = series.find((s) => s.key === refKey)?.points[depthIndex]?.x ?? null;
   const canToggle = fieldMethods.length > 1;
 
   return (
@@ -113,7 +115,7 @@ export function ProfilePanel({ day, compact = false }: { day: DayVolumes; compac
                   Temperature
                 </th>
                 <th scope="col" className="num right">
-                  − GLORYS
+                  − {labelOf(refKey)}
                 </th>
               </tr>
             </thead>
@@ -129,7 +131,7 @@ export function ProfilePanel({ day, compact = false }: { day: DayVolumes; compac
                       </span>
                     </th>
                     <td className="num right">{fmt(v)}</td>
-                    <td className="num right">{s.key === "glorys" ? "" : v != null && glorys != null ? fmtSigned(v - glorys) : fmt(null)}</td>
+                    <td className="num right">{s.key === refKey ? "" : v != null && glorys != null ? fmtSigned(v - glorys) : fmt(null)}</td>
                   </tr>
                 );
               })}

@@ -204,3 +204,87 @@ export interface MatchupColumns {
 export type MatchupsResponse = Omit<S["MatchupsResponse"], "columns"> & { columns: MatchupColumns };
 
 export type FieldKind = "prediction" | "target" | "climatology" | "difference" | "anomaly_pred" | "anomaly_target";
+
+// ---- live nowcast (GET /runs/{run}/live); the free-form blocks of the schema, narrowed by hand -----
+
+export type LiveInput = S["LiveInput"];
+
+/** Error of the reconstruction and of climatology over one depth band (one day, or the rolling window). */
+export interface LiveBandScore {
+  n: number | null;
+  model_rmse: number | null;
+  model_bias: number | null;
+  clim_rmse: number | null;
+  clim_bias: number | null;
+  /** days in the rolling window (rolling blocks only) */
+  n_days?: number | null;
+}
+
+export interface LiveVerificationDay {
+  date: string;
+  /** Argo profiles of that day (null for the analysis) */
+  n_profiles: number | null;
+  bands: Record<string, { day?: LiveBandScore | null; rolling?: LiveBandScore | null }>;
+}
+
+export interface LiveReference {
+  reference?: string;
+  note?: string;
+  available?: boolean;
+  n_profiles?: number | null;
+  n_matchups?: number | null;
+  daily?: LiveVerificationDay[];
+  latest?: LiveVerificationDay | null;
+}
+
+export interface LiveVerification {
+  updated?: string | null;
+  rolling_days?: number | null;
+  bands?: Record<string, { label?: string; depth_range_m?: number[] }>;
+  argo?: LiveReference | null;
+  analysis?: LiveReference | null;
+}
+
+export interface LiveShiftChange {
+  point: number | null;
+  ci_lo?: number | null;
+  ci_hi?: number | null;
+  excludes_zero?: boolean;
+}
+
+export interface LiveInputShift {
+  updated?: string | null;
+  headline?: {
+    period?: string[];
+    n_days?: number | null;
+    sst_bias?: number | null;
+    sst_rmse?: number | null;
+    sla_bias?: number | null;
+    sla_rmse?: number | null;
+    recon_difference_pooled_50_200m?: { bias: number | null; rmse: number | null } | null;
+    vs_glorys_all?: { rmse_reprocessed: number | null; rmse_nrt: number | null; change?: LiveShiftChange | null } | null;
+    measurably_worse?: boolean | null;
+  } | null;
+}
+
+export interface LiveWindowDay {
+  date: string;
+  reconstructed: boolean;
+  complete: boolean;
+  inputs: Record<string, boolean>;
+}
+
+export interface LiveRevision {
+  policy?: { revision_days?: number | null; rule?: string | null } | null;
+  n_days_checked?: number | null;
+  n_days_revised?: number | null;
+  by_age?: { age_days: number; n_checks: number; n_changed_since_first: number; recon_rmse_50_200_mean?: number | null; recon_rmse_50_200_max?: number | null }[];
+}
+
+export type LiveResponse = Omit<S["LiveResponse"], "window" | "window_days" | "revision" | "input_shift" | "verification"> & {
+  window: { start?: string; end?: string; n_days?: number; window_days?: number } | null;
+  window_days: LiveWindowDay[];
+  revision: LiveRevision;
+  input_shift: LiveInputShift | null;
+  verification: LiveVerification | null;
+};

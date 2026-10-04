@@ -7,7 +7,7 @@
 import type { MetricsResponse } from "@/api/types";
 import { fmt, fmtDepth } from "./format";
 import { isAblation } from "./methods";
-import { CLEAR_SKILL, compare, describeComparison, describeDepths, joinList, rangeText, rmseOf, yearsOf, type Comparison } from "./narrative";
+import { CLEAR_SKILL, MARGINAL_SKILL, compare, describeComparison, describeDepths, joinList, rangeText, rmseOf, yearsOf, type Comparison } from "./narrative";
 
 export interface Headline {
   /** pooled depth range, e.g. "50–200 m" */
@@ -157,7 +157,7 @@ export function mlpSentence(metrics: MetricsResponse, labels: Readonly<Record<st
 export interface DepthSkill {
   bestDepth: number | null;
   bestSkill: number | null;
-  /** depths where the model's skill vs climatology is <= 0 */
+  /** depths where the model's skill vs climatology is below the marginal threshold */
   noSkillDepths: number[];
   /** depths where the skill is at least {@link CLEAR_SKILL} */
   clearDepths: number[];
@@ -185,7 +185,7 @@ export function depthSkill(metrics: MetricsResponse): DepthSkill {
         bestSkill = s;
         bestDepth = d;
       }
-      if (s <= 0) noSkillDepths.push(d);
+      if (s < MARGINAL_SKILL) noSkillDepths.push(d);
       else if (s < CLEAR_SKILL) marginalDepths.push(d);
       else clearDepths.push(d);
     }
@@ -199,12 +199,12 @@ export function depthSkill(metrics: MetricsResponse): DepthSkill {
   if (bestSkill > 0) {
     const clear = clearDepths.length > 0 && clearDepths.length < depths.length ? ` and at least ${fmt(CLEAR_SKILL, 1)} at ${describeDepths(clearDepths, depths)}` : "";
     parts.push(`Skill against climatology is highest at ${fmtDepth(bestDepth)} (${fmt(bestSkill)})${clear}`);
-    if (marginalDepths.length > 0) parts.push(`it is marginal (below ${fmt(CLEAR_SKILL, 1)}) at ${describeDepths(marginalDepths, depths)}`);
+    if (marginalDepths.length > 0) parts.push(`it is marginal (${fmt(MARGINAL_SKILL)} to ${fmt(CLEAR_SKILL, 1)}) at ${describeDepths(marginalDepths, depths)}`);
   } else {
     parts.push(`The model does not beat climatology at any depth (best skill ${fmt(bestSkill)} at ${fmtDepth(bestDepth)})`);
   }
   if (bestSkill > 0 && noSkillDepths.length > 0) {
-    parts.push(`the model does not beat climatology at ${describeDepths(noSkillDepths, depths)}`);
+    parts.push(`the model is no better than climatology (skill below ${fmt(MARGINAL_SKILL)}) at ${describeDepths(noSkillDepths, depths)}`);
   }
   if (ridgeWinsDepths.length > 0) {
     parts.push(`ridge regression has the lower RMSE at ${describeDepths(ridgeWinsDepths, depths)}`);

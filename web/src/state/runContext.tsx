@@ -107,7 +107,9 @@ export function RunProvider(props: {
   const embeddingDates = useMemo(() => datesRes?.embedding_dates ?? [], [datesRes]);
   // first view of a run: the day nearest the middle of the period that has a target and an embedding
   const fallbackIndex = useMemo(() => defaultDateIndex(dates, [targetDates, new Set(embeddingDates)]), [dates, targetDates, embeddingDates]);
-  const dateIndex = dates.length === 0 ? -1 : url.date ? nearestDateIndex(dates, url.date) : fallbackIndex;
+  // the live run opens on its latest day, and a day it does not have is not snapped to a neighbour
+  const liveIndex = run.live ? (url.date && dates.includes(url.date) ? dates.indexOf(url.date) : dates.length - 1) : null;
+  const dateIndex = dates.length === 0 ? -1 : liveIndex != null ? liveIndex : url.date ? nearestDateIndex(dates, url.date) : fallbackIndex;
   const date = dateIndex >= 0 ? dates[dateIndex] : null;
 
   const defaultPoint = useMemo(() => {

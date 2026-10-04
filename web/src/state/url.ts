@@ -6,12 +6,6 @@
 import { isIsoDate } from "@/lib/dates";
 
 /**
- * The Live view (same-day reconstruction) has its position and route reserved; it is listed and
- * routed only when this is on, so there is never a dead link.
- */
-export const LIVE_ENABLED = false;
-
-/**
  * Every route. `group` says where a view is linked from: the primary navigation (what a user of
  * the product needs) or the Research area (how the model was chosen), which is reached from the
  * footer and from Data & downloads, never from the primary navigation.
@@ -30,8 +24,14 @@ export const VIEWS = [
 
 export type ViewKey = (typeof VIEWS)[number]["key"];
 
-/** Views of the primary navigation, in order (the Live slot only when it is enabled). */
-export const PRIMARY_VIEWS = VIEWS.filter((v) => v.group === "primary" && (v.key !== "live" || LIVE_ENABLED));
+/**
+ * Views of the primary navigation, in order. The Live view (same-day reconstruction) is listed
+ * only when the API reports a live run, so there is never a dead link; without one the `/live`
+ * route opens the Overview (see App).
+ */
+export function primaryViews(hasLive: boolean): (typeof VIEWS)[number][] {
+  return VIEWS.filter((v) => v.group === "primary" && (v.key !== "live" || hasLive));
+}
 
 /** Sub-pages of the Research area, in order. */
 export const RESEARCH_VIEWS = VIEWS.filter((v) => v.group === "research");
@@ -75,7 +75,7 @@ const OPT_KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 function viewFromPath(pathname: string): ViewKey {
   const clean = pathname.replace(/\/+$/, "") || "/";
   const hit = VIEWS.find((v) => v.path === clean);
-  if (hit) return hit.key === "live" && !LIVE_ENABLED ? "overview" : hit.key;
+  if (hit) return hit.key;
   return LEGACY_PATHS[clean] ?? "overview";
 }
 
@@ -153,7 +153,9 @@ export interface UrlPatch {
 /**
  * Apply a patch. Changing the view drops the per-view options (the shared selection survives);
  * changing the run drops the date, the estimate and the options, which belong to the old run.
- * Leaving the Research area drops the estimate: the product views show the product.
+ * Leaving the Research area drops the estimate: the product views show the product. Entering or
+ * leaving the Live view drops the date: the live run has its own days (the latest ones), so a day
+ * of an evaluated run means nothing there, and the other way round.
  */
 export function applyPatch(state: UrlState, patch: UrlPatch): UrlState {
   const viewChanged = patch.view !== undefined && patch.view !== state.view;
@@ -169,7 +171,7 @@ export function applyPatch(state: UrlState, patch: UrlPatch): UrlState {
   const next: UrlState = {
     view: patch.view ?? state.view,
     run: patch.run !== undefined ? patch.run : state.run,
-    date: patch.date !== undefined ? patch.date : runChanged ? null : state.date,
+    date: patch.date !== undefined ? patch.date : runChanged || (viewChanged && (state.view === "live" || patch.view === "live")) ? null : state.date,
     depth: patch.depth !== undefined ? patch.depth : state.depth,
     lat: patch.lat !== undefined ? patch.lat : state.lat,
     lon: patch.lon !== undefined ? patch.lon : state.lon,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_STATE, LIVE_ENABLED, PRIMARY_VIEWS, RESEARCH_VIEWS, VIEWS, applyPatch, formatUrl, isResearchView, parseUrl, viewHref, type UrlState } from "./url";
+import { EMPTY_STATE, RESEARCH_VIEWS, VIEWS, applyPatch, formatUrl, isResearchView, parseUrl, primaryViews, viewHref, type UrlState } from "./url";
 
 describe("URL state", () => {
   it("parses a full deep link", () => {
@@ -92,10 +92,10 @@ describe("URL state", () => {
     expect(parseUrl("/research/scores/", "").view).toBe("research_scores");
     expect(parseUrl("/research/maps", "").view).toBe("research_maps");
     expect(parseUrl("/research/embedding", "").view).toBe("research_embedding");
-    expect(PRIMARY_VIEWS.map((v) => v.label)).toEqual(LIVE_ENABLED ? ["Overview", "Explorer", "Live", "Accuracy", "Data & downloads"] : ["Overview", "Explorer", "Accuracy", "Data & downloads"]);
+    expect(primaryViews(false).map((v) => v.label)).toEqual(["Overview", "Explorer", "Accuracy", "Data & downloads"]);
     expect(RESEARCH_VIEWS.map((v) => v.path)).toEqual(["/research", "/research/scores", "/research/maps", "/research/embedding"]);
     expect(RESEARCH_VIEWS.every((v) => isResearchView(v.key))).toBe(true);
-    expect(PRIMARY_VIEWS.some((v) => isResearchView(v.key))).toBe(false);
+    expect(primaryViews(true).some((v) => isResearchView(v.key))).toBe(false);
   });
 
   it("keeps the links of the earlier layout working", () => {
@@ -113,14 +113,25 @@ describe("URL state", () => {
     expect(redirect("/explore", "?run=final&date=2024-06-10&depth=100&q=anom")).toBe("/explore?run=final&date=2024-06-10&depth=100&q=anom");
   });
 
-  it("reserves the Live route without exposing a dead link", () => {
+  it("lists Live third, and only when the API reports a live run", () => {
     expect(VIEWS.map((v) => v.key).indexOf("live")).toBe(2);
-    if (!LIVE_ENABLED) {
-      expect(parseUrl("/live", "?run=final").view).toBe("overview");
-      expect(PRIMARY_VIEWS.some((v) => v.key === "live")).toBe(false);
-    } else {
-      expect(parseUrl("/live", "").view).toBe("live");
-    }
+    expect(primaryViews(true).map((v) => v.label)).toEqual(["Overview", "Explorer", "Live", "Accuracy", "Data & downloads"]);
+    expect(primaryViews(false).some((v) => v.key === "live")).toBe(false);
+    // the route always parses; the app sends it to the Overview when there is no live run
+    expect(parseUrl("/live", "?run=final").view).toBe("live");
+  });
+
+  it("drops the day when a link enters or leaves the Live view: the live run has its own days", () => {
+    const s = parseUrl("/explore", "?run=final&date=2024-06-10&depth=100&lat=15&lon=60");
+    const live = applyPatch(s, { view: "live" });
+    expect([live.run, live.date, live.depth, live.lat]).toEqual(["final", null, 100, 15]);
+    expect(viewHref(s, "live")).toBe("/live?run=final&depth=100&lat=15&lon=60");
+    const back = applyPatch(parseUrl("/live", "?run=final&date=2026-10-03&depth=50&vb=0_30"), { view: "accuracy" });
+    expect([back.date, back.depth, back.opts]).toEqual([null, 50, {}]);
+    // inside the Live view the day is kept
+    expect(applyPatch(parseUrl("/live", "?date=2026-10-03"), { depth: 200 }).date).toBe("2026-10-03");
+    // between two evaluated views nothing changes
+    expect(applyPatch(s, { view: "accuracy" }).date).toBe("2024-06-10");
   });
 
   it("merges options and removes the ones set to null", () => {

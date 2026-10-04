@@ -19,6 +19,7 @@ import type {
   MaskResponse,
   MatchupsResponse,
   MetricsResponse,
+  LiveResponse,
   ProductResponse,
   ProfileResponse,
   RangeInfo,
@@ -359,6 +360,15 @@ export function useReport(run: string | null, enabled = true): Q<ReportResponse>
   return useQuery({
     queryKey: ["report", run],
     queryFn: ({ signal }) => getJson<ReportResponse>(runPath(run!, "/report"), undefined, signal),
+    enabled: enabled && !!run,
+  });
+}
+
+/** State of the live nowcast: freshness of the inputs, the window, revisions and the running verification. */
+export function useLive(run: string | null, enabled = true): Q<LiveResponse> {
+  return useQuery({
+    queryKey: ["live", run],
+    queryFn: ({ signal }) => getJson<LiveResponse>(runPath(run!, "/live"), undefined, signal),
     enabled: enabled && !!run,
   });
 }

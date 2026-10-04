@@ -601,3 +601,15 @@ kbd {
 .colophon__link:hover {
   color: var(--ink);
 }
+.runpick__fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 32px;
+  padding-right: var(--s3);
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  white-space: nowrap;
+}

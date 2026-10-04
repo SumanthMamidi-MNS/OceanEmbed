@@ -434,11 +434,11 @@ function LimitsPanel({ metrics, resolution }: { metrics: MetricsResponse | undef
       {trust?.limit ? (
         <p className="trust is-limited">{trust.limit}</p>
       ) : trust?.use ? (
-        <p className="trust">It improves on {climName} at every depth level.</p>
+        <p className="trust">{trust.use}</p>
       ) : (
         <p className="trust">This run has no scores by depth yet.</p>
       )}
-      {trust?.use && <p className="caption gap-top-sm skill__depths">{trust.use}</p>}
+      {trust?.limit && trust.use && <p className="caption gap-top-sm skill__depths">{trust.use}</p>}
       <ul className="limits limits--stack gap-top">
         <li>
           <strong>It reproduces a reanalysis, not the ocean itself.</strong> It was trained on GLORYS, a model constrained by observations, and can be at
@@ -459,11 +459,12 @@ function LimitsPanel({ metrics, resolution }: { metrics: MetricsResponse | undef
 }
 
 function ArgoPanel({ argo, year }: { argo: MetricsResponse; year: string | null }) {
-  const { styleOf, labelOf, scoped } = useRunContext();
+  const { styleOf, labelOf, scoped, run } = useRunContext();
+  const climName = climatologyName(run.n_harmonic_terms);
   const keys = useMemo(() => scoped(methodList(argo).map((m) => m.key)), [argo, scoped]);
   const pooled = keys.some((k) => argo.pooled?.[k]?.rmse != null);
   const blocks = pooled ? argo.pooled : argo.overall;
-  const sentence = useMemo(() => argoSentence(argo), [argo]);
+  const sentence = useMemo(() => argoSentence(argo, "pooled", "climatology", climName), [argo, climName]);
   const where = pooled ? `over ${rangeText(argo.pooled_range_m)}` : "over all depths";
   return (
     <Panel title="Against Argo float profiles" subtitle={`measurements it never saw · RMSE ${where}${year ? `, ${year}` : ""}, same matchups for every bar · GLORYS itself is the floor`}>

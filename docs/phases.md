@@ -87,7 +87,11 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 - [x] R5 physical metrics: thermocline depth, 0–300 m heat content, skill by monsoon season, eddy regime and Bay of Bengal salinity (`oceanembed research r5`); results in `docs/research/r5_physical.md`
 - [x] R2 more training years and a second test year (`oceanembed research r2`, run `poc_long`: train 2011–2021, test 2023 and 2024); results in `docs/research/r2_long_period.md` — 0.975 ± 0.007 °C (2023) and 1.004 ± 0.014 °C (2024) over 50–200 m against 1.519 and 1.394 for climatology; 11 years beat 5 by 0.05 °C; the per-pixel MLP is within 0.015 °C overall, better in the Arabian Sea and worse in the Bay of Bengal; still no skill below ~300 m
 - [x] R3 input-variable attribution by depth; several days of surface history as input (`oceanembed research r3`); results in `docs/research/r3_attribution.md` — sea level is the one indispensable input for the thermocline, SST + sea level reproduce the full seven-variable result, salinity and currents add nothing (dropping them improves the model by 0.027 °C), and 3 or 7 days of history do not help or reach below 300 m
-- [ ] R6 Argo-aware correction; R7 manuscript
+- [x] Input selection on eleven years, by the validation year only (`oceanembed research final-inputs`); results in `docs/research/final_inputs.md` — SST + sea level adopted (validation 0.6921 against 0.6988 for all seven inputs); on the test years the input sets tie
+- [x] Final run `final` (`configs/final.yaml`): from-scratch model on SST + sea level, per-pixel MLP and ridge baselines, pretrained variant as ablation, per-year metrics, Argo for 2023 and 2024 — 0.974 (2023) / 0.991 (2024) °C over 50–200 m against 1.519 / 1.394 for climatology
+- [x] Results and weights kept in the repository (`results/`, `models/final/` with a model card; `oceanembed export-results`, `predict --weights`); `docs/reproduce.md` explains what can be deleted and how to rebuild
+- [ ] Dashboard content pass and screenshots on `final`; README figures and numbers
+- [ ] R6 Argo-aware correction (optional); the manuscript is written separately
 
 **R1 result (5 seeds, pooled 50–200 m RMSE vs GLORYS, 2024):** no pretraining 1.052 ± 0.015, pretrained 1.064 ± 0.016, per-pixel MLP 1.094 ± 0.005, plain U-Net 1.124 ± 0.031, ridge 1.155, climatology 1.390 °C. Pretraining gives no benefit; the Transformer beats the U-Net (established); the advantage over a per-pixel MLP is small, not established for the whole domain, and comes from the Bay of Bengal thermocline.
 

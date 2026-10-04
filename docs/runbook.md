@@ -280,7 +280,7 @@ project root and writes one log per run to `outputs\live\logs\update_<date>_<tim
 task for the current user (runs while you are logged on; the laptop must be awake at that time):
 
 ```powershell
-schtasks /Create /SC DAILY /ST 09:30 /TN "OceanEmbed live update" /TR "\"C:\Users\mamid\OneDrive\Documents\Claude\SIH-Project-4\scripts\live_update.cmd\"" /RL LIMITED
+schtasks /Create /SC DAILY /ST 09:30 /TN "OceanEmbed live update" /TR "\"C:\path\to\OceanEmbed\scripts\live_update.cmd\"" /RL LIMITED
 schtasks /Run /TN "OceanEmbed live update"            # test it once now
 schtasks /Query /TN "OceanEmbed live update" /V /FO LIST
 ```

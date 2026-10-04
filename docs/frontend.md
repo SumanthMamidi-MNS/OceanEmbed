@@ -8,19 +8,17 @@ API reference: [api.md](api.md).
 
 | | |
 |---|---|
-| **What** | A read-only single-page app over the finished runs in `outputs/`: maps, profiles, sections, validation, embedding and experiment views of one run at a time. |
+| **What** | A read-only single-page app over the finished runs in `outputs/`, one run at a time. It is the product's front end: see the temperature field for a day, a depth and a place, know how far to trust it, download it. The research material (method comparisons, ablations, training, embedding) is kept apart in one secondary area. |
 | **Stack** | React 19.3, TypeScript 5.9 (strict), Vite 8.3, TanStack React Query 5.104, markdown-to-jsx 9.10, bundled fonts (`@fontsource`). Tests: Vitest 5 + Testing Library + jsdom. Lint: ESLint 10 + typescript-eslint. |
 | **Not used** | No chart, map or router library, no CSS framework, no state library. Maps are a canvas renderer, charts are SVG components, routing is a small URL store. |
-| **Views** | **Overview** `/` — does it work, one fixed piece of evidence. **Explorer** `/explore` — any day, depth, point, method. **Validation** `/validation` — every metric against GLORYS and Argo. **Representation** `/representation` — inside the embedding. **Experiments** `/experiments` — methods, runs, training, downloads, report. |
+| **Views** | Primary navigation: **Overview** `/` — what it gives you, how accurate, where not to trust it. **Explorer** `/explore` — any day, depth, point. **Accuracy** `/accuracy` — error against GLORYS and Argo next to the seasonal climatology. **Data & downloads** `/data` — inputs, grid, NetCDF files, the model, the report. (**Live** `/live` is reserved and not listed yet.) Secondary, from the colophon: **Research** `/research`, `/research/scores`, `/research/maps`, `/research/embedding` — methods and ablations, every score for every method, methods on the map, the embedding. |
 | **Data** | Same-origin `GET /api/...` only (FastAPI, `oceanembed serve`). JSON through React Query; daily 3-D fields as raw little-endian float32 (1.44 MB per volume) kept in a 200 MB client-side LRU. |
-| **State** | Everything selectable lives in the URL: `/<view>?run=&date=&depth=&lat=&lon=&est=` plus per-view options. |
+| **State** | Everything selectable lives in the URL: `/<view>?run=&date=&depth=&lat=&lon=` plus per-view options (and `est=` on the Research pages). |
 | **Run (dev)** | `oceanembed serve --reload` (API on :8000) and `cd web; npm install; npm run dev` (Vite on :5173, proxies `/api`). |
 | **Run (built)** | `cd web; npm run build`, then `oceanembed serve` serves `web/dist` at `http://127.0.0.1:8000/`. |
-| **Size** | Current `web/dist` (gzip of each file): 187 kB JS + 9 kB CSS in total over 17 JS files (one entry, the rest loaded on demand); about 129 kB to first paint of the Overview (entry 96 kB + CSS 9 kB + Overview and shared chunks). Fonts 233 kB woff2. `architecture.md` records "about 180 / 125 / 230 kB". |
+| **Size** | Current `web/dist` (gzip of each file): 198 kB JS + 10 kB CSS in total over 24 JS files (one entry, the rest loaded on demand); about 129 kB to first paint of the Overview (entry 98 kB + CSS 10 kB + Overview and shared chunks). The Research pages are their own chunks and are not loaded by the product views. Fonts 233 kB woff2. `architecture.md` records "about 180 / 125 / 230 kB". |
 | **Speed** | Depth scrub and day step re-colour arrays already in memory (no request). Playback ticks every 180 ms (600 ms with reduced motion). Cold API costs from [api.md](api.md): `/ranges` 2–5 s once per run, `/timeseries` about 1 s per new point; on the two-year run (715 test days) `/ranges` takes about 12 s cold and `/timeseries` about 4 s per new point. Both are loaded in the background: the maps keep their limits and say "period limits loading…", the time–depth panel shows its skeleton, and day and depth stepping stay at one frame (measured medians 14 ms per depth step, 12–21 ms per day step with four estimates loaded). |
-| **Checks** | `npm run lint`, `npm run typecheck`, `npm test` (13 files, 174 tests, all passing), `npm run build`. |
-
-![Overview](images/overview.png)
+| **Checks** | `npm run lint`, `npm run typecheck`, `npm test` (14 files, 186 tests, all passing), `npm run build`. |
 
 ## 2. Data flow
 
@@ -29,7 +27,7 @@ flowchart LR
   B["Browser address bar"] --> U["URL state<br/>state/url.ts + state/router.ts"]
   U --> RC["RunProvider (state/runContext.tsx)<br/>run, day, depth, point, estimate"]
   SB["Selection bar + keyboard<br/>components/controls/SelectionBar.tsx"] -->|writes| U
-  RC --> V["Views (lazy chunks)<br/>overview, explorer, validation,<br/>representation, experiments"]
+  RC --> V["Views (lazy chunks)<br/>overview, explorer, accuracy, data,<br/>research (methods, scores, maps, embedding)"]
   V --> Q["React Query hooks<br/>api/queries.ts"]
   V --> VC["Volume cache (LRU 200 MB)<br/>api/volumes.ts"]
   Q --> C["Typed client<br/>api/client.ts getJson"]
@@ -46,65 +44,95 @@ flowchart LR
 
 ## 3. Views
 
+Two groups (`group` in `VIEWS`, [url.ts](../web/src/state/url.ts)). **Primary**: what a user of the product needs;
+these are the top navigation. **Research**: how the model was chosen; linked from the colophon and from Data &
+downloads, never from the top navigation.
+
 | Route | View (file) | Question it answers | Main figures | Controls | API endpoints |
 |---|---|---|---|---|---|
-| `/` | Overview ([Overview.tsx](../web/src/views/overview/Overview.tsx)) | Does it work, at a glance? | Evidence panel (reconstruction, GLORYS, difference: three linked maps); pooled table with the computed headline; RMSE and skill by depth; basin bars; Argo bars with the floor; method strip; limits | None (no selection bar). "Open in Explorer" carries its day and depth | `/metrics/glorys`, `/metrics/argo`, `/fields` (f32), `/surface`, `/embeddings` |
-| `/explore` | Explorer ([Explorer.tsx](../web/src/views/explorer/Explorer.tsx)) | What does the reconstruction look like on any day, at any depth and point, for any method? | Timeline with daily RMSE; estimate / GLORYS / difference maps with depth rail; or all estimates side by side; surface inputs; water-column profile; vertical section; time–depth | Selection bar (day, depth, point, estimate, play, Compare); fields, quantity, vectors, colour range, basin outlines, zoom; enlarge; section direction; time–depth quantity; all estimates | `/fields` (f32), `/ranges`, `/metrics/glorys`, `/surface`, `/timeseries` |
-| `/validation` | Validation ([Validation.tsx](../web/src/views/validation/Validation.tsx)) | How good is it against GLORYS and Argo, by depth, basin, place and day? | Pooled and all-depth tables; five metric profiles with table twin; basin profiles; error maps per method; three daily series; day × depth field; Argo map, paged list, opened profile, density scatter, per-depth metrics | Selection bar (all four groups); region; metric; daily scope; daily score; Argo basin, dates, order, pager; scatter series and colour | `/metrics/glorys`, `/metrics/maps/index`, `/metrics/maps`, `/metrics/argo`, `/argo/profiles`, `/argo/profiles/{id}`, `/argo/matchups` |
-| `/representation` | Representation ([Representation.tsx](../web/src/views/representation/Representation.tsx)) | What does the embedding hold? | PCA-RGB map; explained-variance bars; cosine-similarity map; component × field correlation table; eight component maps; surface fields; pretraining recovery bars | Selection bar (day limited to embedding days, point); similarity measure; zoom | `/embeddings?n_components=8`, `/embeddings/similar`, `/surface`, `/training` |
-| `/experiments` | Experiments ([Experiments.tsx](../web/src/views/experiments/Experiments.tsx)) | Which method wins, across runs, how was it trained, what was delivered? | Methods and ablations table and bars with the ablation verdict; cross-run bars and table; training stage table and curves; data products and model configuration; NetCDF downloads; report figures and text | Run toggles for the comparison; report open / close; figure lightbox | `/experiments`, `/compare`, `/training`, `/product`, `/report`, plus download and figure URLs from those payloads |
+| `/` | Overview ([Overview.tsx](../web/src/views/overview/Overview.tsx)) | What do I get, how accurate is it, where should I not trust it? | Evidence panel (reconstruction, GLORYS, difference: three linked maps); error over the pooled range (computed sentence, two-row table: reconstruction and seasonal climatology, per test year); error by depth; basin bars; the limit by depth; Argo bars with the floor and the independence note | Test-year switch. "Open in Explorer" carries its day and depth. No selection bar | `/metrics/glorys`, `/metrics/argo`, `/fields` (f32) |
+| `/explore` | Explorer ([Explorer.tsx](../web/src/views/explorer/Explorer.tsx)) | What does the reconstruction look like on any day, at any depth and point? | Timeline with daily RMSE; reconstruction / GLORYS / difference maps with depth rail; surface inputs; water-column profile; vertical section; time–depth | Selection bar (day, depth, point, play); fields, quantity, vectors, colour range, basin outlines, zoom; enlarge; section direction; time–depth quantity | `/fields` (f32), `/ranges`, `/metrics/glorys`, `/surface`, `/timeseries` |
+| `/live` | reserved | The same-day reconstruction (not built) | — | Not listed in the navigation; the route opens the Overview while `LIVE_ENABLED` is false | — |
+| `/accuracy` | Accuracy ([Accuracy.tsx](../web/src/views/accuracy/Accuracy.tsx)) | How far can I trust a value, by depth, basin, place, day and year? | The computed answer (error against climatology, where to use it, where not); pooled and all-depth tables; five metric profiles with table twin; basin profiles; error maps; three daily series; day × depth field; Argo map, paged list, opened profile, density scatter, per-depth metrics. Reconstruction and climatology only (plus GLORYS against Argo) | Selection bar (day, depth, point); region; test year; metric; daily scope; daily score; Argo basin, dates, order, pager; scatter series and colour | `/metrics/glorys`, `/metrics/maps/index`, `/metrics/maps`, `/metrics/argo`, `/argo/profiles`, `/argo/profiles/{id}`, `/argo/matchups` |
+| `/data` | Data & downloads ([Data.tsx](../web/src/views/data/Data.tsx)) | What goes in, on which grid and period, and how do I take the fields away? | Period, splits, grid and depth levels; data-products table with "used by the model" / "available, not used"; monthly NetCDF product files; the model in four lines and where the released weights are; report figures and text | Report open / close; figure lightbox | `/product`, `/report`, plus download and figure URLs from those payloads |
+| `/research` | Research · Methods ([Research.tsx](../web/src/views/research/Research.tsx)) | Which method wins, in each year and across runs, and how was the model trained? | Methods and ablations table with the computed headline; year-by-year table against GLORYS and Argo; pooled bars with the per-pixel-network and ablation verdicts; RMSE and skill by depth for every method; method diagram; cross-run bars and table; training stage table and curves; model configuration; baseline and ablation NetCDF fields | Run toggles for the comparison | `/experiments`, `/metrics/glorys`, `/metrics/argo`, `/compare`, `/training`, `/product`, `/fields` (f32), `/surface`, `/embeddings` |
+| `/research/scores` | Research · Every score ([ResearchScores.tsx](../web/src/views/research/ResearchScores.tsx)) | The Accuracy page for every method | The Accuracy sections with ridge, the per-pixel network and the ablation in every table, chart, map and Argo figure | Selection bar with the estimate; otherwise as Accuracy | as Accuracy |
+| `/research/maps` | Research · On the map ([ResearchMaps.tsx](../web/src/views/research/ResearchMaps.tsx)) | How do the methods differ on a given day? | The Explorer, opening in Compare: every estimate beside GLORYS, every difference, the day's RMSE, bias and MAE; profile with every estimate | Selection bar with the estimate and Compare; otherwise as Explorer | as Explorer |
+| `/research/embedding` | Research · Embedding ([Embedding.tsx](../web/src/views/research/Embedding.tsx)) | What does the embedding hold? | PCA-RGB map; explained-variance bars; cosine-similarity map; component × field correlation table; eight component maps; surface fields; pretraining recovery bars | Selection bar (day limited to embedding days, point); similarity measure; zoom | `/embeddings?n_components=8`, `/embeddings/similar`, `/surface`, `/training` |
 
 Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/runs/{run}/dates`,
 `/runs/{run}/mask`.
 
+### Product views and Research views share components
+
+- The run context ([runContext.tsx](../web/src/state/runContext.tsx)) derives a **method scope** from the route:
+  `product` on the primary views, `research` on the Research pages.
+- `scoped(keys)` (`scopeMethods`) keeps `model`, `climatology`, `glorys` and the observations in the product scope
+  and every method in the research scope. The accuracy sections and the Overview pass their method lists through
+  it, so the same component is the Accuracy page and Research · Every score.
+- `fieldMethods` holds only the product in the product scope, so the Explorer has no estimate selector, no Compare
+  and a profile without baselines; in the research scope it holds every method with day fields.
+- Every Research page starts with `ResearchHead`: one sentence on what the area is, the repository paths of the
+  research notes (`docs/research/`) and result tables (`results/`), tabs for the four pages, "Back to the product".
+
+### What moved where
+
+| Earlier | Now |
+|---|---|
+| Overview: table of every method, RMSE and skill by depth for every method, per-pixel-network and ablation notes, method strip | Research · Methods |
+| Overview: evidence panel, basins, Argo, limits | Overview (reconstruction against the seasonal climatology only; the limit by depth is computed) |
+| Explorer: estimate selector, Compare | Research · On the map |
+| Validation (every method) | Accuracy (reconstruction and climatology); Research · Every score (every method) |
+| Representation | Research · Embedding |
+| Experiments: methods, ablations, year by year, across runs, training, model configuration | Research · Methods |
+| Experiments: data products, NetCDF product files, report | Data & downloads |
+| Experiments: baseline and ablation NetCDF files | Research · Methods |
+
 ### Overview
+
+![Overview](images/overview.png)
 
 - The day and depth of the URL are ignored. `chooseEvidence` picks them from `/metrics/glorys` (rule in section 9)
   and the figure's subtitle states why. A run without metrics falls back to the default day and depth.
 - Temperature maps use the API's per-depth hint; the difference map uses the 99th percentile of |difference| of
   that level, computed in the browser.
-- The method strip ([MethodDiagram.tsx](../web/src/views/overview/MethodDiagram.tsx)) shows real fields of the
-  evidence day: first surface input, embedding as RGB, reconstruction at the evidence depth.
-- The Argo panel uses the pooled range when the payload has pooled Argo metrics, else all depths; GLORYS is
-  labelled "the floor".
-- Chapters 01–04: skill, basins and Argo, method, limits. The limits list is fixed text with no numbers.
-- Two test years: a "Test year" switch (`yr`) above the skill chapter scopes the table, the depth curves, the
-  basins and the Argo panel to one year (`scopeToYear`); with all years the table has one RMSE column per year,
-  the headline quotes each year and a sentence says whether both years beat both baselines (`yearStability`).
-- The header and the method strip name the inputs the model uses (`used_by_model`), not the number of surface
-  products; a from-scratch main model (`main_init`) is described as such.
-- A note compares the network with the per-pixel MLP, pooled and by basin (`mlpSentence`).
+- Chapter 01, how accurate: `accuracyHeadline` over the pooled range, a table of the reconstruction and the
+  seasonal climatology (one RMSE column per test year, the difference in percent, the anomaly correlation),
+  `yearStability`, `correlationSentence`, RMSE by depth, basin bars with `basinSentence`.
+- Chapter 02, where not to trust it: `trustLimits` (the depths without skill, from the per-depth skill of the
+  metrics) set as the lead, two fixed limits with no numbers, and the Argo panel (pooled range when the payload has
+  pooled Argo metrics, else all depths; GLORYS labelled "the floor"; the API's independence note).
+- Two test years: a "Test year" switch (`yr`) scopes every figure of the page to one year (`scopeToYear`).
+- The header names the inputs the model uses (`used_by_model`), not the number of surface products.
+- No other method appears: the method lists pass through `scoped`, and the page imports nothing from
+  `lib/research.ts`.
 
 ### Explorer
 
 ![Explorer](images/explorer.png)
 
-- One `useDayVolumes` call loads the float32 volumes of the day: the selected estimate (and the other field
-  methods when "All estimates" or Compare is on), climatology and, if the day has one, the GLORYS target.
+- One `useDayVolumes` call loads the float32 volumes of the day: the reconstruction, climatology and, if the day
+  has one, the GLORYS target. (On Research · On the map: the selected estimate and the other field methods.)
 - Difference, anomaly, level statistics, the profile and the vertical section are computed from those arrays
   ([fields.ts](../web/src/views/explorer/fields.ts)); only the time–depth plot is a request (`/timeseries`).
-- **Compare** (`sbs=1`, [explorer-compare.png](images/explorer-compare.png)): one row of every estimate plus
-  GLORYS on one scale, one row of every difference on one symmetric scale (the largest limit among the methods),
-  one colour bar per row, and a table of the day's RMSE, bias and MAE with the lowest RMSE underlined.
 - **Playback**: a timer advances only when the next day is already in memory (`peekDay`), otherwise it
   prefetches it. It wraps to the first day at the end. Neighbours at +1, +2, +3 and −1 days are always prefetched.
 - **Hold range**: forced on during playback. Limits come from `/ranges` (requested only when holding); where the
   API has no period range, limits only widen. Held limits are kept per quantity, depth and method set.
-- While another day or estimate loads, the previous one stays on screen dimmed, and map titles name the estimate
-  that is actually drawn (`day.primary`).
+- While another day loads, the previous one stays on screen dimmed, and map titles name the estimate that is
+  actually drawn (`day.primary`).
 - Surface-inputs mode: when the run does not use every surface product, each field carries a "model input" or
   "not used by the model" chip.
-- Compare with five panels or more (four estimates and GLORYS) wraps into rows of three.
 
-### Validation
+### Accuracy
 
-![Validation](images/validation.png)
+![Accuracy](images/validation.png)
 
+- Opens with the computed answer: `accuracyHeadline` and `trustLimits` (not on the Research twin).
 - A run with several test years has a "Test year" switch (`yr`) in the GLORYS section and in the Argo section
   (one state): tables, by-depth charts, basin profiles and the Argo counts follow it; error maps and daily series
   cover the whole period.
-- Tables and by-depth charts always show every method. The estimate of the selection bar picks the day × depth
-  field, the colour and order of the Argo profiles and the default scatter series.
+- Every table, chart and map shows the reconstruction and the climatology (the Argo figures also GLORYS).
 - Clicking a depth in a metric profile, a day in a daily chart or a cell of the day × depth field writes the
   shared selection.
 - Error maps: one linked map per method on the API's shared range. The note under a map and the pointed ends of
@@ -116,9 +144,47 @@ Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/
   clears `ap`, so the list request sends `around=<id>` and lands on its page; if the filters exclude it (404) the
   first page is requested. Using the pager or a filter sets `ap`, which takes precedence.
 
-### Representation
+### Data & downloads
 
-![Representation](images/representation.png)
+![Data and downloads](images/experiments.png)
+
+- No selection bar. Period, splits and day counts come from the run summary; grid, basins and depth levels from
+  the run detail.
+- The data-products table marks each surface product "used by the model" or "available, not used".
+- Only the product's NetCDF files are listed (`ProductSection show="product"`); the baseline and ablation files
+  are on Research · Methods.
+- "Released weights" is text: the weights and the model card are in the repository under `models/final/`; the API
+  has no endpoint for them.
+- The report text is rendered by a separate chunk (`ReportMarkdown`, 28 kB gzip) loaded only when "Read the
+  report" is pressed; raw HTML in the markdown is not parsed.
+
+### Research · Methods
+
+- The methods table underlines the best pooled RMSE; above it the Research headline (`headline`: against
+  climatology and ridge regression); beside the bars the per-pixel-network sentence (`mlpSentence`) and the ablation
+  verdict (`ablationFindings`).
+- "Year by year": pooled RMSE of every method in each test year and over the whole period, against GLORYS and
+  against Argo (shown only when the metrics have `per_year`).
+- "Every method by depth": RMSE and skill against climatology, with `depthSkill`.
+- The method diagram ([MethodDiagram.tsx](../web/src/views/research/MethodDiagram.tsx)) shows real fields of the
+  selected day: first surface input the model reads, embedding as RGB, reconstruction at the selected depth.
+- Cross-run comparison defaults to the first eight evaluated runs; a subset is stored as `cmp=a.b`. Cross-run
+  panels carry per-run "synthetic" / "short training" chips instead of the automatic tag.
+- The pretraining panel says when it applies to the ablation only.
+
+### Research · On the map
+
+![Methods on the map](images/explorer-compare.png)
+
+- The Explorer component in the research scope. **Compare** is on unless `sbs=0`: one row of every estimate plus
+  GLORYS on one scale, one row of every difference on one symmetric scale (the largest limit among the methods),
+  one colour bar per row, and a table of the day's RMSE, bias and MAE with the lowest RMSE underlined. With five
+  panels or more (four estimates and GLORYS) the maps wrap into rows of three.
+- With Compare off: the selected estimate against GLORYS, titled with that method's name.
+
+### Research · Embedding
+
+![Embedding](images/representation.png)
 
 - If the selected day has no embedding, the nearest embedding day is shown and the caption says so.
 - Clicking any embedding map snaps the shared point to that embedding cell centre; its footprint is outlined on
@@ -132,21 +198,6 @@ Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/
 - Fields the model does not use are flagged "unused" in the correlation table and "not an input" on the surface
   maps; the caption says a correlation with them was not built into the embedding.
 
-### Experiments
-
-![Experiments](images/experiments.png)
-
-- No selection bar. The methods table underlines the best pooled RMSE; the ablation note is the Overview's
-  sentence (`ablationFindings`).
-- "Year by year": pooled RMSE of every method in each test year and over the whole period, against GLORYS and
-  against Argo (shown only when the metrics have `per_year`).
-- The data-products table marks each surface product "used by the model" or "available, not used"; the
-  pretraining panel says when it applies to the ablation only.
-- Cross-run comparison defaults to the first eight evaluated runs; a subset is stored as `cmp=a.b`. Cross-run
-  panels carry per-run "synthetic" / "short training" chips instead of the automatic tag.
-- The report text is rendered by a separate chunk (`ReportMarkdown`, 28 kB gzip) loaded only when "Read the
-  report" is pressed; raw HTML in the markdown is not parsed.
-
 ## 4. Source map
 
 | Path under [`web/src/`](../web/src) | Responsibility | Key exports |
@@ -157,22 +208,24 @@ Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/
 | `api/volumes.ts` | LRU of daily volumes, day loading, prefetch | `VolumeCache`, `volumeCache`, `useDayVolumes`, `loadDay`, `peekDay`, `prefetchDay`, `MAIN_METHOD` |
 | `api/queries.ts` | One React Query hook per endpoint, query client | `createQueryClient`, `useRuns`, `useRun`, `useDates`, `useOceanMask`, `useRunRanges`, `useGlorysMetrics`, `useArgoProfiles`, ... |
 | `api/schema.d.ts`, `api/openapi.json`, `api/types.ts` | Generated types, committed spec snapshot, hand-narrowed types | `RunSummary`, `RunDetail`, `MetricsResponse`, `FieldKind`, ... |
-| `state/url.ts`, `state/router.ts` | URL ⇄ state (pure), history store | `parseUrl`, `formatUrl`, `applyPatch`, `viewHref`, `VIEWS`, `useUrlState`, `navigate` |
-| `state/runContext.tsx` | Resolved run context for views | `RunProvider`, `useRunContext`, `defaultDepthIndex` |
+| `state/url.ts`, `state/router.ts` | URL ⇄ state (pure), the view table, redirects of old paths, history store | `parseUrl`, `formatUrl`, `applyPatch`, `viewHref`, `VIEWS`, `PRIMARY_VIEWS`, `RESEARCH_VIEWS`, `isResearchView`, `LIVE_ENABLED`, `useUrlState`, `navigate` |
+| `state/runContext.tsx` | Resolved run context for views, method scope | `RunProvider`, `useRunContext`, `defaultDepthIndex`, `scopeMethods`, `MethodScope` |
 | `state/linkedView.ts`, `state/useLinkedView.ts` | Shared map camera and cursor outside React | `LinkedView`, `MAX_ZOOM`, `useLinkedView`, `useZoom` |
 | `lib/theme.ts` | Colour and font tokens | `color`, `font`, `canvasFont`, `applyTheme` |
 | `lib/colormaps.ts` | Colormaps and lookup tables | `getLut`, `colorizeField`, `sampleColormap`, `cssGradient`, `lutIndex` |
 | `lib/methods.ts`, `lib/metricMeta.ts` | Identity per method; name, unit, domain, colormap per metric | `methodStyle`, `sortMethods`, `shortLabel`, `estimateRole`; `METRIC_META`, `metricDomain`, `METRIC_ORDER` |
-| `lib/narrative.ts` | Computed sentences, caveats, defaults | `headline`, `depthSkill`, `ablationFindings`, `argoSentence`, `basinSentence`, `chooseEvidence`, `runCaveats`, `defaultRun` |
+| `lib/narrative.ts` | Computed sentences of the product views, caveats, defaults | `accuracyHeadline`, `trustLimits`, `yearStability`, `argoSentence`, `basinSentence`, `correlationSentence`, `chooseEvidence`, `runCaveats`, `defaultRun` |
+| `lib/research.ts` | Method-comparison sentences, Research pages only | `headline`, `depthSkill`, `ablationFindings`, `mlpSentence`, `versus` |
 | `lib/scales.ts`, `lib/geo.ts`, `lib/stats.ts` | Depth axis and ticks; grid geometry and coastline; numeric helpers | `depthFraction`, `depthBandEdges`, `niceTicks`; `makeGeom`, `cellAt`, `coastlineSegments`; `quantile`, `symmetricLimit`, `fieldStats` |
 | `lib/format.ts`, `lib/dates.ts` | Number, unit and date formatting; default day | `fmt`, `fmtSigned`, `fmtInt`, `prettyUnits`; `fmtDate`, `defaultDateIndex`, `nearestDateIndex` |
 | `lib/embedding.ts`, `lib/points.ts`, `lib/useSize.ts` | Embedding decoding; binned point layers; size and media hooks | `decodeEmbedding`, `decodeSimilarity`; `buildPointLayer`, `nearestPoint`; `useSize`, `useMediaQuery` |
 | `components/map/` | Canvas map, map figure with read-out, colour bar, zoom buttons | `MapCanvas`, `MapFigure`, `MaskKey`, `Colorbar`, `ZoomControls` |
 | `components/charts/` | SVG and canvas charts, tables, legends | `XYChart`, `MetricProfile`, `MetricsTable`, `MethodBars`, `DepthHeatmap`, `ScatterDensity`, `Legend`, `Swatch` |
 | `components/controls/` | Selection bar, timeline, depth rail | `SelectionBar`, `SelectionBarSlot`, `Timeline`, `DepthRail` |
-| `components/shell/Shell.tsx` | Sticky header, nav, run selector, honesty bands, bar slot, footer | `Shell`, `ViewLink`, `runLabel` |
+| `components/shell/Shell.tsx` | Sticky header, primary nav, run selector, honesty bands, bar slot, colophon with the Research link | `Shell`, `ViewLink`, `runLabel` |
 | `components/ui/primitives.tsx` | Controls, containers, states, tables | `Segmented`, `Select`, `IconButton`, `Panel`, `Note`, `Loading`, `ErrorState`, `Empty`, `QueryState`, `DataTable`, `TableTwin` |
-| `views/<name>/` | One folder per view; default export is the lazy view | `Overview`, `Explorer`, `Validation`, `Representation`, `Experiments` |
+| `views/overview/`, `views/explorer/`, `views/accuracy/`, `views/data/` | The product's views; default export is the lazy view | `Overview`, `Explorer` (`ExplorerBody`), `Accuracy` (`AccuracyBody`), `Data` (`DataProducts`, `ProductSection`, `ReportSection`) |
+| `views/research/` | The Research pages and their shared band | `Research`, `ResearchScores`, `ResearchMaps`, `Embedding`, `ResearchHead`, `MethodDiagram`, `TrainingSection` |
 | `styles/` | `base.css` (non-colour tokens, shell), `components.css`, `views.css`, `overview.css`, `sections.css`, `fonts.css` | — |
 | `**/*.test.ts(x)`, `test/setup.ts` | Vitest suites and jsdom setup | — |
 
@@ -185,12 +238,12 @@ sections are derived from the cached volumes.
 
 | Parameter | Meaning | Validation / format |
 |---|---|---|
-| path | View: `/`, `/explore`, `/validation`, `/representation`, `/experiments` | Unknown path opens the Overview |
+| path | View: `/`, `/explore`, `/accuracy`, `/data`, `/research`, `/research/scores`, `/research/maps`, `/research/embedding` (`/live` reserved) | Unknown path opens the Overview; old paths are redirected (below) |
 | `run` | Run folder name | `[A-Za-z0-9][A-Za-z0-9_.-]*` |
 | `date` | Selected day | Real ISO date; snapped to the nearest predicted day |
 | `depth` | Selected depth, metres | 0–11000; snapped to the nearest level; written with 1 decimal at most |
 | `lat`, `lon` | Selected water column | Both needed; must lie inside the grid; 3 decimals |
-| `est` | Estimate shown where one method is shown | Must be one of the run's `field_methods`; omitted for `model` |
+| `est` | Estimate shown where one method is shown, **Research pages only** | Must be one of the run's `field_methods`; omitted for `model`; dropped on every other view |
 
 Per-view options (lower-case keys, values up to 120 characters; all omitted at their default):
 
@@ -199,14 +252,13 @@ Per-view options (lower-case keys, values up to 120 characters; all omitted at t
 | Explorer | `mode=surf` | Surface inputs instead of subsurface maps |
 | | `q=anom` | Anomaly instead of temperature |
 | | `td=temp\|anom` | Time–depth quantity when it differs from `q` |
-| | `sbs=1` | Compare: every estimate side by side |
 | | `pall=0` | Profile shows only the selected estimate |
 | | `sec=merid` | Meridional instead of zonal section |
 | | `focus=target\|diff` | Which of the three maps is enlarged |
 | | `basins=1` | Basin outlines |
 | | `vec=uv` | U and V components instead of speed + arrows |
 | Overview | `yr=<year>` | One test year instead of the whole test period |
-| Validation | `basin=<key>` | Region of the GLORYS tables and profiles |
+| Accuracy, Research · Every score | `basin=<key>` | Region of the GLORYS tables and profiles |
 | | `yr=<year>` | One test year instead of the whole test period |
 | | `metric=<key>` | Metric of the error maps |
 | | `ds=pooled` | Daily series over the pooled range |
@@ -216,12 +268,27 @@ Per-view options (lower-case keys, values up to 120 characters; all omitted at t
 | | `ap=<n>` | Explicit Argo list page (0-based) |
 | | `prof=<id>` | Opened Argo profile |
 | | `sm=<method>`, `sc=depth` | Scatter series and colouring |
-| Representation | `sim=rel` | Similarity with the mean embedding removed |
-| Experiments | `cmp=a.b.c` | Runs in the cross-run comparison |
+| Research · On the map | `sbs=0` | Compare off (it is on by default there); plus the Explorer's options |
+| Research · Embedding | `sim=rel` | Similarity with the mean embedding removed |
+| Research · Methods | `cmp=a.b.c` | Runs in the cross-run comparison |
+
+### Redirects of the earlier layout
+
+Old links are rewritten in place (`history.replaceState`) when the app reads the address bar; `parseUrl` does the
+mapping, so it is covered by the URL tests.
+
+| Old link | Opens |
+|---|---|
+| `/validation?…` | `/accuracy?…` (options kept; `est` dropped) |
+| `/experiments?…` | `/research?…` |
+| `/representation?…` | `/research/embedding?…` |
+| `/explore?…&sbs=1` or `/explore?…&est=<method>` | `/research/maps?…` |
+| `/live` | `/` until the Live view ships |
 
 ### Rules
 
-- **Shared across views:** run, date, depth, point, estimate. **Dropped on a view change:** per-view options.
+- **Shared across views:** run, date, depth, point. **Research pages only:** estimate (kept between Research
+  pages, dropped when a link leaves them). **Dropped on a view change:** per-view options.
   **Dropped on a run change:** date, estimate and options (depth and point survive).
 - **History:** a view change or a run change pushes an entry; every other change replaces the current entry,
   debounced by 180 ms ([router.ts](../web/src/state/router.ts)). The in-memory state updates synchronously. A view
@@ -236,7 +303,7 @@ Per-view options (lower-case keys, values up to 120 characters; all omitted at t
 | Day | Nearest to the middle of the predicted days that has both a GLORYS target and an embedding | `defaultDateIndex` |
 | Depth | Level nearest the geometric mean of the pooled range (100 m for 50–200 m); middle level without metrics | `defaultDepthIndex` |
 | Point | Ocean cell nearest the centre of the first basin whose column reaches the deepest level; else nearest surface ocean cell | `RunProvider` |
-| Estimate | `model` (first of `field_methods`) | `RunProvider` |
+| Estimate | `model` (first of `field_methods`); always `model` outside Research | `RunProvider` |
 
 ### Keyboard
 
@@ -248,7 +315,7 @@ Per-view options (lower-case keys, values up to 120 characters; all omitted at t
 | `Space` | Play / pause | Explorer |
 | `+` `−` `0` | Zoom in, out, reset | A focused map |
 | Arrows, `Home`, `End`, `PageUp`, `PageDown` | Step (page = 7 days / 3 levels) | Focused timeline / depth rail |
-| `Esc` | Close the figure lightbox | Experiments |
+| `Esc` | Close the figure lightbox | Data & downloads |
 
 Shortcuts are ignored while typing in an input or select, or with Alt / Ctrl / Meta held.
 
@@ -379,20 +446,24 @@ is the hero, cells are shown unsmoothed, everything is linked. Full rationale in
 
 - **Selection bar:** one row docked in the sticky header (rendered through a portal into the shell's slot).
   Groups: Day (previous, select grouped by month, next, play, position), Depth, Point (lat / lon inputs stepping by
-  the grid resolution), Estimate (only when the run has more than one field method), then view switches. Explorer
-  and Validation show all groups; Representation shows day and point; Overview and Experiments have no bar.
+  the grid resolution), and on the Research pages Estimate (only when the run has more than one field method) and
+  the Compare switch. Explorer and Accuracy show day, depth and point; Research · On the map and Every score add
+  the estimate; Research · Embedding shows day and point; Overview, Data & downloads and Research · Methods have
+  no bar.
 - **Honesty treatments:**
 
 | Treatment | Trigger | What appears |
 |---|---|---|
 | Synthetic band | `data_source == "synthetic"` | Amber striped band in the sticky header; "synthetic" tag after every figure title (CSS on `data-source`); caveat notes by the findings |
 | Short-training flag | `0 < n_train_days < 365` | Violet-grey band with the day count (and "constant mean" when `n_harmonic_terms ≤ 1`); the same note by the findings |
-| Baselines alongside | Always | Climatology and ridge in every table, chart and bar set that shows the model |
+| Climatology alongside | Always, on the product views | The seasonal climatology in every table, chart and bar set that shows the reconstruction |
+| Every baseline alongside | Research pages | Ridge, the per-pixel MLP and the ablation in every such figure |
+| Limit by depth | Per-depth skill in the metrics | The depths where the reconstruction is no better than the climatology, as the lead of the Overview's second chapter and at the top of Accuracy (`trustLimits`) |
 | Anomaly vs raw correlation | Always | Anomaly correlation first; raw labelled as inflated, with an explanatory note |
 | Argo floor | Argo metrics present | API independence note before any number; GLORYS row labelled "the floor", never "best" |
-| Estimate naming | `est` ≠ `model` | Map, section and time–depth titles carry the method's name, not "Reconstruction" |
+| Estimate naming | `est` ≠ `model` (Research) | Map, section and time–depth titles carry the method's name, not "Reconstruction" |
 | Range-exceeded note | `range_info.exceeds_range` | Note under the error map; pointed colour-bar ends |
-| Not the product | Extra products | Baseline and ablation NetCDF files labelled and listed after the product |
+| Not the product | Extra products | Baseline and ablation NetCDF files labelled as such and listed on Research · Methods, not with the product |
 
 - **States** ([primitives.tsx](../web/src/components/ui/primitives.tsx)): `Loading` (shimmer block of the figure's
   height), `Empty` / missing (dashed box with the API's own 404 hint, no retry), `ErrorState` (red-tinted, with
@@ -406,23 +477,28 @@ is the hero, cells are shown unsmoothed, everything is linked. Full rationale in
   panels stack and the selection bar scrolls sideways; ≤ 620 px one compare map per row (≤ 600 px for the other
   small multiples).
 
-## 9. Computed narrative ([narrative.ts](../web/src/lib/narrative.ts))
+## 9. Computed narrative ([narrative.ts](../web/src/lib/narrative.ts), [research.ts](../web/src/lib/research.ts))
 
-Every sentence that states a result is built from the metrics payloads. Constants: `TIE_PCT = 1`,
+Every sentence that states a result is built from the metrics payloads. The sentences of the product views
+(Overview, Accuracy) are in `narrative.ts` and name only the seasonal climatology and the references; the
+sentences that compare methods are in `research.ts`, which only the Research pages import. Constants: `TIE_PCT = 1`,
 `SEED_PCT = 5`, `CLEAR_SKILL = 0.1`, `BIAS_NOTE = 0.1` °C, `MIN_TRAIN_DAYS = 365`, `MAX_DEPTH_SPANS = 3`.
 
 | Function | Sentence | Inputs | Rules |
 |---|---|---|---|
 | `compare` / `describeComparison` | "22 % lower than climatology" | Two RMSEs | Difference under 1 % reads "about the same as" |
-| `headline` | "Between 50–200 m, OceanEmbed's RMSE against GLORYS is …: … and …." | `pooled.{model, ridge, climatology}.rmse`, `pooled_range_m` | `beatsBaselines` only if lower than both beyond the tie; styled as negative otherwise |
+| `climatologyName` | "the seasonal climatology" / "the mean climatology" | `n_harmonic_terms` | "Seasonal" only when the fit has a seasonal cycle (more than one term) |
+| `accuracyHeadline` | "Between 50–200 m the reconstruction differs from the GLORYS reanalysis by … °C RMSE (… in 2023, … in 2024): … % lower than the seasonal climatology (… °C)." | `pooled.{model, climatology}.rmse`, `per_year`, `pooled_range_m` | `beatsClimatology` only beyond the tie; styled as negative otherwise; no other method is named |
+| `trustLimits` / `classifyDepths` | "Use it at …" and "At … it is no better than the seasonal climatology; at … the gain is marginal …" | `per_depth.skill_vs_clim.model` | Clear ≥ 0.1; marginal 0–0.1; none ≤ 0. No clear level at all: "do not rely on it" |
+| `headline` (research.ts) | "Between 50–200 m, OceanEmbed's RMSE against GLORYS is …: … and …." | `pooled.{model, ridge, climatology}.rmse`, `pooled_range_m` | `beatsBaselines` only if lower than both beyond the tie; styled as negative otherwise |
 | `correlationSentence` | Anomaly correlation with the raw one and why the raw one is inflated | `pooled.model.corr_anom`, `corr_raw` | Omitted if either is missing |
-| `depthSkill` | Best depth, where skill is clear, marginal, absent, and where ridge wins | `per_depth.skill_vs_clim.model`, `per_depth.rmse.{model, ridge}` | Clear ≥ 0.1; marginal 0–0.1; none ≤ 0; ridge wins beyond the 1 % tie |
+| `depthSkill` (research.ts) | Best depth, where skill is clear, marginal, absent, and where ridge wins | `per_depth.skill_vs_clim.model`, `per_depth.rmse.{model, ridge}` | Clear ≥ 0.1; marginal 0–0.1; none ≤ 0; ridge wins beyond the 1 % tie |
 | `describeDepths` | "300 m and below", "0–30 m", "7 of the 15 levels between …" | Depth lists | Neighbours merge into ranges; more than 3 ranges become a count |
-| `ablationFindings` | Verdict on pretraining with both numbers | `pooled.model.rmse` vs each `model_<tag>`, and the `pretrained` flag of both | Reads the pair as pretrained vs from scratch whichever is the main model. Under 5 % either way: "No measurable gain from pretraining" (trained once); above: "helps" / "does not help" |
+| `ablationFindings` (research.ts) | Verdict on pretraining with both numbers | `pooled.model.rmse` vs each `model_<tag>`, and the `pretrained` flag of both | Reads the pair as pretrained vs from scratch whichever is the main model. Under 5 % either way: "No measurable gain from pretraining" (trained once); above: "helps" / "does not help" |
 | `yearsOf` / `scopeToYear` | (no sentence) one test year of a payload | `per_year` | Replaces `overall`, `pooled`, `per_depth`, `per_basin` and the Argo counts by that year's; daily series untouched |
-| `yearStability` | "It beats climatology and ridge regression in each test year (2023: …; 2024: …)." | `per_year.*.pooled` | Names the years and baselines it does not beat, if any; null for one test year |
-| `mlpSentence` / `versus` | The network against the per-pixel MLP, pooled and by basin | `pooled.{model, mlp}`, `per_basin.*.pooled` | Under 5 % reads "level"; null without an MLP |
-| `argoSentence` | Model vs baselines against Argo, GLORYS as the floor, shared bias | Argo `pooled` (else `overall`) blocks, profile and matchup counts | Bias sentence only if \|GLORYS bias\| ≥ 0.1 °C and both have the same sign |
+| `yearStability` | "It beats the seasonal climatology in each test year (2023: …; 2024: …)." | `per_year.*.pooled` | Names the years it does not, if any; null for one test year. With `"all"` (Research) ridge regression is held to the same test and named |
+| `mlpSentence` / `versus` (research.ts) | The network against the per-pixel MLP, pooled and by basin | `pooled.{model, mlp}`, `per_basin.*.pooled` | Under 5 % reads "level"; null without an MLP |
+| `argoSentence` | Reconstruction vs climatology against Argo, GLORYS as the floor, shared bias | Argo `pooled` (else `overall`) blocks, profile and matchup counts | Bias sentence only if \|GLORYS bias\| ≥ 0.1 °C and both have the same sign. With `"all"` ridge regression is named too |
 | `basinSentence` / `basinContrast` | Skill per basin, most skilful first | `per_basin.*.pooled` | Needs two basins with a skill value |
 | `chooseEvidence` | Day and depth of the Overview evidence | `per_depth.rmse.climatology`, `daily.pooled_rmse.model` (else daily RMSE at that depth) | **Depth:** level inside the pooled range, never 0 m, with the largest climatology RMSE. **Day:** lower median of the test days by that error, among days with a target (and an embedding); ties by date |
 | `runCaveats` | Synthetic and short-training notes | Run summary | From `data_source`, `n_train_days`, `n_harmonic_terms`; never from the run name |
@@ -448,20 +524,22 @@ Every sentence that states a result is built from the metrics payloads. Constant
 
 | Test file | Tests | Covers |
 |---|---|---|
-| [lib/helpers.test.ts](../web/src/lib/helpers.test.ts) | 32 | Depth scale, ticks, formatting, dates, default day, statistics, geometry, methods, metric axes, embedding helpers |
-| [lib/narrative.test.ts](../web/src/lib/narrative.test.ts) | 31 | Every computed sentence, the evidence rule, caveats, default run |
+| [lib/narrative.test.ts](../web/src/lib/narrative.test.ts) | 44 | Every computed sentence: the product's (accuracy, limits by depth, years, Argo, basins) and the Research ones (headline, ablation, per-pixel network, depth skill); the evidence rule, caveats, default run |
+| [lib/helpers.test.ts](../web/src/lib/helpers.test.ts) | 33 | Depth scale, ticks, formatting, dates, default day, statistics, geometry, methods, metric axes, embedding helpers |
 | [api/openapi.test.ts](../web/src/api/openapi.test.ts) | 28 | Client paths and parameters against the OpenAPI snapshot |
-| [components/components.test.tsx](../web/src/components/components.test.tsx) | 13 | Segmented, error states, honesty bands, charts, colour bar, depth rail |
+| [state/url.test.ts](../web/src/state/url.test.ts) | 13 | Parse, format, patch rules of the URL state; the routes of both groups; redirects of the earlier layout; the estimate confined to Research; the reserved Live route |
+| [components/components.test.tsx](../web/src/components/components.test.tsx) | 13 | Segmented, error states, honesty bands, the primary navigation and the Research link in the colophon, charts, colour bar, depth rail |
 | [api/volumes.test.ts](../web/src/api/volumes.test.ts) | 10 | Volume cache, methods, day loading, client errors |
-| [state/url.test.ts](../web/src/state/url.test.ts) | 10 | Parse, format, patch rules of the URL state |
 | [views/explorer/fields.test.ts](../web/src/views/explorer/fields.test.ts) | 9 | Shared and held colour ranges, time–depth panels |
 | [api/binary.test.ts](../web/src/api/binary.test.ts) | 8 | float32 decoding, headers, packbits mask |
 | [lib/colormaps.test.ts](../web/src/lib/colormaps.test.ts) | 8 | Lookup tables, diverging centre, NaN handling |
 | [lib/points.test.ts](../web/src/lib/points.test.ts) | 6 | Point binning, ordering, hit test, cell counts |
-| [components/controls/SelectionBar.test.tsx](../web/src/components/controls/SelectionBar.test.tsx) | 4 | Stepping, estimates, groups per view |
-| [views/validation/validation.test.ts](../web/src/views/validation/validation.test.ts) | 4 | Range-exceeded note, per-profile RMSE keys |
+| [components/controls/SelectionBar.test.tsx](../web/src/components/controls/SelectionBar.test.tsx) | 5 | Stepping, no estimate on the product views, estimates in Research, groups per view |
+| [views/accuracy/accuracy.test.ts](../web/src/views/accuracy/accuracy.test.ts) | 4 | Range-exceeded note, per-profile RMSE keys |
+| [lib/inputs.test.ts](../web/src/lib/inputs.test.ts) | 3 | Which surface products the model uses |
+| [state/scope.test.ts](../web/src/state/scope.test.ts) | 2 | Which methods a product view and a Research view show |
 
-Total 163 tests in 12 files. There are no browser (end-to-end) tests; canvas drawing is not asserted.
+Total 186 tests in 14 files. There are no browser (end-to-end) tests; canvas drawing is not asserted.
 
 ## 11. Dependencies
 
@@ -484,7 +562,7 @@ Total 163 tests in 12 files. There are no browser (end-to-end) tests; canvas dra
 |---|---|
 | Chart library | A handful of chart types with one shared depth axis, method identity and hover; small SVG components keep them identical everywhere |
 | Map / tile library | The data is a regular 100 × 240 grid drawn cell for cell; a tile stack would resample it and fetch external tiles |
-| Router library | Five flat routes and query-string state; `url.ts` + `router.ts` cover it with tested pure functions |
+| Router library | Nine flat routes and query-string state; `url.ts` + `router.ts` cover it with tested pure functions |
 | CSS framework / CSS-in-JS | Plain CSS with tokens from `theme.ts` and `base.css` |
 
 ## 12. Known limits
@@ -500,7 +578,9 @@ Total 163 tests in 12 files. There are no browser (end-to-end) tests; canvas dra
 - The held period range is a 1st–99th percentile over sampled days, so extreme days saturate.
 - Raw similarity is fixed at 0–1, so negative values clip to the darkest colour.
 - The Argo list shows ten profiles per page; the map requests at most 50 000 profiles.
-- The estimate applies only where one method is shown; tables and by-depth charts always show all methods.
+- On the Research pages the estimate applies only where one method is shown; tables and by-depth charts there always show all methods. The product views have no estimate.
+- Research is reachable only from the colophon and from Data & downloads.
+- The Live route is reserved: `/live` opens the Overview until `LIVE_ENABLED` is switched on and its view exists.
 - The test-year switch does not apply to error maps, daily series or the Explorer; a year is reached there by date.
 - The first playback on a long run competes with the cold `/ranges` request and runs below its 5 frames per second
   until that request returns.

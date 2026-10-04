@@ -86,9 +86,9 @@ regridding, role (`input`/`target`/`validation`); `counts` = `n_prediction_days`
 Only for the live run (`oceanembed live update`; `summary.live` is true); any other run is `404` with the hint "this is not a
 live run". Never cached (`Cache-Control: no-store`): the files change on every update. Payload:
 `{run, note, last_update, window{start,end,n_days,window_days}, last_day, inputs[{product (sst|sla), dataset, version, first,
-last, latest_data_date, age_days, delay_days_catalogue}], pending[dates], model{checkpoint, weights}, days[...], revision,
+last, latest_data_date, age_days, delay_days_catalogue, available}], window_days[{date, reconstructed, complete, inputs{sst, sla}}], pending[dates], model{checkpoint, weights}, days[...], revision,
 input_shift, verification, history[...]}`.
-`last_day` is a nowcast of that day, not a forecast. `age_days` is the age of the newest day held for that input at the last update;
+`last_day` is a nowcast of that day, not a forecast. `inputs[].available` says whether that input has data for `last_day`; `window_days` lists every calendar day of the window with a completeness flag. `age_days` is the age of the newest day held for that input at the last update;
 `pending` are days one input already has and another does not. `days` is the provenance table, one row per window day: `date`,
 `<input>_dataset`, `_version`, `_product_version`, `_age_days` (when the day was first used), `first_update_ts`, `last_update_ts`,
 `n_checks`, `n_revisions`, `revised`, `rev_sst_rmse`, `rev_sla_rmse`, `rev_recon_rmse_50_200`, `rev_recon_maxabs` (the size of the

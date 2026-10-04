@@ -14,16 +14,16 @@ Contents: [1 At a glance](#1-at-a-glance) | [2 Diagram](#2-diagram) | [3 Module 
 
 | | |
 |---|---|
-| **What it does** | Turns 7 daily satellite surface fields into temperature at 15 depths (0-1000 m) on a 0.25 deg grid of the North Indian Ocean, then scores itself against GLORYS and Argo floats. |
+| **What it does** | Turns daily satellite surface fields (seven are harmonised; the released model uses two, SST and sea level anomaly) into temperature at 15 depths (0-1000 m) on a 0.25 deg grid of the North Indian Ocean, then scores itself against GLORYS and Argo floats. A live mode reconstructs the newest day from near-real-time inputs. |
 | **Stack** | Python >= 3.12, PyTorch (CUDA wheel installed first, torch unpinned), xarray / Zarr v3 / NetCDF4, Typer CLI, pydantic v2 config, FastAPI + uvicorn. No database: files on disk. |
-| **Entry points** | `oceanembed <command> --config <yaml>` (`[project.scripts]` -> `oceanembed.cli:app`), `oceanembed run-all`, `oceanembed serve` (data API + built web UI). |
-| **Data** | `data/raw/` (real), `data/raw_synthetic/`, `data/processed/<run>.zarr` + `<run>_stats.nc`. Git-ignored. Override root with `OCEANEMBED_DATA_ROOT`. |
-| **Outputs** | `outputs/<run>/` (checkpoints, logs, NetCDF products, metrics, embeddings, figures, report). Git-ignored. Override with `OCEANEMBED_OUTPUTS_ROOT`. |
+| **Entry points** | `start.bat` at the project root (one click: environment, dashboard build, server, browser); `oceanembed <command> --config <yaml>` (`[project.scripts]` -> `oceanembed.cli:app`), `oceanembed run-all`, `oceanembed live update`, `oceanembed serve` (data API + built web UI). |
+| **Data** | `data/raw/` (real), `data/raw_nrt/` (live), `data/raw_synthetic/`, `data/processed/<run>.zarr` + `<run>_stats.nc`. Git-ignored. Override root with `OCEANEMBED_DATA_ROOT`. |
+| **Outputs** | `outputs/<run>/` (checkpoints, logs, NetCDF products, metrics, embeddings, figures, report), git-ignored; override with `OCEANEMBED_OUTPUTS_ROOT`. Tracked copies of what matters: `results/` (metrics, report, research summaries; `export-results`) and `models/final/` (released weights; `export-weights`). |
 | **Grid** | 100 lat x 240 lon x 15 depths, 0.25 deg, daily; 5-30 N, 45-105 E ([`grid.py`](../src/oceanembed/grid.py)). |
-| **Period (real run)** | 2018-01-01 .. 2024-12-15 = 2 541 days; train 2018-22 (1 826 d), val 2023 (365 d), test 2024 (350 d). |
+| **Period (main run `final`)** | 2011-01-01 .. 2024-12-15 = 5 098 days; train 2011-2021 (4 018 d), val 2022 (365 d), test 2023-01-01 .. 2024-12-15 (715 d, scored per year and together). The first real run, `poc`, covers 2018-2024 (2 541 days, test year 2024) and is kept for the research stages R1, R3, R4, R5. |
 | **Model** | CNN stem + Transformer encoder, U-Net-style decoder: 3 741 423 parameters (counted by instantiating the default `ModelConfig`); embedding map 128 x 25 x 60. |
-| **Cost** | Measured on the real run: pretraining 14 min + supervised training 11 min on a 6 GB laptop GPU (RTX 3050), measured on the 2018-2022 training set; batch 8 with fp16 autocast peaks near 1.3 GB GPU memory. |
-| **Run it** | `oceanembed run-all --config configs/synthetic.yaml` (no logins) or `configs/poc.yaml` (real; free CMEMS + Earthdata accounts, about 15 GB of downloads). Always from the project root. |
+| **Cost** | On a 6 GB laptop GPU (RTX 3050): the released model trains in about 19 min on the eleven training years (from scratch, no pretraining); batch 8 with fp16 autocast peaks near 1.3 GB GPU memory. On the five-year `poc` run: pretraining 14 min + supervised training 11 min. |
+| **Run it** | `start.bat` (dashboard on the finished runs or the released results), `oceanembed run-all --config configs/synthetic.yaml` (no logins), or the real runs: `configs/poc_long.yaml` for download / harmonise / statistics, then `configs/final.yaml` (free CMEMS + Earthdata accounts; sizes and times in [`reproduce.md`](reproduce.md)). Always from the project root. |
 
 ## 2. Diagram
 
@@ -689,7 +689,7 @@ with a client-side-route fallback that never shadows `/api`.
 - A start-up thread warms Zarr handles, statistics, the embedding PCA and the error maps; runs that are still being
   produced never give 500 (truncated product files are skipped).
 
-**Endpoints** (28 routes plus the static / SPA fallback)
+**Endpoints** (29 routes plus the static / SPA fallback)
 
 | Method | Path | Purpose | Key parameters |
 |---|---|---|---|
@@ -698,6 +698,7 @@ with a client-side-route fallback that never shadows `/api`.
 | GET | `/api/runs/{run}` | grid, basins, methods, field methods, config summary, products, counts | - |
 | GET | `/api/runs/{run}/dates` | days with prediction / target / embedding | - |
 | GET | `/api/runs/{run}/mask` | ocean mask per depth, packbits base64 | - |
+| GET | `/api/runs/{run}/live` | live run only (404 otherwise), never cached: window, input freshness, pending days, provenance, revisions, input shift, running verification | - |
 | GET | `/api/runs/{run}/fields` | 2-D field or 15-level volume | `date`, `kind` (`prediction`, `target`, `climatology`, `difference`, `anomaly_pred`, `anomaly_target`), `depth` / `depth_index`, `format`, `method` |
 | GET | `/api/runs/{run}/ranges` | period-wide colour ranges per depth | `samples` (24, 2..60) |
 | GET | `/api/runs/{run}/surface` | the 7 input fields of a day, physical units | `date` |
@@ -751,41 +752,52 @@ project root.
 | `ablation` | `no_pretrained` false, `tag` `scratch` |
 | `synthetic` | `seed` 7, `argo_profiles_per_month` 150, `native_resolution`, `n_eddies_per_100_deg2_year` |
 
-Shipped configs (all four enable the ablation):
+Shipped configs:
 
-| | `synthetic` | `poc` | `poc_trial` | `test_tiny` |
-|---|---|---|---|---|
-| Provider / raw folder | synthetic / `raw_synthetic` | real / `raw` | real / `raw` | synthetic / `raw_synthetic` |
-| Grid | 100 x 240 | 100 x 240 | 100 x 240 | 16 x 24 (8-12 N, 72-78 E) |
-| Period | 2021-01-01 .. 2023-12-31 | 2018-01-01 .. 2024-12-15 | 2024-01-01 .. 2024-03-31 | 2022-01-01 .. 2022-03-01 |
-| Train / val / test | 2021-22 / H1 2023 / H2 2023 | 2018-22 / 2023 / 2024-01-01 .. 12-15 | 46 d / 14 d / 31 d | 40 d / 10 d / 10 d |
-| Pretrain epochs | 12 | 20 (default) | 20 (default) | 1 (batch 2, block 4) |
-| Train epochs | 40 | 30 (default) | 30 (default) | 1 (batch 2) |
-| Model size | default (3.7 M) | default | default | `emb_dim 16`, `dim 32`, `depth 2`, `heads 2`, `stem_channels 16` |
-| Purpose | pipeline demo, not skill | the real run | plumbing check only (mean-only climatology) | pytest |
+| Config | Provider / data | Period and split | Purpose |
+|---|---|---|---|
+| `final.yaml` | real; reads the store, statistics and array cache of `poc_long` (`paths.store`) | 2011-01-01 .. 2024-12-15; train 2011-21 / val 2022 / test 2023 + 2024 | **the main run**: trained from scratch, inputs SST + sea level, per-pixel MLP and ridge baselines, pretrained variant as the ablation |
+| `poc_long.yaml` | real / `raw` | as `final` | builds the long-period data (download, harmonise, statistics); research R2, input selection, benchmark |
+| `poc.yaml` | real / `raw` | 2018-01-01 .. 2024-12-15; train 2018-22 / val 2023 / test 2024 | the first real run (pretrained model, all seven inputs); research R1, R3, R4, R5 |
+| `poc_trial.yaml` | real / `raw` | 2024-01-01 .. 2024-03-31; 46 d / 14 d / 31 d | plumbing check only (mean-only climatology) |
+| `live.yaml` | real, near-real-time / `raw_nrt` | rolling 60-day window ending at the newest available day | the live nowcast with `models/final`; never trains or evaluates |
+| `predict_surface.yaml` | real, surface products only | the days you ask for | prediction from the released weights without the training data (`harmonize --surface-only`, `predict --weights models/final`) |
+| `synthetic.yaml` | synthetic / `raw_synthetic` | 2021-01-01 .. 2023-12-31; train 2021-22 / val H1 2023 / test H2 2023 | pipeline demo without logins, not skill |
+| `test_tiny.yaml` | synthetic, 16 x 24 grid (8-12 N, 72-78 E) | 2022-01-01 .. 2022-03-01; 40 d / 10 d / 10 d | pytest (tiny model: `emb_dim 16`, `dim 32`, `depth 2`) |
+| `test_tiny_final.yaml` | synthetic, tiny grid | about 90 days across a New Year | pytest for what `final` uses: scratch main model, reduced inputs, MLP baseline, per-year metrics |
+
+Grid 100 x 240 and the default model (3.7 M parameters) everywhere except the two test configs.
 
 ## 12. Testing and quality
 
-`.\.venv\Scripts\python.exe -m pytest --collect-only -q` collects **219 tests** in 12 files (collection only; not run for this file).
+`.\.venv\Scripts\python.exe -m pytest` runs **343 tests** in 20 files; all pass (last run 2026-10-04).
 
 | File | Tests | What it covers |
 |---|---|---|
-| `test_api.py` | 40 | every endpoint, validation and error shape, 304 / ETag, binary format, unfinished / partial runs (no 500), ETag and CORS, OpenAPI coverage, SPA fallback |
-| `test_pipeline.py` | 22 | synthetic raw layout, Zarr structure, mask, regrid against truth, harmonic fit (leap years), dataset contract, dataloader workers |
+| `test_api.py` | 40 | every endpoint, validation and error shape, 304 / ETag, binary format, unfinished / partial runs (no 500), CORS, OpenAPI coverage, SPA fallback |
 | `test_providers.py` | 23 | month clipping, dataset-by-date, CMEMS request args and ledger, credentials, Argo tidy / retry / NetCDF-3 fallback, INCOIS loader, CLI errors |
+| `test_pipeline.py` | 22 | synthetic raw layout, Zarr structure, mask, regrid against truth, harmonic fit (leap years), dataset contract, dataloader workers |
+| `test_research_r3.py` | 22 | input groups and masking, history channels, within-month permutation, resumable jobs, multi-pass scoring |
+| `test_final_stage.py` | 21 | scratch main model, input-group selection, shared store, MLP baseline, per-year metrics, results and weights export, prediction from released weights |
 | `test_models.py` | 21 | shapes, positional embeddings, block mask, no-leakage test, masked losses, parameter groups, overfit sanity checks |
-| `test_products.py` | 18 | one full `run-all` on the tiny config: every contract file, `--skip-existing`, stop-on-failure, NetCDF structure, metrics vs direct numpy, Argo matchups, report |
+| `test_research.py` | 19 | seed reproducibility, plain U-Net and per-pixel MLP, block bootstrap against hand-computed cases, paired differences, decorrelation time, R1 runner (resumable) and report |
 | `test_podaac.py` | 18 | OPeNDAP index runs, DAP4 constraints, retry back-off, resume, atomic parts, fallback and switch-off, no secrets in ledger |
+| `test_products.py` | 18 | one full `run-all` on the tiny config: every contract file, `--skip-existing`, stop-on-failure, NetCDF structure, metrics vs direct numpy, Argo matchups, report |
+| `test_live.py` | 18 | window and revision rules, update lock, cold start and incremental update (only new days fetched, only live folders pruned), interrupted update continued, provenance, verification sums, input-shift statistics, the live endpoint and CLI |
 | `test_regrid.py` | 17 | block mean, bilinear, NaN rules, daily mean, vertical interpolation |
 | `test_config.py` | 17 | shipped configs load, validation rules, env overrides, grid, basins, ablation keys |
+| `test_research_r4_r5.py` | 14 | isotherm depth and heat content against analytic profiles, strata, ARMOR3D request and regridding, identical samples for every method |
+| `test_research_r2.py` | 13 | long-period jobs, learning-curve subsets, per-year slicing, Argo scoring of two test years |
 | `test_dashboard.py` | 13 | the Streamlit app and its data layer (not the React app) |
 | `test_argo_validation.py` | 11 | interpolation rule, gap tolerance, no extrapolation, collocation, basins, gridded plan |
 | `test_metrics.py` | 10 | streaming equals one-shot, merge, reductions, NaN and constant series, skill |
+| `test_benchmark.py` | 9 | boosted-tree and random-forest predictors (round trip, land and sea-floor handling), job plan, ranked report with winner or tie, refusal of runs scored on different samples |
 | `test_training.py` | 9 | preload equals lazy, ridge, climatology baseline, `predict_batch`, CLI chain, crop |
+| `test_array_cache.py` | 8 | memmap array cache: atomic build, fingerprint and staleness, round-off bound, day-wise gather |
 
 All tests use temporary data / outputs roots (`OCEANEMBED_DATA_ROOT`, `OCEANEMBED_OUTPUTS_ROOT`) and synthetic data; none touch
 the network. `conftest.py` provides a session-wide `synth -> harmonize -> stats` fixture and one tiny `run-all` on CPU.
-The React app has its own tests (`npm test`, Vitest).
+The React app has its own tests (`npm test`, Vitest: 203 tests in 15 files).
 
 - Lint ([`pyproject.toml`](../pyproject.toml)): ruff, line length 100, target py312, rules `E, F, I, UP, B`; `E501` ignored under
   `src/oceanembed/api/*`; bugbear treats `fastapi.Depends` / `Query` as immutable defaults.
@@ -799,34 +811,52 @@ The React app has its own tests (`npm test`, Vitest).
 
 ## 13. Measured results
 
-Real run `poc`, test year 2024 (350 days), single seed, pooled over 50-200 m (source: [`phases.md`](phases.md), README).
+Main run `final` (trained 2011-2021, from scratch, inputs SST + sea level), test 2023-01-01 .. 2024-12-15 (715 days), pooled over
+50-200 m. Source: [`results/final/`](../results/final/) (`metrics_glorys.json`, `metrics_argo.json`) and
+[`models/final/MODEL_CARD.md`](../models/final/MODEL_CARD.md). The released model is a single training run; the seed spread of the same
+configuration is about 0.003 degC (three seeds, [`research/final_inputs.md`](research/final_inputs.md)).
 
-**Against GLORYS**
+**Against GLORYS** (RMSE degC)
 
-| Method | RMSE degC | Anomaly corr. | Skill vs climatology |
-|---|---|---|---|
-| OceanEmbed (pretrained) | 1.08 | 0.64 | 0.40 |
-| No pretraining (ablation) | 1.04 | 0.67 | 0.44 |
-| Ridge regression | 1.15 | 0.56 | 0.31 |
-| Climatology | 1.39 | - | 0 |
+| Method | 2023 | 2024 | Both years | Anomaly corr. | Skill vs climatology |
+|---|---|---|---|---|---|
+| OceanEmbed | 0.974 | 0.991 | 0.983 | 0.73 | 0.55 |
+| Per-pixel MLP | 0.984 | 1.043 | 1.013 | - | 0.52 |
+| Ridge regression | 1.280 | 1.149 | 1.218 | 0.53 | 0.30 |
+| Climatology | 1.519 | 1.394 | 1.459 | - | 0 |
 
-**Against Argo** (2 826 profiles, 40 059 matchups; pooled 50-200 m RMSE degC)
+**Against Argo** (5 512 profiles, 77 388 matchups, both years; pooled 50-200 m RMSE degC)
 
-| OceanEmbed | No pretraining | Ridge | Climatology | GLORYS itself (the floor) |
+| OceanEmbed | Per-pixel MLP | Ridge | Climatology | GLORYS itself (the floor) |
 |---|---|---|---|---|
-| 1.41 | 1.41 | 1.53 | 1.67 | 1.08 |
+| 1.322 | 1.291 | 1.375 | 1.516 | 1.051 |
 
-- RMSE by depth, model / climatology: 0 m 0.57 / 0.79; 50 m 0.92 / 1.18; 100 m 1.22 / 1.66; 200 m 0.79 / 0.89; 300 m 0.53 / 0.55;
-  500-1000 m 0.36-0.41 / 0.35-0.38.
-- Pooled skill by basin: Bay of Bengal 0.55, Arabian Sea 0.29. Surface cold bias -0.3 degC (climatology -0.5).
-- Pretraining: masked-surface error 0.16 vs 1.04 for mean-fill.
-- Data: 6 products x 84 monthly files, about 14.7 GB raw; 2 541 gap-free harmonised days.
+- RMSE by depth, model / climatology, both years: 0 m 0.47 / 0.81; 30 m 0.64 / 0.94; 100 m 1.12 / 1.76; 200 m 0.74 / 0.93;
+  300 m 0.50 / 0.53; 500 m 0.345 / 0.345; 1000 m 0.37 / 0.36.
+- By basin (50-200 m RMSE): Arabian Sea 1.002, Bay of Bengal 0.949 (climatology 1.350 and 1.649); skill 0.45 and 0.67.
+- Data: 5 098 gap-free harmonised days; about 29 GB of raw downloads, of which GLORYS is 23 GB ([`reproduce.md`](reproduce.md)).
+
+**Model families under one protocol** (eleven training years, all seven inputs, three seeds, both test years;
+[`research/benchmark.md`](research/benchmark.md)): CNN + Transformer 0.989 +/- 0.010, boosted trees 0.990 +/- 0.002, per-pixel MLP
+1.004, plain U-Net 1.011, random forest 1.035, ridge 1.207, climatology 1.459 degC. The Transformer and boosted trees tie over the
+whole domain; the Transformer is best in the Bay of Bengal (0.938 vs 1.001), boosted trees in the Arabian Sea (0.983 vs 1.018).
+
+**Live nowcast** ([`research/live_nowcast.md`](research/live_nowcast.md)): over 182 overlap days the error against GLORYS is
+1.026 degC with near-real-time inputs and 1.036 with reprocessed ones (50-200 m). First 30-day running check, model / climatology:
+against Argo 0.96 / 1.26 (0-30 m), 1.43 / 1.43 (50-200 m), 0.33 / 0.32 (300-1000 m); against the operational analysis 0.75 / 1.06,
+1.24 / 1.53, 0.36 / 0.37.
+
+**The earlier five-year run `poc`** (test year 2024, pretrained model, all seven inputs): 1.08 degC against GLORYS (from scratch
+1.04, ridge 1.15, climatology 1.39) and 1.41 against 2 826 Argo profiles (GLORYS itself 1.08). The other research stages are in
+[`research/`](research/).
 
 **Performance numbers that exist in the docs** (not re-measured here)
 
 | Item | Value | Source |
 |---|---|---|
-| Training | pretraining 862 s (best epoch 18), supervised 683 s (best epoch 6 of 14, 44 s/epoch), no-pretraining ablation 605 s (best epoch 4 of 12) on a 6 GB GPU (RTX 3050) | training logs of the `poc` run |
+| Training, `poc` run | pretraining 862 s (best epoch 18), supervised 683 s (best epoch 6 of 14, 44 s/epoch), no-pretraining ablation 605 s (best epoch 4 of 12) on a 6 GB GPU (RTX 3050) | training logs of the `poc` run |
+| Training per seed, eleven years | Transformer 19 min (GPU), plain U-Net 30 min (GPU, machine shared), boosted trees 5 min + about 9 min to score (CPU), random forest 4 min, ridge 3 min, per-pixel MLP 18 s | research/benchmark.md |
+| Live update | cold start 22 MB and about 2 min on the GPU (0.03 s per day; 0.52 s per day on a shared CPU); daily update about 13 MB, 1.5-3 min | research/live_nowcast.md |
 | GPU memory | ~1.3 GB peak at batch 8, fp16 (synthetic runs) | decisions.md |
 | Epoch time, synthetic full grid | 17-18 s (730 train days) | runbook.md |
 | Full `run-all` synthetic, from scratch | 2 547 s | phases.md |
@@ -841,12 +871,21 @@ Real run `poc`, test year 2024 (350 days), single seed, pooled over 50-200 m (so
 
 ## 14. Known limits and gotchas
 
-- **No skill below about 300 m**: at 300 m the model is 0.53 vs 0.55 degC for climatology, and indistinguishable deeper.
-- **Single training seed**, no uncertainty estimates, no temporal context (one day of input).
-- **Pretraining gave no measurable gain**: from scratch scored 1.04 vs 1.08 degC (GLORYS) and tied on Argo (1.41); a multi-seed
-  study would be needed to say more. The pretrained encoder is kept as the documented design (decisions.md).
-- **The target limits the score**: GLORYS is 1.08 degC from Argo over 50-200 m in 2024 (warm bias +0.5-0.8 degC at 100-150 m), and
-  GLORYS assimilates Argo, so the Argo comparison is not independent of the training target.
+- **No skill below about 300 m**: at 300 m the model is 0.50 vs 0.53 degC for climatology, and indistinguishable deeper, with five
+  or eleven training years, any input set and with or without input history.
+- **The released model is one training run** (seed spread about 0.003 degC for its configuration); the predictions carry no
+  uncertainty estimate; the input is one day (3 or 7 days of history did not help, research R3).
+- **No model family wins outright**: per-pixel boosted trees tie the Transformer over the whole domain and beat it in the Arabian
+  Sea; the spatial model is better in the Bay of Bengal (research/benchmark.md).
+- **Pretraining gave no benefit**: five seeds each on the `poc` run, 1.052 +/- 0.015 degC from scratch against 1.064 +/- 0.016 with
+  masked pretraining (research R1). The released model is trained from scratch; the pretrained variant stays as the ablation
+  (`ablation.pretrained`) and `pretrain` / `mae.py` stay in the code.
+- **The target limits the score**: GLORYS is 1.05 degC from Argo over 50-200 m in 2023-2024 and about 0.4-0.5 degC warmer than the
+  floats there; GLORYS assimilates Argo, so the Argo comparison is not independent of the training target.
+- **The live run is not an evaluated run**: it has no reanalysis target, so `kind=target` / `difference` return 404 there, while
+  `/dates` still lists `target_dates` and the run summary still carries the split of the released model. In its first 30 days the
+  nowcast only matched the climatology against Argo in the thermocline (1.43 degC for both). No revised near-real-time map has been
+  seen yet, so the change-detection path has run only in tests. No scheduled task is installed; see the runbook.
 - **Known data quirks left unfiltered**: two GLORYS cells south of Socotra near 0 degC at 318-454 m; SSS capped at 40 in the Persian Gulf.
 - **Version pins**: `zarr>=3` (Zarr v3 stores, `consolidated=False`), `erddapy<3` and `pandas<3` (argopy 1.3 breaks with erddapy 3),
   `streamlit>=1.64`, Python >= 3.12; torch deliberately unpinned so the CUDA wheel installed first is not replaced.
@@ -860,7 +899,7 @@ Real run `poc`, test year 2024 (350 days), single seed, pooled over 50-200 m (so
   pipeline commands from the project root. The readers are more forgiving: `data_access` anchors relative paths of `run_meta.json`
   at the project root recovered from the run folder, and the API's default outputs root is `<project root>/outputs` computed from
   the location of `api/app.py` (parents[3]), which assumes the source tree / editable install; elsewhere pass `--outputs-root`.
-- **OneDrive**: the project folder is synced; `data/` (~15-20 GB), `outputs/` and `.venv/` (~5 GB) should be excluded or sync paused.
+- **OneDrive**: if the project folder is synced, `data/` (tens of GB with the long period), `outputs/` and `.venv/` (~5 GB) should be excluded or sync paused.
 - **`--skip-existing` does not detect stale outputs**; delete a step's output to redo it.
 - **`harmonize` and `embed` delete and rebuild** their stores; `predict` overwrites monthly files in place, and a partial month contains
   only the requested days.

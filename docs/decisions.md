@@ -8,7 +8,7 @@
 - 2026-10-02 — Validation uses individual Argo profiles via argopy (open access) as the primary in-situ source, with an optional loader for a user-supplied INCOIS gridded-ARGO file: INCOIS LAS has no stable programmatic API.
 - 2026-10-02 — Temporal (date-range) train/val/test split instead of random: neighbouring days are highly autocorrelated, so a random split would leak.
 - 2026-10-02 — Dashboard in Streamlit + Plotly: fastest route to an interactive PoC on top of a Python/xarray stack, no separate API server.
-- 2026-10-02 — Virtual env kept at `C:\Users\mamid\.venvs\oceanembed`, outside the OneDrive project folder: avoids syncing several GB of packages.
+- 2026-10-02 — Virtual env kept at `%USERPROFILE%\.venvs\oceanembed`, outside the OneDrive project folder: avoids syncing several GB of packages.
 - 2026-10-02 — zarr>=3 (stores are Zarr v3, read with consolidated=False): the current xarray passes `zarr_format` to zarr and no longer works with zarr 2.
 - 2026-10-02 — erddapy<3 and pandas<3 pinned, and `SSL_CERT_FILE` pointed at certifi when unset: argopy 1.3 fails to import with erddapy 3, and aiohttp fails TLS verification with the Windows cert store on this machine (verified: real Argo fetch works with both fixes).
 - 2026-10-02 — Synthetic raw files go to `data/raw_synthetic/` (config `paths.raw_dir`) instead of `data/raw/`: synthetic and real monthly files share names, so separate folders prevent accidentally harmonising fake data as real.
@@ -18,7 +18,7 @@
 - 2026-10-02 — PoC period 2019–2025 (train 2019–23, val 2024, test 2025): every product covers it (tightest ends: OSCAR/DUACS 2026-01-16) and 2025 is the latest full calendar year.
 - 2026-10-02 — Synthetic truth is analytic in (lat, lon, time) with smooth interior fields evaluated on a 0.25° grid and bilinearly interpolated to 1/12° and 0.05°: all products and Argo profiles come from one consistent world, ~10× faster than evaluating every native point.
 - 2026-10-02 — Harmonic climatology reduces to mean-only (<180 d) or mean+annual (<548 d) for short train periods: seasonal harmonics are unidentifiable and would extrapolate wildly (matters only for the tiny test config).
-- 2026-10-02 — Large data (synthetic/real raw + Zarr) kept outside OneDrive via `OCEANEMBED_DATA_ROOT=C:\Users\mamid\oceanembed_data`: several GB would otherwise sync.
+- 2026-10-02 — Large data (synthetic/real raw + Zarr) kept outside OneDrive via `OCEANEMBED_DATA_ROOT=%USERPROFILE%\oceanembed_data`: several GB would otherwise sync.
 - 2026-10-02 — PoC period moved to 2018-01-01..2024-12-15 (train 2018–22, val 2023, test 2024) using only the reprocessed SSS dataset: supersedes the 2019–2025 choice, which tested on NRT SSS after training on reprocessed SSS (a product shift that would contaminate the skill numbers).
 - 2026-10-02 — Encoder adds an internal "visible" channel (all ones downstream) instead of changing the 12-channel dataset contract: the pretraining mask indicator stays inside the encoder, so pretraining and reconstruction share one input interface.
 - 2026-10-02 — Pretraining decoder sees only the embedding map (no stem skips) and the encoder only ever sees the masked input: skips cannot leak hidden pixels, and the embedding itself must encode the surface state.

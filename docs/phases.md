@@ -112,6 +112,24 @@ Starts after R2 and R3 have finished, so that it uses the final headline model a
 
 **Success:** `oceanembed live update` brings the window up to the latest available day from a cold start and from a previous state; the Live view shows the date of each input and the rolling error; the input-shift check is reported with numbers.
 
+## Phase 12 — The dashboard as a product, research kept apart
+
+The dashboard is a working prototype for people who want subsurface temperature, not a research report. The
+research material stays in the repository (`docs/research/`, `results/`) and in one secondary area of the site.
+
+- [ ] Primary navigation for users: **Overview** (what it gives you, the latest map, how accurate it is, where not to trust it), **Explorer**, **Live**, **Accuracy** (error by depth and basin against the reanalysis and Argo, per year — the numbers a user needs to decide whether to trust a value), **Data & downloads** (inputs used, the NetCDF product, the released model)
+- [ ] Out of the user's path: model comparisons, ablations (pretraining, per-pixel network, U-Net), training curves, embedding analysis and research findings move to a single secondary **Research** area linked from the footer / About, not from the first page; the Overview shows no ablation verdicts and no method comparisons beyond "against the seasonal climatology"
+- [ ] What stays on the first page because users need it: accuracy by depth, the limit below ~300 m, the difference between basins, and that the reference used for training differs from floats
+- [ ] README and screenshots follow the same split: product first, research in a linked section
+
+Done together with the Live view (Phase 11, L4) in one dashboard pass.
+
+## Phase 13 — A comparison paper (optional research extension)
+
+- [ ] Add the model families most used in the literature for this task, under the identical protocol (same data, split, seeds, block-bootstrap intervals): gradient-boosted trees (LightGBM / XGBoost) and a random forest per pixel; optionally a ConvLSTM
+- [ ] One table ranking every family (climatology, ridge, random forest, boosted trees, per-pixel MLP, U-Net, CNN + Transformer) by depth, basin and year, with intervals and paired tests; state the winner where one is established and a tie where not
+- [ ] The paper claims only what that table supports
+
 ## Notes
 
 - Synthetic results only prove the pipeline works; they are never to be presented as scientific skill.

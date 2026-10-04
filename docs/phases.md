@@ -103,32 +103,39 @@ Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and ver
 
 Starts after R2 and R3 have finished, so that it uses the final headline model and does not change code under running jobs.
 
-- [ ] L1 Near-real-time inputs: `configs/live.yaml` with the NRT counterparts of the seven surface fields (dataset ids and publication delays verified against the live catalogues), a rolling window of recent days, the same grid and the training statistics of the headline model
-- [ ] L2 `oceanembed live update`: fetch the days that are newly available (resumable), harmonise, reconstruct with the headline model, append to a rolling `live` run that follows the normal run contract; record per day which inputs were available and how old they were
-- [ ] L3 Honesty checks before anything is shown as "live": (a) input shift — for an overlap period run the model on reprocessed and on NRT inputs and measure the difference by depth; (b) running verification — score each new day against Argo profiles as they are published, and against the operational Mercator analysis where available; rolling 30-day error next to climatology
+- [x] L1 Near-real-time inputs: `configs/live.yaml` with the NRT counterparts of the seven surface fields (dataset ids and publication delays verified against the live catalogues), a rolling window of recent days, the same grid and the training statistics of the headline model
+- [x] L2 `oceanembed live update`: fetch the days that are newly available (resumable), harmonise, reconstruct with the headline model, append to a rolling `live` run that follows the normal run contract; record per day which inputs were available and how old they were
+- [x] L3 Honesty checks before anything is shown as "live": (a) input shift — for an overlap period run the model on reprocessed and on NRT inputs and measure the difference by depth; (b) running verification — score each new day against Argo profiles as they are published, and against the operational Mercator analysis where available; rolling 30-day error next to climatology
 - [ ] L4 Dashboard: a sixth view, "Live" — latest reconstructed day, freshness of each input, rolling accuracy, clearly labelled as a same-day reconstruction (nowcast), not a forecast; the five existing views and their numbers do not change
-- [ ] L5 Operation: one command to update; an optional scheduled daily run that the owner enables; documented in the runbook
+- [x] L5 Operation: one command to update; an optional scheduled daily run that the owner enables; documented in the runbook
 - [ ] L6 README: a short "Live mode" section at the end
 
 **Success:** `oceanembed live update` brings the window up to the latest available day from a cold start and from a previous state; the Live view shows the date of each input and the rolling error; the input-shift check is reported with numbers.
+
+**Result (2026-10-04):** inputs are near-real-time SST (about 2 days' delay) and sea level (same day); the model uses only those two. `oceanembed live update` keeps a 60-day window, re-fetches the newest 7 days each time and records provenance per day; latest day 2026-10-03. Input shift over 182 overlap days: reconstruction difference 0.17 °C RMSE at 50–200 m, error against GLORYS 1.026 °C with near-real-time inputs vs 1.036 °C with reprocessed ones (not worse). First 30-day check (model / climatology RMSE): vs Argo 0.96 / 1.26 at 0–30 m, 1.43 / 1.43 at 50–200 m; vs the operational analysis 0.75 / 1.06 and 1.24 / 1.53. Notes in `docs/research/live_nowcast.md`; scheduling instructions in the runbook (the scheduled task is left to the owner).
 
 ## Phase 12 — The dashboard as a product, research kept apart
 
 The dashboard is a working prototype for people who want subsurface temperature, not a research report. The
 research material stays in the repository (`docs/research/`, `results/`) and in one secondary area of the site.
 
-- [ ] Primary navigation for users: **Overview** (what it gives you, the latest map, how accurate it is, where not to trust it), **Explorer**, **Live**, **Accuracy** (error by depth and basin against the reanalysis and Argo, per year — the numbers a user needs to decide whether to trust a value), **Data & downloads** (inputs used, the NetCDF product, the released model)
-- [ ] Out of the user's path: model comparisons, ablations (pretraining, per-pixel network, U-Net), training curves, embedding analysis and research findings move to a single secondary **Research** area linked from the footer / About, not from the first page; the Overview shows no ablation verdicts and no method comparisons beyond "against the seasonal climatology"
-- [ ] What stays on the first page because users need it: accuracy by depth, the limit below ~300 m, the difference between basins, and that the reference used for training differs from floats
+- [x] Primary navigation for users: **Overview** (what it gives you, the latest map, how accurate it is, where not to trust it), **Explorer**, **Live**, **Accuracy** (error by depth and basin against the reanalysis and Argo, per year — the numbers a user needs to decide whether to trust a value), **Data & downloads** (inputs used, the NetCDF product, the released model)
+- [x] Out of the user's path: model comparisons, ablations (pretraining, per-pixel network, U-Net), training curves, embedding analysis and research findings move to a single secondary **Research** area linked from the footer / About, not from the first page; the Overview shows no ablation verdicts and no method comparisons beyond "against the seasonal climatology"
+- [x] What stays on the first page because users need it: accuracy by depth, the limit below ~300 m, the difference between basins, and that the reference used for training differs from floats
 - [ ] README and screenshots follow the same split: product first, research in a linked section
 
 Done together with the Live view (Phase 11, L4) in one dashboard pass.
 
-## Phase 13 — A comparison paper (optional research extension)
+## Phase 13 — Model-family benchmark (the basis of the paper)
 
-- [ ] Add the model families most used in the literature for this task, under the identical protocol (same data, split, seeds, block-bootstrap intervals): gradient-boosted trees (LightGBM / XGBoost) and a random forest per pixel; optionally a ConvLSTM
-- [ ] One table ranking every family (climatology, ridge, random forest, boosted trees, per-pixel MLP, U-Net, CNN + Transformer) by depth, basin and year, with intervals and paired tests; state the winner where one is established and a tie where not
-- [ ] The paper claims only what that table supports
+- [x] Add the model families most used in the literature for this task, under the identical protocol (same data, split, seeds, block-bootstrap intervals): gradient-boosted trees (LightGBM / XGBoost) and a random forest per pixel; optionally a ConvLSTM
+- [x] One table ranking every family (climatology, ridge, random forest, boosted trees, per-pixel MLP, U-Net, CNN + Transformer) by depth, basin and year, with intervals and paired tests; state the winner where one is established and a tie where not
+- [x] The paper claims only what that table supports (decision recorded in the local paper brief: a benchmark paper, not a "best model" paper)
+
+**Result (`docs/research/benchmark.md`, 3 seeds, eleven training years, both test years, 50–200 m RMSE):** CNN + Transformer 0.989 ± 0.010, boosted trees 0.990 ± 0.002, per-pixel MLP 1.004, plain U-Net 1.011, random forest 1.035, ridge 1.207, climatology 1.459 °C. No family wins outright: Transformer and boosted trees tie overall; the Transformer is best in the Bay of Bengal (0.938 vs 1.001), boosted trees in the Arabian Sea (0.983 vs 1.018), both established.
+
+## Phase 14 — Launcher
+- [x] Root-level `start.bat`: checks prerequisites, creates or reuses `.venv`, installs missing project dependencies, builds the dashboard if needed, starts the server on a free port and opens the browser (tested on this machine)
 
 ## Notes
 

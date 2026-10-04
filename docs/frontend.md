@@ -17,8 +17,8 @@ API reference: [api.md](api.md).
 | **Run (dev)** | `oceanembed serve --reload` (API on :8000) and `cd web; npm install; npm run dev` (Vite on :5173, proxies `/api`). |
 | **Run (built)** | `cd web; npm run build`, then `oceanembed serve` serves `web/dist` at `http://127.0.0.1:8000/`. |
 | **Size** | Current `web/dist` (gzip of each file): 187 kB JS + 9 kB CSS in total over 17 JS files (one entry, the rest loaded on demand); about 129 kB to first paint of the Overview (entry 96 kB + CSS 9 kB + Overview and shared chunks). Fonts 233 kB woff2. `architecture.md` records "about 180 / 125 / 230 kB". |
-| **Speed** | Depth scrub and day step re-colour arrays already in memory (no request). Playback ticks every 180 ms (600 ms with reduced motion). Cold API costs from [api.md](api.md): `/ranges` 2–5 s once per run, `/timeseries` about 1 s per new point. |
-| **Checks** | `npm run lint`, `npm run typecheck`, `npm test` (12 files, 163 tests, all passing), `npm run build`. |
+| **Speed** | Depth scrub and day step re-colour arrays already in memory (no request). Playback ticks every 180 ms (600 ms with reduced motion). Cold API costs from [api.md](api.md): `/ranges` 2–5 s once per run, `/timeseries` about 1 s per new point; on the two-year run (715 test days) `/ranges` takes about 12 s cold and `/timeseries` about 4 s per new point. Both are loaded in the background: the maps keep their limits and say "period limits loading…", the time–depth panel shows its skeleton, and day and depth stepping stay at one frame (measured medians 14 ms per depth step, 12–21 ms per day step with four estimates loaded). |
+| **Checks** | `npm run lint`, `npm run typecheck`, `npm test` (13 files, 174 tests, all passing), `npm run build`. |
 
 ![Overview](images/overview.png)
 
@@ -68,6 +68,12 @@ Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/
 - The Argo panel uses the pooled range when the payload has pooled Argo metrics, else all depths; GLORYS is
   labelled "the floor".
 - Chapters 01–04: skill, basins and Argo, method, limits. The limits list is fixed text with no numbers.
+- Two test years: a "Test year" switch (`yr`) above the skill chapter scopes the table, the depth curves, the
+  basins and the Argo panel to one year (`scopeToYear`); with all years the table has one RMSE column per year,
+  the headline quotes each year and a sentence says whether both years beat both baselines (`yearStability`).
+- The header and the method strip name the inputs the model uses (`used_by_model`), not the number of surface
+  products; a from-scratch main model (`main_init`) is described as such.
+- A note compares the network with the per-pixel MLP, pooled and by basin (`mlpSentence`).
 
 ### Explorer
 
@@ -86,11 +92,17 @@ Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/
   API has no period range, limits only widen. Held limits are kept per quantity, depth and method set.
 - While another day or estimate loads, the previous one stays on screen dimmed, and map titles name the estimate
   that is actually drawn (`day.primary`).
+- Surface-inputs mode: when the run does not use every surface product, each field carries a "model input" or
+  "not used by the model" chip.
+- Compare with five panels or more (four estimates and GLORYS) wraps into rows of three.
 
 ### Validation
 
 ![Validation](images/validation.png)
 
+- A run with several test years has a "Test year" switch (`yr`) in the GLORYS section and in the Argo section
+  (one state): tables, by-depth charts, basin profiles and the Argo counts follow it; error maps and daily series
+  cover the whole period.
 - Tables and by-depth charts always show every method. The estimate of the selection bar picks the day × depth
   field, the colour and order of the Argo profiles and the default scatter series.
 - Clicking a depth in a metric profile, a day in a daily chart or a cell of the day × depth field writes the
@@ -115,14 +127,21 @@ Every view also depends on the shell's four requests: `/runs`, `/runs/{run}`, `/
   the average" (`sim=rel`, `center=true`) uses a fixed −1…1 diverging scale. The query is skipped for a land cell.
 - Component × field correlations are computed in the browser: fields block-averaged to the embedding grid, then
   Pearson over ocean cells ([embedding.ts](../web/src/lib/embedding.ts)).
-- Pretraining bars: `1 − val_mse / val_meanfill` per channel at the kept epoch, from `/training`.
+- Pretraining bars: `1 − val_mse / val_meanfill` per channel at the kept epoch, from `/training`. When the main
+  model is trained from scratch the section is titled "The pretraining task (ablation only)".
+- Fields the model does not use are flagged "unused" in the correlation table and "not an input" on the surface
+  maps; the caption says a correlation with them was not built into the embedding.
 
 ### Experiments
 
 ![Experiments](images/experiments.png)
 
-- No selection bar. The methods table underlines the best pooled RMSE; the ablation note uses the same 5 % rule
-  as the Overview.
+- No selection bar. The methods table underlines the best pooled RMSE; the ablation note is the Overview's
+  sentence (`ablationFindings`).
+- "Year by year": pooled RMSE of every method in each test year and over the whole period, against GLORYS and
+  against Argo (shown only when the metrics have `per_year`).
+- The data-products table marks each surface product "used by the model" or "available, not used"; the
+  pretraining panel says when it applies to the ablation only.
 - Cross-run comparison defaults to the first eight evaluated runs; a subset is stored as `cmp=a.b`. Cross-run
   panels carry per-run "synthetic" / "short training" chips instead of the automatic tag.
 - The report text is rendered by a separate chunk (`ReportMarkdown`, 28 kB gzip) loaded only when "Read the
@@ -186,7 +205,9 @@ Per-view options (lower-case keys, values up to 120 characters; all omitted at t
 | | `focus=target\|diff` | Which of the three maps is enlarged |
 | | `basins=1` | Basin outlines |
 | | `vec=uv` | U and V components instead of speed + arrows |
+| Overview | `yr=<year>` | One test year instead of the whole test period |
 | Validation | `basin=<key>` | Region of the GLORYS tables and profiles |
+| | `yr=<year>` | One test year instead of the whole test period |
 | | `metric=<key>` | Metric of the error maps |
 | | `ds=pooled` | Daily series over the pooled range |
 | | `dh=gain\|bias\|corr` | Score of the day × depth field |
@@ -330,8 +351,9 @@ colour scale (lowest −3.04)") and decides which ends of the colour bar are poi
 | Method key | Short label | Colour | Dash array | Width | Marker |
 |---|---|---|---|---|---|
 | `model` | OceanEmbed | `#0B5FA5` | solid | 2.25 | circle |
-| `model_<tag>` (1st ablation) | No pretraining / Ablation: tag | `#B8730A` | `5 3` | 1.75 | triangle |
+| `model_<tag>` (1st ablation) | No pretraining / Pretrained / Ablation: tag | `#B8730A` | `5 3` | 1.75 | triangle |
 | `model_<tag>` (2nd ablation) | Ablation: tag | `#8A4FB0` | `12 3 2 3` | 1.75 | triangle-down |
+| `mlp` | API label ("Per-pixel MLP") | `#D95FA8` | `3 2` | 1.75 | pentagon |
 | `ridge` | Ridge | `#C8431F` | `7 2.5 1.5 2.5` | 1.75 | square |
 | `climatology` (`clim`) | Climatology | `#6B7680` | `1.5 3` | 1.75 | cross |
 | `glorys` (`target`) | GLORYS | `#0E8A6A` | `10 3` | 1.75 | diamond |
@@ -396,7 +418,10 @@ Every sentence that states a result is built from the metrics payloads. Constant
 | `correlationSentence` | Anomaly correlation with the raw one and why the raw one is inflated | `pooled.model.corr_anom`, `corr_raw` | Omitted if either is missing |
 | `depthSkill` | Best depth, where skill is clear, marginal, absent, and where ridge wins | `per_depth.skill_vs_clim.model`, `per_depth.rmse.{model, ridge}` | Clear ≥ 0.1; marginal 0–0.1; none ≤ 0; ridge wins beyond the 1 % tie |
 | `describeDepths` | "300 m and below", "0–30 m", "7 of the 15 levels between …" | Depth lists | Neighbours merge into ranges; more than 3 ranges become a count |
-| `ablationFindings` | Verdict on pretraining with both numbers | `pooled.model.rmse` vs each `model_<tag>` | Under 5 % either way: "No measurable gain from pretraining" (trained once); above: "helps" / "does not help" |
+| `ablationFindings` | Verdict on pretraining with both numbers | `pooled.model.rmse` vs each `model_<tag>`, and the `pretrained` flag of both | Reads the pair as pretrained vs from scratch whichever is the main model. Under 5 % either way: "No measurable gain from pretraining" (trained once); above: "helps" / "does not help" |
+| `yearsOf` / `scopeToYear` | (no sentence) one test year of a payload | `per_year` | Replaces `overall`, `pooled`, `per_depth`, `per_basin` and the Argo counts by that year's; daily series untouched |
+| `yearStability` | "It beats climatology and ridge regression in each test year (2023: …; 2024: …)." | `per_year.*.pooled` | Names the years and baselines it does not beat, if any; null for one test year |
+| `mlpSentence` / `versus` | The network against the per-pixel MLP, pooled and by basin | `pooled.{model, mlp}`, `per_basin.*.pooled` | Under 5 % reads "level"; null without an MLP |
 | `argoSentence` | Model vs baselines against Argo, GLORYS as the floor, shared bias | Argo `pooled` (else `overall`) blocks, profile and matchup counts | Bias sentence only if \|GLORYS bias\| ≥ 0.1 °C and both have the same sign |
 | `basinSentence` / `basinContrast` | Skill per basin, most skilful first | `per_basin.*.pooled` | Needs two basins with a skill value |
 | `chooseEvidence` | Day and depth of the Overview evidence | `per_depth.rmse.climatology`, `daily.pooled_rmse.model` (else daily RMSE at that depth) | **Depth:** level inside the pooled range, never 0 m, with the largest climatology RMSE. **Day:** lower median of the test days by that error, among days with a target (and an embedding); ties by date |
@@ -476,6 +501,9 @@ Total 163 tests in 12 files. There are no browser (end-to-end) tests; canvas dra
 - Raw similarity is fixed at 0–1, so negative values clip to the darkest colour.
 - The Argo list shows ten profiles per page; the map requests at most 50 000 profiles.
 - The estimate applies only where one method is shown; tables and by-depth charts always show all methods.
+- The test-year switch does not apply to error maps, daily series or the Explorer; a year is reached there by date.
+- The first playback on a long run competes with the cold `/ranges` request and runs below its 5 frames per second
+  until that request returns.
 - Volumes are cached in memory only (200 MB); a reload fetches them again (the API answers with ETags).
 - No end-to-end tests; no offline mode; the app needs the API on the same origin.
 

@@ -74,7 +74,7 @@ point, estimate) survives navigation and is written to the URL.
 | Experiments | `/experiments` | Methods and ablations table, the same across runs (`/api/compare`), training curves, data products and model configuration, NetCDF downloads (the product first, baseline and ablation fields labelled as such), generated report and figures. |
 
 URL: `/<view>?run=&date=YYYY-MM-DD&depth=<m>&lat=&lon=&est=<method>` plus per-view options
-(`mode`, `q`, `td`, `sbs`, `pall`, `sec`, `focus`, `basins`, `vec`, `layer`, `basin`, `metric`,
+(`mode`, `q`, `td`, `sbs`, `pall`, `sec`, `focus`, `basins`, `vec`, `yr`, `basin`, `metric`, `ds`,
 `dh`, `ab`, `as`, `ae`, `asort`, `ap`, `prof`, `sm`, `sc`, `sim`, `cmp`). `est` is the estimate
 shown wherever one method is shown (omitted for the main model). Changing view pushes a history
 entry; changing the selection replaces it (debounced), so Back leaves a view rather than undoing a
@@ -128,6 +128,10 @@ properties; canvas and SVG code import the same object. Spacing, type and motion
 | `land` | `#D6D1C4` | land on every map | |
 | `seafloor` | `#B9BCB7` | ocean at the surface but below the sea floor at the shown depth; no-data cells of sections | |
 | `coast` | `#2E3B44` | coastline (cell edges of the surface mask) | |
+| `accentStrong` | `#06445C` | hover state of links and primary buttons | 10.6 : 1 |
+| `warnSoft` / `warnRule` | `#FDF3D7` / `#C99512` | block quotes of the generated report; border of the synthetic band and chips | |
+| `graticule` | `rgba(20, 33, 43, 0.16)` | graticule lines on maps | |
+| `marker` / `markerHalo` | `#14212B` / `#FFFFFF` | selected water column and selected Argo profile: ink ring on a white halo | |
 
 One accent. The two status hues (amber, violet-grey) are reserved for the two honesty treatments
 and are never used for data.
@@ -218,7 +222,7 @@ cmocean maps (12 control points each, interpolated to 256) and viridis.
 | Correlation maps, single PCA components | `viridis` | API hint / 0–1 |
 | Embedding similarity, as it is | `viridis` | fixed 0–1 (comparable between cells, days and runs) |
 | Embedding similarity, mean removed; daily spatial anomaly correlation | `balance` | symmetric, fixed −1…1 / 99th percentile |
-| Skill vs climatology | `curl` reversed (teal = better than climatology) | API hint: symmetric about zero, capped at ±1 |
+| Skill vs climatology | `curl` reversed (teal = better than climatology) | API hint: symmetric about zero; the limit is the API's robust one (95th percentile of the absolute skill over all methods at that depth, kept within 0.5–3), and the note under the map says how many cells exceed it |
 | Matchup density | `tempo`, log count | |
 | Depth as colour (scatter) | `deep`, square-root of depth | 0 to deepest level |
 | Embedding | PC1–3 as R, G, B | fixed per run by the API |
@@ -249,13 +253,18 @@ of the methods' own limits, and each row of maps has a single colour bar.
 - **Units on every axis** in the axis title; error metrics start at zero, bias and skill show a
   zero line, the pooled depth range is a shaded band named in the legend, the depth or day
   selected elsewhere is a dotted reference line. Clicking a chart sets that depth or day.
-- **Daily series** (validation): four small multiples on one time axis, one line per method:
-  RMSE at the selected depth, RMSE pooled over the thermocline range, bias (zero line), and the
-  *spatial* anomaly correlation of the day. Its title and caption say that it is spatial (across
-  the cells of one day) and not the temporal correlation of the per-depth table.
-- **Daily series scope**: the three daily charts are stacked on one full-width time axis and show
-  either the selected depth or the pooled range (RMSE, bias and spatial anomaly correlation all
-  exist pooled).
+- **Daily series** (validation): three charts stacked on one full-width time axis, one line per
+  method: RMSE, bias (zero line) and the *spatial* anomaly correlation of the day, either at the
+  selected depth or over the pooled range (a switch on the panel). The correlation's title and
+  caption say that it is spatial (across the cells of one day) and not the temporal correlation
+  of the per-depth table. Measured with 715 days and five methods: the charts stay one path per
+  method, and stepping is unaffected.
+- **Test years.** When the test period spans several calendar years (`per_year` in the metrics)
+  a "Test year" switch (all years, or one) sits above the result tables of the Overview and the
+  Validation view and drives tables, by-depth charts, basins and the Argo numbers; the pooled
+  Overview table also carries one RMSE column per year, the headline quotes each year, and the
+  Experiments view has a year-by-year table against GLORYS and against Argo. Daily charts and
+  error maps always cover the whole period.
 - **Scree** (representation): one line per principal component, bar and percentage, with the
   running total; the three components that make the colour are drawn in red, green and blue.
 - **Methods have one identity everywhere** (`lib/methods.ts`), colour + dash + marker:
@@ -263,16 +272,23 @@ of the methods' own limits, and each row of maps has a single colour bar.
   | Method | Colour | Dash | Marker |
   |---|---|---|---|
   | OceanEmbed (`model`) | `#0B5FA5` | solid, 2.25px | circle |
+  | Per-pixel MLP (`mlp`) | `#D95FA8` | short dash | pentagon |
   | Ridge regression | `#C8431F` | dash-dot | square |
   | GLORYS (target / reference) | `#0E8A6A` | long dash | diamond |
-  | No-pretraining ablation (first `model_<tag>`) | `#B8730A` | dash | triangle |
+  | Ablation (first `model_<tag>`: the no-pretraining or the pretrained variant, whichever the run's ablation is) | `#B8730A` | dash | triangle |
   | Further ablation | `#8A4FB0` | long dash-dot | triangle down |
   | Climatology | `#6B7680` (neutral) | dot | cross |
   | Argo observation | ink | solid | open ring |
 
-  The five chromatic slots pass the dataviz palette validator on the light surface (lightness
-  band, chroma floor, worst adjacent colour-vision-deficiency ΔE 8.8, normal-vision ΔE 19.4,
-  contrast ≥ 3 : 1). Colour follows the method key, never its rank. A legend is present whenever
+  The chromatic slots pass the dataviz palette validator on the light surface (lightness band,
+  chroma floor, contrast ≥ 3 : 1) in legend order. The MLP pink was chosen by checking it pair
+  by pair against every other chromatic slot (model, both ablation slots, ridge, GLORYS): each
+  pair passes the colour-vision-deficiency check (ΔE ≥ 8) and the normal-vision floor (ΔE ≥ 15);
+  its nearest neighbours, the model and the MLP, whose lines often run together, differ by
+  ΔE 28 in normal vision and also by dash and marker. Method labels come from the API; the short
+  forms are "OceanEmbed", "No pretraining" / "Pretrained" for the ablation, and the API label
+  otherwise. Legend order: model, ablation, MLP, ridge, climatology, GLORYS, Argo. Colour follows
+  the method key, never its rank. A legend is present whenever
   there are two or more series; tooltips repeat swatch, name and value.
 - **Tables are first-class.** Summary tables put baselines next to the model, list the anomaly
   correlation before the raw one, and underline the best candidate per column (the GLORYS row of
@@ -297,8 +313,9 @@ of the methods' own limits, and each row of maps has a single colour bar.
   Every value is URL state, so the bar, the keyboard shortcuts and a pasted link are three handles
   on the same thing. Below 860 px the bar scrolls sideways instead of stacking.
 - **Figure options** stay with the figure they change (how it is drawn, not what is selected):
-  fields, quantity, colour range, basin outlines and zoom above the Explorer maps; map layer on
-  the Overview; metric on the error maps; filters and order on the Argo list.
+  fields, quantity, colour range, basin outlines and zoom above the Explorer maps; the test-year
+  switch above the result tables; metric on the error maps; depth scope on the daily charts;
+  filters and order on the Argo list.
 - **Timeline** (Explorer): a strip of all days with the daily RMSE of the selected
   estimate and of climatology at the selected depth. It is the day slider; the hard days are
   visible before you go to them. Play only advances to frames already in memory.
@@ -306,7 +323,8 @@ of the methods' own limits, and each row of maps has a single colour bar.
   map, with the mean temperature of each level as a shape behind it and the pooled range shaded.
 - **Compare** (Explorer): every estimate of the run beside GLORYS on one temperature scale, and
   every estimate minus GLORYS on one symmetric scale, with the day's RMSE, bias and MAE of each in
-  a table; the water column moves into the row of point panels.
+  a table; the water column moves into the row of point panels. Up to four maps share a row;
+  with more (four estimates and GLORYS) they wrap into rows of three.
 - **Argo list**: basin and date filters, order (date, largest or smallest error of the selected
   estimate) and paging are done by the API; the page shows ten rows. A profile opened from the
   map is shown on the page that contains it (`around=`); using the pager or changing a filter
@@ -329,18 +347,30 @@ of the methods' own limits, and each row of maps has a single colour bar.
   words (constant mean; mean and annual cycle; mean, annual and semi-annual cycle).
 - **Correlations:** the anomaly correlation is listed first and explained; the raw one is labelled
   as inflated wherever it appears.
-- **Baselines:** climatology and ridge are in every table, chart and bar set that shows the model;
-  the Overview read-outs show them beside the model's number. Baseline and ablation NetCDF files
+- **Baselines:** climatology, ridge and (where the run has it) the per-pixel MLP are in every
+  table, chart and bar set that shows the model. Baseline and ablation NetCDF files
   are listed after the product, each labelled "baseline" or "ablation" and "not the product".
 - **Estimates:** a map, section or time–depth plot of ridge or of the ablation is titled with that
   method's name, never "Reconstruction"; while another estimate loads, the title stays that of the
   data on screen.
 - **Argo:** the independence statement from the API precedes every Argo number; GLORYS-vs-Argo is
   shown as the floor.
-- **Ablation:** the verdict sentence is computed with both numbers. The ablation is trained once,
-  so a pooled-RMSE difference under 5 % in either direction reads "no measurable gain from
-  pretraining" (within what another training seed can produce); only a larger one reads "helps"
-  or "does not help".
+- **Ablation:** the verdict sentence is computed with both numbers and reads the pair as "with
+  the pretrained encoder" against "trained from scratch", using the `pretrained` flags of the
+  two methods, so it is right whichever of them is the main model. Each is trained once, so a
+  pooled-RMSE difference under 5 % in either direction reads "no measurable gain from
+  pretraining"; only a larger one reads "helps" or "does not help".
+- **Level, not better.** The same 5 % rule words every comparison between two networks trained
+  once: the model against the per-pixel MLP reads "level" below it, pooled and basin by basin.
+- **What the model uses.** Input counts and names come from `used_by_model` of the data products,
+  never from the number of surface products. A product the run carries but does not feed to the
+  model is shown and labelled "not used by the model" (Explorer surface maps, Experiments data
+  table, method strip) or "unused" (Representation correlation table, whose caption says such a
+  correlation was not built into the embedding). When the main model's encoder is trained from
+  scratch (`main_init`), nothing says it was pretrained: the method strip says "trained from
+  scratch", and the pretraining figures are titled as the ablation's.
+- **Both test years.** The headline quotes each year next to the pooled number, and a computed
+  sentence says whether the model beats climatology and ridge in each year, with the numbers.
 - **Depth of the skill:** the computed sentence names where the skill is clear (at least 0.1),
   where it is marginal and where the model does not beat climatology, as depth ranges.
 - **Argo floor:** the Argo sentence and bars are over the pooled range, list GLORYS itself as

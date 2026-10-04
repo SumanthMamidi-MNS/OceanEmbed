@@ -22,8 +22,8 @@ projector.
 
 1. **Keep the light, clean scientific look.** It reads as more professional; the direction below
    stands.
-2. **Keep the top navigation.** It lists the product's views: Overview, Explorer, Accuracy,
-   Data & downloads (and Live, when it ships). Research is not one of them.
+2. **Keep the top navigation.** It lists the product's views: Overview, Explorer, Live (when a
+   live run exists), Accuracy, Data & downloads. Research is not one of them.
 3. **One small contextual control panel** for date, depth, location and methods, instead of
    controls scattered through the page or a full-height sidebar. This is the *selection bar*
    (see Controls): the same component, in the same place, with the same behaviour on every view
@@ -83,9 +83,28 @@ part of the same sticky header: the honesty bands, then the selection bar. The s
 |---|---|---|
 | Overview | `/` | **What it gives you, at a glance.** One line of what the product is. The reconstruction as the hero: reconstruction, GLORYS and their difference side by side, linked, on shared scales, for one typical test day at one thermocline depth, both chosen from the metrics (see "The evidence on the Overview"), with the one action into the Explorer. Then *how accurate*: the error over the pooled range as a computed sentence and a two-row table (the reconstruction and the seasonal climatology, per test year), the error by depth, the two basins. Then *where not to trust it*: the depths without skill, computed from the metrics, two fixed limits, and the Argo comparison with GLORYS as its floor and the independence note. No method comparison, no ablation verdict, no embedding. No selection bar. |
 | Explorer | `/explore` | **The instrument.** One day at one depth: reconstruction, GLORYS and difference on linked maps; temperature or anomaly; the surface inputs; the water column under a point (profile, vertical section, time–depth). Timeline with daily RMSE, depth rail, playback. It shows the product: no estimate selector, no Compare. |
-| Live | `/live` | Reserved for the same-day reconstruction. The position (third) and the route exist; the entry is not listed and the route opens the Overview until the view ships (`LIVE_ENABLED` in `state/url.ts`), so there is no dead link. |
+| Live | `/live` | **The latest reconstructed day.** A same-day reconstruction (nowcast) from near-real-time satellite fields, updated daily, labelled "nowcast · not a forecast". The window of days as a strip (reconstructed, or waiting for an input); the reconstruction of the chosen day and depth as the hero, beside the anomaly from the climatology and the climatology itself (no reanalysis exists for these days, said in one line); the water column under a point. Then input freshness (dataset, day of the data used, age, how far the catalogue reaches, which day waits for which input), how it is checked (rolling error of the reconstruction and of climatology against Argo floats and against the operational analysis, by depth band, with counts, the bands where it does not beat the climatology tinted and named; the near-real-time-against-reprocessed result as one computed sentence), and revisions (policy and statistics). Listed third, and only when the API reports a live run (`live: true` in `/api/runs`); without one the entry is absent and `/live` opens the Overview. |
 | Accuracy | `/accuracy` | **How far to trust a value.** The computed answer first (error against the climatology, where to use it, where not). Against GLORYS: tables, every metric by depth, basins, per test year. Where: error maps. When: daily RMSE, bias and spatial anomaly correlation, a day × depth field. Against Argo: independence note, profile map with server-side filters, sortable paged list, one profile opened, density scatter, per-depth metrics. Every figure shows the reconstruction next to the climatology (and GLORYS, the floor, against Argo); the other methods are not on this page. |
 | Data & downloads | `/data` | **What goes in, what you can take away.** Period, splits, grid and depth levels; the surface products with "used by the model" / "available, not used"; the monthly NetCDF product files; the model in four lines and where the released weights are (`models/final/` in the repository; the site does not serve them); the generated report and its figures. Links to Research. |
+
+**The live run and the run selector.** The live run is a different kind of run: no evaluation
+against the reanalysis, days that are still revised. It therefore has exactly one place, the Live
+view, and the rest follows from that:
+
+- The Live view always shows the live run, whatever run the other views show. On it the run
+  selector is replaced by a fixed, dashed label with the live run's name (tooltip: the Live view
+  always shows the live run), and the header shows "Latest day …" instead of a test period.
+- The selector on every other view lists the evaluated runs only; the live run is never offered
+  there, and it is never the default run. A link that names the live run on another view opens
+  the Live view.
+- The `run` parameter stays in a Live link: it is the evaluated run the other views return to.
+- The day is not shared between the live run and the evaluated runs: entering or leaving the
+  Live view drops `date`, so Live opens on its latest day and the other views on their own.
+- Exploration of a live day stays inside the Live view (day, depth, point, profile). The Explorer
+  is built around the comparison with GLORYS, its timeline of daily error and the test period,
+  none of which a live day has, so there is no "open in Explorer" for it.
+- The live run is never shown with the evaluated runs' skill numbers: the Live view reads only
+  the live payload, and the evaluated views never show the live run.
 
 **Secondary: Research.** Reached from a quiet link in the colophon ("Research: how the model was
 chosen") and from Data & downloads; never from the primary navigation. Every Research page opens
@@ -153,10 +172,17 @@ Both are computed (`lib/narrative.ts`), on the Overview and at the top of Accura
   each test year, and the difference from the seasonal climatology in percent. Only the
   climatology is named: it is the estimate a user has without the product.
 - **Where not to trust it** (`trustLimits`): from the skill against the climatology at each
-  depth. Levels with a skill of at least 0.1 are "use it"; levels with a positive skill below
-  0.1 are "marginal"; levels at or below zero are "no better than the seasonal climatology". The
+  depth, in three bands. *Clearly useful*: skill of at least 0.2. *Marginal*: 0.05 up to 0.2.
+  *No better than the climatology*: below 0.05. The sentences read as depth ranges from the top
+  and from the bottom of the column ("down to 200 m", "marginal at 300 m", "from 500 m"). The
   limit is set in the display face, with an ink rule, as the first thing of the chapter. If no
   level has clear skill the sentence says not to rely on the reconstruction at all.
+- **The surface is an input.** The depth where the reconstruction "helps most" is named among
+  the levels below 30 m, and the sentence says that near the surface the model is given the sea
+  surface temperature: a high skill there is not the model's merit.
+- **The climatology has one name per run**: "the seasonal climatology", or "the mean
+  climatology" when its fit is a constant mean; every product sentence, the Argo one included,
+  uses it.
 
 ## Tokens
 
@@ -368,7 +394,7 @@ of the methods' own limits, and each row of maps has a single colour bar.
   Explorer), **Depth** (shallower, level select, deeper), **Point** (latitude and longitude of the
   water column), and, on the Research pages only, **Estimate** (the methods the run has day fields
   for, from `field_methods`; hidden when there is one) and the Compare switch on the right. A
-  view declares which groups apply: Explorer and Accuracy day, depth and point; Research · On the
+  view declares which groups apply: Explorer, Live and Accuracy day, depth and point; Research · On the
   map and Every score all four; Research · Embedding day (limited to the days with an embedding)
   and point; the Overview, Data & downloads and Research · Methods have no selection and no bar
   (the Overview's day and depth are chosen by rule, not by the reader).
@@ -440,9 +466,18 @@ of the methods' own limits, and each row of maps has a single colour bar.
 - **Both test years.** The computed sentence quotes each year next to the pooled number, and a
   second one says whether the reconstruction beats the climatology in each year, with the numbers
   (in Research: climatology and ridge regression).
-- **Depth of the skill:** the limit names where the skill is clear (at least 0.1), where it is
-  marginal and where the reconstruction does not beat climatology, as depth ranges; the Research
-  sentence adds where ridge regression has the lower error.
+- **Depth of the skill:** the limit names where the skill is clear (at least 0.2), where it is
+  marginal (0.05 to 0.2) and where the reconstruction is no better than climatology, as depth
+  ranges; the Research sentence uses the same bands and adds where ridge regression has the
+  lower error.
+- **Live is a nowcast, checked as it runs.** The label "nowcast · not a forecast" is in the
+  view's header. The running verification states each depth band as it is: a band where the
+  reconstruction does not beat the climatology is tinted, the verdict is set bold ("about the
+  same", "2 % higher"), and the computed sentence names those bands and the mean difference from
+  the floats there. The operational analysis is called "a model analysis, not an observation" in
+  its panel's subtitle. The numbers are introduced as running numbers of the latest weeks, not
+  the evaluation of the model. A missing verification or input-shift check is a plain "not
+  measured yet" state, never an error.
 - **Argo floor:** the Argo sentence and bars are over the pooled range, list GLORYS itself as
   "the floor" (a model trained on GLORYS cannot agree with Argo better than GLORYS does), and
   state the mean difference GLORYS and the reconstruction share when there is one. Nothing is
@@ -519,6 +554,10 @@ Checked at 900, 1280, 1440 and 1920 px (content is capped at 1760 px; the root f
 - **The Argo list shows ten profiles a page**; the map shows all of them.
 - **The Overview does not explain the science.** A reader who wants the argument reads the
   generated report on Data & downloads, the Research pages or `docs/research/`.
+- **A live day cannot be opened in the Explorer**: sections and time–depth plots of the live
+  window are not offered; the Live view has the map, the anomaly and the profile.
+- **The Live verification is three bands and one rolling window**, as the API reports them; the
+  day-by-day chart shows one band at a time.
 - **Research is one click further away, on purpose.** Its only entry points are the colophon and
   Data & downloads; a reader who looks for the ablations in the top bar will not find them.
 - **No estimate selector outside Research.** A user cannot put the ridge field next to the product

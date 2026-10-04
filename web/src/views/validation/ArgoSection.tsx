@@ -18,7 +18,8 @@ import { fmtDate, isIsoDate } from "@/lib/dates";
 import { fmt, fmtDepth, fmtInt, fmtLatLon, fmtSigned, prettyText } from "@/lib/format";
 import { metricMeta } from "@/lib/metricMeta";
 import { canonicalMethod, sortMethods } from "@/lib/methods";
-import { methodList } from "@/lib/narrative";
+import { YearSwitch, useYear } from "@/components/controls/YearSwitch";
+import { methodList, scopeToYear, yearsOf } from "@/lib/narrative";
 import { buildPointLayer, countByCell } from "@/lib/points";
 import { padRange } from "@/lib/scales";
 import { extent, quantile } from "@/lib/stats";
@@ -46,8 +47,11 @@ export function ArgoSection() {
   );
 }
 
-function ArgoBody({ metrics }: { metrics: MetricsResponse }) {
+function ArgoBody({ metrics: whole }: { metrics: MetricsResponse }) {
   const { run, depths, styleOf, labelOf } = useRunContext();
+  const years = yearsOf(whole);
+  const year = useYear(years);
+  const metrics = useMemo(() => scopeToYear(whole, year), [whole, year]);
   const md = metrics.metadata;
   const methods = useMemo(() => methodList(metrics).map((m) => m.key), [metrics]);
   const legend = methods.map((k) => ({ key: k, label: labelOf(k), style: styleOf(k) }));
@@ -66,6 +70,12 @@ function ArgoBody({ metrics }: { metrics: MetricsResponse }) {
         {md.note ? <> {prettyText(md.note)}</> : null}
       </Note>
 
+      {years.length >= 2 && (
+        <div className="toolbar gap-top">
+          <YearSwitch years={years} />
+          <span className="caption">applies to the counts, the tables and the by-depth charts; the profile map has its own date filter</span>
+        </div>
+      )}
       <dl className="factrow gap-top">
         <div>
           <dt>Profiles used</dt>
@@ -99,16 +109,16 @@ function ArgoBody({ metrics }: { metrics: MetricsResponse }) {
           {(m) => <MatchupScatter matchups={m} columnFor={(md.column_for_method as Record<string, string> | undefined) ?? {}} methods={methods} />}
         </QueryState>
         <div className="rightcol">
-          <Panel title="All depths" subtitle="every matchup · bias is method minus Argo">
+          <Panel title="All depths" subtitle={`every matchup${year ? ` of ${year}` : ""} · bias is method minus Argo`}>
             <MetricsTable blocks={metrics.overall} methods={methods} styleOf={styleOf} labelOf={labelOf} caption="Metrics against Argo over all depths" />
           </Panel>
-          <Panel title={`Pooled over ${rangeText}`} subtitle="matchups in the pooled depth range">
+          <Panel title={`Pooled over ${rangeText}`} subtitle={`matchups in the pooled depth range${year ? `, ${year}` : ""}`}>
             <MetricsTable blocks={metrics.pooled} methods={methods} styleOf={styleOf} labelOf={labelOf} caption={`Metrics against Argo over ${rangeText}`} />
           </Panel>
         </div>
       </div>
 
-      <Panel className="gap-top" title="Against Argo, by depth" subtitle="same matchups for every method · the shaded band is the pooled range">
+      <Panel className="gap-top" title="Against Argo, by depth" subtitle={`same matchups for every method${year ? ` · ${year}` : ""} · the shaded band is the pooled range`}>
         <Legend items={legend} band={`pooled range ${rangeText}`} />
         <div className="multiples multiples--4">
           {ARGO_METRICS.filter((k) => metrics.per_depth[k]).map((k) => (
@@ -212,6 +222,8 @@ function ProfileBrowser() {
   const nPages = Math.max(1, Math.ceil(nMatch / ARGO_PAGE));
   const filtered = !!(basin || start || end);
   const methods = rmseMethods(rows[0]?.rmse ?? list[0]?.rmse);
+  // with many methods the table keeps its RMSE columns and drops the level count (it is on the opened profile)
+  const showLevels = methods.length <= 5;
 
   const valueAt = (lat: number, lon: number) => {
     if (!(lat >= geom.lat0 && lat <= geom.lat1 && lon >= geom.lon0 && lon <= geom.lon1)) return null;
@@ -326,9 +338,11 @@ function ProfileBrowser() {
                       <th scope="col">Profile</th>
                       <th scope="col">Date</th>
                       <th scope="col">Position</th>
-                      <th scope="col" className="num right" title="Matched depth levels">
-                        Levels
-                      </th>
+                      {showLevels && (
+                        <th scope="col" className="num right" title="Matched depth levels">
+                          Levels
+                        </th>
+                      )}
                       {methods.map((m) => (
                         <th key={m} scope="col" className="num right" title={`RMSE of ${labelOf(m)} over the profile, °C`}>
                           {labelOf(m)}
@@ -346,7 +360,7 @@ function ProfileBrowser() {
                         </th>
                         <td className="num">{fmtDate(p.time)}</td>
                         <td className="num">{fmtLatLon(p.lat, p.lon, 1)}</td>
-                        <td className="num right">{p.n_levels}</td>
+                        {showLevels && <td className="num right">{p.n_levels}</td>}
                         {methods.map((m) => (
                           <td key={m} className={`num right ${m === key ? "is-key" : ""}`}>
                             {fmt(p.rmse[m])}

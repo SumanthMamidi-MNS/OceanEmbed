@@ -10,6 +10,7 @@ import type { DayVolumes } from "@/api/volumes";
 import { MapCanvas, type RasterLayer, type RgbaLayer } from "@/components/map/MapCanvas";
 import { ViewLink } from "@/components/shell/Shell";
 import { decodeEmbedding } from "@/lib/embedding";
+import { inputNames, inputUse } from "@/lib/inputs";
 import { fmtDepth, fmtInt } from "@/lib/format";
 import { useRunContext } from "@/state/runContext";
 import { useLinkedView } from "@/state/useLinkedView";
@@ -32,9 +33,11 @@ export function MethodDiagram(props: { day: DayVolumes | null; /** day and level
   const surface = useSurface(run.name, date);
   const emb = useEmbedding(run.name, date, run.artefacts.embeddings);
   const m = detail.model;
-  const nInputs = detail.products.filter((p) => p.role === "input").length;
+  const use = inputUse(detail);
+  const nInputs = use.used.length;
 
-  const first = surface.data ? Object.values(surface.data.fields)[0] : null;
+  // the thumbnail is a field the model really reads
+  const first = surface.data ? (Object.values(surface.data.fields).find((f) => use.usedKeys.has(f.key)) ?? Object.values(surface.data.fields)[0]) : null;
   const inputRaster = useMemo<RasterLayer | null>(() => {
     if (!first || !surface.data) return null;
     return { data: first.data, nx: surface.data.nx, ny: surface.data.ny, vmin: first.range.vmin, vmax: first.range.vmax, cmap: first.range.diverging ? "balance" : "thermal" };
@@ -51,8 +54,10 @@ export function MethodDiagram(props: { day: DayVolumes | null; /** day and level
 
   const coast = mask?.coast ?? null;
   const grid = `${detail.grid.n_lat} × ${detail.grid.n_lon}`;
-  const maskPct = m.pretrain?.mask_ratio != null ? Math.round(m.pretrain.mask_ratio * 100) : null;
-  const extra = m.model?.in_channels != null ? m.model.in_channels - nInputs : null;
+  const pretrained = m.main_init !== "scratch";
+  const maskPct = pretrained && m.pretrain?.mask_ratio != null ? Math.round(m.pretrain.mask_ratio * 100) : null;
+  // the channel count of the configuration is only split into fields and context when every field is used
+  const extra = !use.partial && m.model?.in_channels != null ? m.model.in_channels - nInputs : null;
 
   return (
     <ol className="flow" aria-label="Method, step by step">
@@ -61,7 +66,10 @@ export function MethodDiagram(props: { day: DayVolumes | null; /** day and level
         <div className="flow__thumb">{inputRaster && <MapCanvas geom={geom} link={link} raster={inputRaster} coast={coast} axes="none" ariaLabel={first?.longName ?? "Surface field"} />}</div>
         <h3 className="flow__title">Surface state</h3>
         <p className="flow__text num">
-          {nInputs} satellite fields{extra != null && extra > 0 ? ` + ${extra} context channels (ocean mask, day of year, position)` : ""} · {grid} cells
+          {use.partial
+            ? `${inputNames(use.used)}: ${nInputs} of the ${use.all.length} surface fields; the other ${use.unused.length} are available but not used by this model`
+            : `${nInputs} satellite fields`}
+          {extra != null && extra > 0 ? ` + ${extra} context channels (ocean mask, day of year, position)` : ""} · {grid} cells
         </p>
       </li>
       <li className="flow__link">
@@ -76,10 +84,12 @@ export function MethodDiagram(props: { day: DayVolumes | null; /** day and level
           {m.model?.heads != null ? `, ${m.model.heads} attention heads` : ""}
           {m.model?.dim != null ? `, width ${m.model.dim}` : ""}.
         </p>
-        {maskPct != null && (
+        {maskPct != null ? (
           <p className="flow__aside">
             Pretrained without labels: {maskPct}&nbsp;% of the surface hidden, reconstructed from the rest.
           </p>
+        ) : (
+          m.main_init === "scratch" && <p className="flow__aside">Trained from scratch together with the decoder, without pretraining.</p>
         )}
       </li>
       <li className="flow__link">

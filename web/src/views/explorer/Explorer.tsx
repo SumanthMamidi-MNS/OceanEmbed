@@ -69,7 +69,9 @@ export default function Explorer() {
 
   const wantTarget = date ? targetDates.has(date) : false;
   const { day, loading, error } = useDayVolumes(run.name, date, wantTarget, neighbours, methods);
-  const ranges = useRunRanges(run.name, holdRange).data;
+  // the period ranges take seconds to compute on a long run: the maps keep their limits meanwhile
+  const rangesQ = useRunRanges(run.name, holdRange);
+  const ranges = rangesQ.data;
 
   // ---- stepping, animation, keyboard ----------------------------------------------------
   const stateRef = useRef({ dateIndex, depthIndex, n: dates.length, nz: depths.length });
@@ -229,6 +231,11 @@ export default function Explorer() {
             },
           ]}
         />
+        {holdRange && rangesQ.isPending && (
+          <span className="caption toolbar__status" role="status">
+            period limits loading…
+          </span>
+        )}
         <button type="button" className="toggle" aria-pressed={showBasins} onClick={() => setUrl({ opts: { basins: showBasins ? null : "1" } })}>
           Basin outlines
         </button>

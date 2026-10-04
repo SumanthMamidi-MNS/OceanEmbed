@@ -14,11 +14,13 @@ import { useDayVolumes } from "@/api/volumes";
 import { Legend, Swatch } from "@/components/charts/marks";
 import { MethodBars } from "@/components/charts/MethodBars";
 import { MetricProfile } from "@/components/charts/MetricProfile";
+import { YearSwitch, useYear } from "@/components/controls/YearSwitch";
 import { MapFigure, MaskKey } from "@/components/map/MapFigure";
 import { ViewLink, runLabel } from "@/components/shell/Shell";
 import { Empty, ErrorState, Icon, Loading, Note, Panel, QueryState } from "@/components/ui/primitives";
 import { defaultDateIndex, fmtDate, fmtSpan } from "@/lib/dates";
 import { fmt, fmtDepth, fmtInt, fmtLat, fmtLon, fmtSigned, prettyText } from "@/lib/format";
+import { inputNames, inputUse } from "@/lib/inputs";
 import {
   ablationFindings,
   argoSentence,
@@ -32,6 +34,10 @@ import {
 
   headline,
   methodList,
+  mlpSentence,
+  scopeToYear,
+  yearStability,
+  yearsOf,
   type Evidence,
 } from "@/lib/narrative";
 import { nearestDepthIndex } from "@/lib/scales";
@@ -89,9 +95,14 @@ export default function Overview() {
 
   const grid = detail.grid;
   const basinNames = detail.basins.map((b) => b.label);
-  const inputs = detail.products.filter((p) => p.role === "input");
+  const use = useMemo(() => inputUse(detail), [detail]);
   const m = detail.model;
-  const maskPct = m.pretrain?.mask_ratio != null ? Math.round(m.pretrain.mask_ratio * 100) : null;
+  // the masked-surface pretraining is part of the main model only when its encoder starts from it
+  const maskPct = m.main_init !== "scratch" && m.pretrain?.mask_ratio != null ? Math.round(m.pretrain.mask_ratio * 100) : null;
+  const years = yearsOf(metrics.data);
+  const year = useYear(years);
+  const scoped = useMemo(() => (metrics.data ? scopeToYear(metrics.data, year) : undefined), [metrics.data, year]);
+  const argoScoped = useMemo(() => (argo.data ? scopeToYear(argo.data, year) : undefined), [argo.data, year]);
   const nArgo = detail.counts.n_argo_profiles ?? null;
   const nOcean = mask?.nOcean[0] ?? null;
   const perDay = nArgo && run.n_test_days ? nArgo / run.n_test_days : null;
@@ -111,7 +122,8 @@ export default function Overview() {
         <p className="overline">{runLabel(run)}</p>
         <h1 className="h1">Subsurface temperature, reconstructed from the surface</h1>
         <p className="caption">
-          {inputs.length} daily satellite surface fields in, temperature at {grid.n_depth} depths (0–{fmtInt(depths[depths.length - 1])}&nbsp;m) out, on a{" "}
+          {use.used.length} daily satellite surface field{use.used.length === 1 ? "" : "s"} in
+          {use.partial ? ` (${inputNames(use.used)})` : ""}, temperature at {grid.n_depth} depths (0–{fmtInt(depths[depths.length - 1])}&nbsp;m) out, on a{" "}
           {grid.resolution}° grid{basinNames.length > 0 ? ` of the ${joinNames(basinNames)}` : ""} ({fmtLat(geom.lat0, 0)}–{fmtLat(geom.lat1, 0)},{" "}
           {fmtLon(geom.lon0, 0)}–{fmtLon(geom.lon1, 0)}). No subsurface measurement goes in. Trained on {fmtInt(run.n_train_days)} days (
           {fmtSpan(run.split?.train?.start, run.split?.train?.end)}), tested on {fmtInt(run.n_test_days)} days it never saw (
@@ -138,7 +150,7 @@ export default function Overview() {
       >
         {evaluated ? (
           <QueryState query={metrics} what="The evaluation against GLORYS" height={320}>
-            {(mm) => <SkillBlock metrics={mm} />}
+            {(mm) => <SkillBlock metrics={scoped ?? mm} whole={mm} year={year} />}
           </QueryState>
         ) : (
           <Empty title="This run has not been evaluated yet" height={140}>
@@ -155,10 +167,10 @@ export default function Overview() {
           caption="The same pooled score in each basin, and against Argo float profiles: in-situ measurements the model never saw as input."
         >
           <div className="twocol">
-            {metrics.data && <BasinPanel metrics={metrics.data} />}
+            {scoped && <BasinPanel metrics={scoped} year={year} />}
             {run.artefacts.metrics_argo ? (
               <QueryState query={argo} what="The Argo validation" height={260}>
-                {(a) => <ArgoPanel argo={a} />}
+                {(a) => <ArgoPanel argo={argoScoped ?? a} year={year} />}
               </QueryState>
             ) : (
               <Empty title="This run has not been validated against Argo yet" height={160}>
@@ -178,7 +190,7 @@ export default function Overview() {
             {nArgo && perDay && nOcean
               ? `Below the surface the ocean is measured only where an instrument goes down: ${fmtInt(nArgo)} Argo profiles in the test period, about ${fmt(perDay, perDay < 10 ? 1 : 0)} a day, against ${fmtInt(nOcean)} ocean cells. `
               : ""}
-            An encoder compresses the day's surface state into a satellite embedding
+            An encoder compresses the day's surface state{use.partial ? ` (${inputNames(use.used)})` : ""} into a satellite embedding
             {m.model?.emb_dim ? ` of ${m.model.emb_dim} features` : ""}
             {maskPct != null ? ` (first trained without subsurface data, by filling in ${maskPct}\u00A0% hidden surface)` : ""}; a decoder expands it into the
             temperature anomaly at each depth.
@@ -339,8 +351,13 @@ function EvidencePanel(props: { date: string; depthIndex: number; evidence: Evid
 
 // ---- headline numbers and the skill by depth ---------------------------------------------------------
 
-function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
-  const { depths, styleOf, labelOf, caveats } = useRunContext();
+function SkillBlock({ metrics, whole, year }: { metrics: MetricsResponse; /** the unscoped payload (every test year) */ whole: MetricsResponse; year: string | null }) {
+  const { depths, styleOf, labelOf, caveats, detail } = useRunContext();
+  const years = yearsOf(whole);
+  const stability = useMemo(() => yearStability(whole), [whole]);
+  const labels = useMemo(() => Object.fromEntries(detail.basins.map((b) => [b.key, b.label])), [detail.basins]);
+  const mlp = useMemo(() => mlpSentence(metrics, labels), [metrics, labels]);
+  const period = year ? `test days of ${year}` : "test period";
   const head = useMemo(() => headline(metrics), [metrics]);
   const corr = useMemo(() => correlationSentence(metrics), [metrics]);
   const skill = useMemo(() => depthSkill(metrics), [metrics]);
@@ -354,11 +371,17 @@ function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
 
   return (
     <div className="skill">
+      {years.length >= 2 && (
+        <div className="toolbar skill__scope">
+          <YearSwitch years={years} />
+          <span className="caption">applies to the tables, the depth curves, the basins and the Argo comparison below</span>
+        </div>
+      )}
       <div className="skill__grid">
-        <Panel title={`Pooled over ${head.range}`} subtitle="against GLORYS, test period · the depth range where the temperature varies most">
+        <Panel title={`Pooled over ${head.range}`} subtitle={`against GLORYS, ${period} · the depth range where the temperature varies most`}>
           <p className={`skill__headline ${head.beatsBaselines ? "" : "is-negative"}`}>{head.sentence}</p>
           <div className="tablewrap gap-top-sm">
-            <table className="table">
+            <table className="table table--snug">
               <caption className="visually-hidden">Pooled scores over {head.range} by method</caption>
               <thead>
                 <tr>
@@ -366,6 +389,12 @@ function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
                   <th scope="col" className="num right">
                     RMSE (°C)
                   </th>
+                  {!year &&
+                    years.map((y) => (
+                      <th key={y} scope="col" className="num right" title={`Pooled RMSE over the test days of ${y}`}>
+                        {y}
+                      </th>
+                    ))}
                   <th scope="col" className="num right" title="Pooled RMSE relative to the climatology's">
                     vs climatology
                   </th>
@@ -390,6 +419,12 @@ function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
                         </span>
                       </th>
                       <td className="num right">{mm.key === best ? <span className="best">{fmt(b?.rmse)}</span> : fmt(b?.rmse)}</td>
+                      {!year &&
+                        years.map((y) => (
+                          <td key={y} className="num right table__sub">
+                            {fmt(whole.per_year?.[y]?.pooled?.[mm.key]?.rmse)}
+                          </td>
+                        ))}
                       <td className="num right">{mm.key === "climatology" ? "the reference" : c ? (c.direction === "same" ? "about the same" : `${fmtSigned(-c.pct, 0)}\u00A0%`) : fmt(null)}</td>
                       <td className="num right">{fmt(b?.corr_anom)}</td>
                       <td className="num right">{fmt(b?.skill_vs_clim)}</td>
@@ -399,10 +434,11 @@ function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
               </tbody>
             </table>
           </div>
+          {!year && stability && <p className="caption gap-top-sm skill__depths">{stability}</p>}
           {skill.sentence && <p className="caption gap-top-sm skill__depths">{skill.sentence}</p>}
           {corr && <p className="caption gap-top-sm">{corr}</p>}
         </Panel>
-        <Panel title="RMSE by depth" subtitle="against GLORYS, test period · lower is better">
+        <Panel title="RMSE by depth" subtitle={`against GLORYS, ${period} · lower is better`}>
           <Legend items={legend} band={`pooled range ${head.range}`} />
           <MetricProfile perDepth={metrics.per_depth} depths={depths} metric="rmse" methods={keys} styleOf={styleOf} labelOf={labelOf} pooledRange={metrics.pooled_range_m} reference="GLORYS" height={360} />
         </Panel>
@@ -423,6 +459,11 @@ function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
       </div>
 
       <div className="skill__notes">
+        {mlp && (
+          <Note kind="honesty" title="What the spatial model adds">
+            {mlp}
+          </Note>
+        )}
         {ablations.map((a) => (
           <Note key={a.key} kind="honesty" title="Ablation: does pretraining help?">
             {a.sentence}
@@ -447,7 +488,7 @@ function SkillBlock({ metrics }: { metrics: MetricsResponse }) {
 
 // ---- basins and Argo ---------------------------------------------------------------------------------
 
-function BasinPanel({ metrics }: { metrics: MetricsResponse }) {
+function BasinPanel({ metrics, year }: { metrics: MetricsResponse; year: string | null }) {
   const { detail, styleOf } = useRunContext();
   const labels = useMemo(() => Object.fromEntries(detail.basins.map((b) => [b.key, b.label])), [detail.basins]);
   const basins = useMemo(() => basinContrast(metrics, labels), [metrics, labels]);
@@ -457,7 +498,7 @@ function BasinPanel({ metrics }: { metrics: MetricsResponse }) {
   if (basins.length === 0) return <Empty title="No basin breakdown in this run's metrics" height={160} />;
   const max = Math.max(...basins.flatMap((b) => methods.map((mm) => metrics.per_basin[b.key]?.pooled[mm.key]?.rmse ?? 0)));
   return (
-    <Panel title="Basin by basin" subtitle={`pooled RMSE over ${range} against GLORYS, with the skill against climatology · one axis for all basins`}>
+    <Panel title="Basin by basin" subtitle={`pooled RMSE over ${range} against GLORYS${year ? `, ${year}` : ""}, with the skill against climatology · one axis for all basins`}>
       {sentence && <p className="caption evidence__lead">{sentence}</p>}
       <div className="basins">
         {basins.map((b) => (
@@ -487,7 +528,7 @@ function BasinPanel({ metrics }: { metrics: MetricsResponse }) {
   );
 }
 
-function ArgoPanel({ argo }: { argo: MetricsResponse }) {
+function ArgoPanel({ argo, year }: { argo: MetricsResponse; year: string | null }) {
   const { styleOf } = useRunContext();
   const methods = useMemo(() => methodList(argo), [argo]);
   const pooled = methods.some((mm) => argo.pooled?.[mm.key]?.rmse != null);
@@ -495,7 +536,7 @@ function ArgoPanel({ argo }: { argo: MetricsResponse }) {
   const sentence = useMemo(() => argoSentence(argo), [argo]);
   const where = pooled ? `over ${rangeText(argo.pooled_range_m)}` : "over all depths";
   return (
-    <Panel title="Against Argo float profiles" subtitle={`RMSE ${where}, same matchups for every method · GLORYS itself is the floor`}>
+    <Panel title="Against Argo float profiles" subtitle={`RMSE ${where}${year ? `, ${year}` : ""}, same matchups for every method · GLORYS itself is the floor`}>
       {sentence && <p className="caption evidence__lead">{sentence}</p>}
       <MethodBars
         inline

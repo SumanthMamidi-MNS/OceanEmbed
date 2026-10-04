@@ -210,6 +210,19 @@ describe("grid geometry", () => {
   });
 });
 
+describe("the per-pixel MLP", () => {
+  it("has its own identity, between the ablations and ridge in the legend", () => {
+    const mlp = methodStyle("mlp");
+    expect(mlp.color).toBe("#D95FA8");
+    expect(mlp.marker).toBe("pentagon");
+    expect(new Set([methodStyle("model"), methodStyle("ridge"), methodStyle("glorys"), methodStyle("climatology"), mlp].map((x) => `${x.color}|${x.dash}|${x.marker}`)).size).toBe(5);
+    expect(sortMethods(["glorys", "ridge", "mlp", "climatology", "model_pretrained", "model"])).toEqual(["model", "model_pretrained", "mlp", "ridge", "climatology", "glorys"]);
+    // the label comes from the API; the pretrained ablation has a short name of its own
+    expect(shortLabel("mlp", "Per-pixel MLP")).toBe("Per-pixel MLP");
+    expect(shortLabel("model_pretrained")).toBe("Pretrained");
+  });
+});
+
 describe("methods", () => {
   it("keeps one identity per method, also under API aliases", () => {
     expect(canonicalMethod("clim")).toBe("climatology");

@@ -6,7 +6,7 @@
  */
 import { color } from "./theme";
 
-export type MarkerShape = "circle" | "square" | "diamond" | "triangle" | "triangle-down" | "cross" | "ring";
+export type MarkerShape = "circle" | "square" | "diamond" | "triangle" | "triangle-down" | "pentagon" | "cross" | "ring";
 
 export interface MethodStyle {
   color: string;
@@ -20,6 +20,8 @@ export interface MethodStyle {
 
 const MODEL: MethodStyle = { color: "#0B5FA5", dash: "", marker: "circle", width: 2.25, z: 10 };
 const RIDGE: MethodStyle = { color: "#C8431F", dash: "7 2.5 1.5 2.5", marker: "square", width: 1.75, z: 4 };
+/** The per-pixel MLP baseline: same inputs as the network, no spatial context. */
+const MLP: MethodStyle = { color: "#D95FA8", dash: "3 2", marker: "pentagon", width: 1.75, z: 5 };
 const GLORYS: MethodStyle = { color: "#0E8A6A", dash: "10 3", marker: "diamond", width: 1.75, z: 6 };
 const CLIM: MethodStyle = { color: "#6B7680", dash: "1.5 3", marker: "cross", width: 1.75, z: 2 };
 const OBS: MethodStyle = { color: color.ink, dash: "", marker: "ring", width: 1.5, z: 12 };
@@ -49,6 +51,7 @@ export function methodStyle(key: string, ablationKeys: readonly string[] = []): 
   const k = canonicalMethod(key);
   if (k === "model") return MODEL;
   if (k === "ridge") return RIDGE;
+  if (k === "mlp") return MLP;
   if (k === "glorys") return GLORYS;
   if (k === "climatology") return CLIM;
   if (k === "obs") return OBS;
@@ -68,16 +71,17 @@ export function ablationKeysOf(keys: readonly string[]): string[] {
   return keys.map(canonicalMethod).filter(isAblation).sort();
 }
 
-/** Legend order: OceanEmbed first, then ablations, ridge, climatology, GLORYS, observations. */
+/** Legend order: OceanEmbed first, then ablations, the MLP, ridge, climatology, GLORYS, observations. */
 export function methodOrder(key: string): number {
   const k = canonicalMethod(key);
   if (k === "model") return 0;
   if (k.startsWith("model_")) return 1;
-  if (k === "ridge") return 2;
-  if (k === "climatology") return 3;
-  if (k === "glorys") return 4;
-  if (k === "obs") return 5;
-  return 6;
+  if (k === "mlp") return 2;
+  if (k === "ridge") return 3;
+  if (k === "climatology") return 4;
+  if (k === "glorys") return 5;
+  if (k === "obs") return 6;
+  return 7;
 }
 
 export function sortMethods<T extends string>(keys: readonly T[]): T[] {
@@ -98,7 +102,7 @@ export function shortLabel(key: string, apiLabel?: string | null): string {
   if (SHORT[k]) return SHORT[k];
   if (k.startsWith("model_")) {
     const tag = k.slice("model_".length);
-    return tag === "scratch" ? "No pretraining" : `Ablation: ${tag}`;
+    return tag === "scratch" ? "No pretraining" : tag === "pretrained" ? "Pretrained" : `Ablation: ${tag}`;
   }
   return apiLabel ?? key;
 }
@@ -108,6 +112,8 @@ export function estimateRole(key: string): string {
   const k = canonicalMethod(key);
   if (k === "model") return "from surface fields only";
   if (k === "ridge") return "linear baseline on the same surface fields";
+  if (k === "mlp") return "per-pixel baseline: no spatial context";
+  if (k === "model_pretrained") return "same network, pretrained encoder";
   if (k === "model_scratch") return "same network, no pretraining";
   if (k.startsWith("model_")) return "ablation of the network";
   return "";

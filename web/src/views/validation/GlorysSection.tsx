@@ -7,13 +7,20 @@ import { MetricsTable } from "@/components/charts/MetricsTable";
 import { DataTable, Note, Panel, Segmented, Select, TableTwin, type Column } from "@/components/ui/primitives";
 import { fmt, fmtDepth, fmtLat, fmtLon, fmtSigned } from "@/lib/format";
 import { METRIC_ORDER, metricDomain, metricMeta } from "@/lib/metricMeta";
-import { methodList } from "@/lib/narrative";
+import { YearSwitch, useYear } from "@/components/controls/YearSwitch";
+import { methodList, scopeToYear, yearStability, yearsOf } from "@/lib/narrative";
 import { useUrlState } from "@/state/router";
 import { useRunContext } from "@/state/runContext";
 
-export function GlorysSection({ metrics }: { metrics: MetricsResponse }) {
+export function GlorysSection({ metrics: whole }: { metrics: MetricsResponse }) {
   const { detail, depths, depth, setDepthIndex, styleOf, labelOf } = useRunContext();
   const [url, setUrl] = useUrlState();
+  // one test year at a time, or the whole period
+  const years = yearsOf(whole);
+  const year = useYear(years);
+  const metrics = useMemo(() => scopeToYear(whole, year), [whole, year]);
+  const stability = useMemo(() => yearStability(whole), [whole]);
+  const period = year ? `test days of ${year}` : "test period";
   const basins = detail.basins.filter((b) => metrics.per_basin[b.key]);
   const basin = basins.some((b) => b.key === url.opts.basin) ? url.opts.basin : "all";
   const source = basin === "all" ? metrics : metrics.per_basin[basin];
@@ -65,13 +72,15 @@ export function GlorysSection({ metrics }: { metrics: MetricsResponse }) {
             options={[{ value: "all", label: "Whole domain" }, ...basins.map((b) => ({ value: b.key, label: b.label }))]}
           />
         )}
+        <YearSwitch years={years} />
+        {years.length >= 2 && !year && stability && <span className="caption">{stability}</span>}
       </div>
 
       <div className="twocol">
-        <Panel title={`Pooled over ${rangeText}`} subtitle={`${where} · test period · the depth range where the temperature varies most`}>
+        <Panel title={`Pooled over ${rangeText}`} subtitle={`${where} · ${period} · the depth range where the temperature varies most`}>
           <MetricsTable blocks={source.pooled} methods={methods} styleOf={styleOf} labelOf={labelOf} caption={`Pooled metrics over ${rangeText}, ${where}`} />
         </Panel>
-        <Panel title="All depths" subtitle={`${where} · test period · dominated by the many quiet deep levels`}>
+        <Panel title="All depths" subtitle={`${where} · ${period} · dominated by the many quiet deep levels`}>
           <MetricsTable blocks={source.overall} methods={methods} styleOf={styleOf} labelOf={labelOf} caption={`Metrics over all depths, ${where}`} />
         </Panel>
       </div>
@@ -86,7 +95,7 @@ export function GlorysSection({ metrics }: { metrics: MetricsResponse }) {
       <Panel
         className="gap-top"
         title="Every metric by depth"
-        subtitle={`${where} · the shaded band is the pooled range · click a depth to select it for the maps and the time series below`}
+        subtitle={`${where} · ${period} · the shaded band is the pooled range · click a depth to select it for the maps and the time series below`}
       >
         <Legend items={legend} band={`pooled range ${rangeText}`} />
         <div className="multiples">

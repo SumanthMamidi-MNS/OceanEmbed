@@ -14,6 +14,10 @@ import {
   describeDepths,
   headline,
   methodList,
+  mlpSentence,
+  scopeToYear,
+  yearStability,
+  yearsOf,
   runCaveats,
 } from "./narrative";
 
@@ -117,32 +121,101 @@ describe("headline", () => {
 });
 
 describe("ablation findings", () => {
-  it("reports that pretraining does not help when the scratch model is clearly better", () => {
-    const [f] = ablationFindings(metrics({ model: 2.4, model_scratch: 2.18, ridge: 2.64, climatology: 3.39 }));
+  const pre = (pooled: Record<string, number>, mainPretrained: boolean) => {
+    const m = metrics(pooled);
+    m.methods = m.methods.map((x) => (x.key === "model" ? { ...x, pretrained: mainPretrained } : x.key.startsWith("model_") ? { ...x, pretrained: !mainPretrained } : x));
+    return m;
+  };
+
+  it("reports that pretraining does not help when the scratch ablation is clearly better", () => {
+    const [f] = ablationFindings(pre({ model: 2.4, model_scratch: 2.18, ridge: 2.64, climatology: 3.39 }, true));
     expect(f.key).toBe("model_scratch");
-    expect(f.comparison.direction).toBe("higher");
     expect(f.sentence).toMatch(/^Pretraining does not help in this run/);
-    expect(f.sentence).toContain("2.40 vs 2.18");
+    expect(f.sentence).toContain("10\u00A0% higher with the pretrained encoder (2.40\u00A0°C with the pretrained encoder, 2.18\u00A0°C trained from scratch");
   });
 
-  it("does not turn a single-seed difference of a few percent into a finding, either way", () => {
-    // the real run: 1.077 vs 1.041, the ablation about 3 % better
-    const [worse] = ablationFindings(metrics({ model: 1.077, model_scratch: 1.041 }));
-    expect(worse.sentence).toMatch(/^No measurable gain from pretraining in this run/);
-    expect(worse.sentence).toContain("3\u00A0% higher than the same network trained from scratch (1.08 vs 1.04\u00A0°C)");
-    expect(worse.sentence).toContain("training seed");
-    const [better] = ablationFindings(metrics({ model: 1.04, model_scratch: 1.077 }));
-    expect(better.sentence).toMatch(/^No measurable gain from pretraining in this run/);
-    expect(better.sentence).toContain("3\u00A0% lower");
+  it("does not turn a single-seed difference of a few percent into a finding (pretrained main model)", () => {
+    // the proof-of-concept run: 1.077 pretrained vs 1.041 from scratch
+    const [f] = ablationFindings(pre({ model: 1.077, model_scratch: 1.041 }, true));
+    expect(f.sentence).toMatch(/^No measurable gain from pretraining in this run/);
+    expect(f.sentence).toContain("1.08\u00A0°C with the pretrained encoder, 1.04\u00A0°C trained from scratch (the main model is the one with pretraining)");
+    expect(f.sentence).toContain("training seed");
   });
 
-  it("reports a gain when there is a clear one, and a tie when there is none", () => {
-    expect(ablationFindings(metrics({ model: 2.0, model_scratch: 2.4 }))[0].sentence).toMatch(/^Pretraining helps in this run/);
-    expect(ablationFindings(metrics({ model: 2.0, model_scratch: 2.01 }))[0].sentence).toMatch(/^No measurable gain from pretraining/);
+  it("reads the pair the same way when the pretrained network is the ablation", () => {
+    // the final run: the main model is trained from scratch, the ablation is the pretrained variant
+    const [f] = ablationFindings(pre({ model: 0.983, model_pretrained: 0.979 }, false));
+    expect(f.key).toBe("model_pretrained");
+    expect(f.sentence).toBe(
+      "No measurable gain from pretraining in this run: pooled RMSE (50–200\u00A0m) is 0.98\u00A0°C with the pretrained encoder, 0.98\u00A0°C trained from scratch " +
+        "(the main model is the one trained from scratch). Each was trained once.",
+    );
+    // and a pretrained ablation that is clearly better is reported as a gain from pretraining
+    expect(ablationFindings(pre({ model: 2.4, model_pretrained: 2.0 }, false))[0].sentence).toMatch(/^Pretraining helps in this run/);
+    expect(ablationFindings(pre({ model: 2.0, model_pretrained: 2.4 }, false))[0].sentence).toMatch(/^Pretraining does not help in this run/);
+  });
+
+  it("speaks of a plain difference when the ablation is not about pretraining", () => {
+    const m = metrics({ model: 2.0, model_small: 2.5 });
+    expect(ablationFindings(m)[0].sentence).toMatch(/^The main model is ahead in this run/);
+    expect(ablationFindings(metrics({ model: 2.0, model_small: 2.04 }))[0].sentence).toMatch(/^No measurable difference in this run/);
   });
 
   it("is empty for a run without ablations", () => {
     expect(ablationFindings(metrics({ model: 2, ridge: 3, climatology: 4 }))).toEqual([]);
+  });
+});
+
+describe("test years", () => {
+  const year = (model: number, ridge: number, clim: number, mlp?: number) => ({
+    overall: {},
+    pooled: { model: { rmse: model }, ridge: { rmse: ridge }, climatology: { rmse: clim }, ...(mlp ? { mlp: { rmse: mlp } } : {}) },
+    per_depth: { rmse: { model: [model] } },
+    per_basin: {},
+  });
+  const two = metrics({ model: 0.983, ridge: 1.218, climatology: 1.459 }, { per_year: { "2024": year(0.991, 1.149, 1.394), "2023": year(0.974, 1.28, 1.519) } });
+
+  it("lists the years of a multi-year test period, and none for a single year", () => {
+    expect(yearsOf(two)).toEqual(["2023", "2024"]);
+    expect(yearsOf(metrics({ model: 1 }))).toEqual([]);
+    expect(yearsOf(metrics({ model: 1 }, { per_year: { "2024": year(1, 2, 3) } }))).toEqual([]);
+  });
+
+  it("quotes each year in the headline", () => {
+    expect(headline(two).sentence).toBe(
+      "Between 50–200\u00A0m, OceanEmbed's RMSE against GLORYS is 0.98\u00A0°C (0.97 in 2023, 0.99 in 2024): 33\u00A0% lower than climatology (1.46\u00A0°C) and 19\u00A0% lower than ridge regression (1.22\u00A0°C).",
+    );
+  });
+
+  it("restricts a payload to one year, so the same tables and sentences work per year", () => {
+    const y = scopeToYear(two, "2023");
+    expect(y.pooled.model.rmse).toBe(0.974);
+    expect(headline(y).sentence).toContain("is 0.97\u00A0°C: 36\u00A0% lower than climatology (1.52\u00A0°C)");
+    expect(scopeToYear(two, null)).toBe(two);
+    expect(scopeToYear(two, "1999")).toBe(two);
+  });
+
+  it("says whether both years beat both baselines, with the numbers", () => {
+    expect(yearStability(two)).toBe("It beats climatology and ridge regression in each test year (2023: 0.97 vs 1.52 and 1.28\u00A0°C; 2024: 0.99 vs 1.39 and 1.15\u00A0°C).");
+    const mixed = metrics({ model: 1 }, { per_year: { "2023": year(0.97, 1.28, 1.52), "2024": year(1.2, 1.15, 1.39) } });
+    expect(yearStability(mixed)).toMatch(/^It does not beat every baseline in every test year: not in 2024 \(ridge regression\)/);
+    expect(yearStability(metrics({ model: 1 }))).toBeNull();
+  });
+});
+
+describe("against the per-pixel MLP", () => {
+  const basin = (model: number, mlp: number) => ({ overall: {}, pooled: { model: { rmse: model }, mlp: { rmse: mlp } }, per_depth: {} });
+  const labels = { arabian_sea: "Arabian Sea", bay_of_bengal: "Bay of Bengal" };
+  it("is level overall, better in one basin and level in the other (the final run's shape)", () => {
+    const m = metrics({ model: 0.983, mlp: 1.013, climatology: 1.459 }, { per_basin: { arabian_sea: basin(1.002, 0.997), bay_of_bengal: basin(0.949, 1.041) } });
+    m.methods = m.methods.map((x) => (x.key === "mlp" ? { ...x, label: "Per-pixel MLP" } : x));
+    expect(mlpSentence(m, labels)).toBe(
+      "Against the per-pixel MLP, which sees the same inputs one cell at a time, OceanEmbed's pooled RMSE over 50–200\u00A0m is level (0.98 vs 1.01\u00A0°C); " +
+        "by basin: 9\u00A0% lower (0.95 vs 1.04\u00A0°C) in the Bay of Bengal and level (1.00 vs 1.00\u00A0°C) in the Arabian Sea. “Level” means within what a different training seed can produce.",
+    );
+  });
+  it("is absent for a run without the MLP baseline", () => {
+    expect(mlpSentence(metrics({ model: 1, ridge: 2 }), labels)).toBeNull();
   });
 });
 

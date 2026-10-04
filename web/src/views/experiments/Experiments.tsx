@@ -3,8 +3,8 @@
  * runs, the training curves, the data that went in and the product and report that came out.
  */
 import { useMemo } from "react";
-import { useCompare, useExperiments } from "@/api/queries";
-import type { CompareRun, DataProduct, ExperimentRow, ExperimentsResponse, RunSummary } from "@/api/types";
+import { useArgoMetrics, useCompare, useExperiments, useGlorysMetrics } from "@/api/queries";
+import type { CompareRun, DataProduct, ExperimentRow, ExperimentsResponse, MetricsResponse, RunSummary } from "@/api/types";
 import { Swatch } from "@/components/charts/marks";
 import { MethodBars } from "@/components/charts/MethodBars";
 import { DataTable, Empty, Note, Panel, QueryState, type Column } from "@/components/ui/primitives";
@@ -12,7 +12,8 @@ import { runLabel } from "@/components/shell/Shell";
 import { daysInclusive, fmtSpan } from "@/lib/dates";
 import { fmt, fmtDepth, fmtInt, fmtSigned, prettyText } from "@/lib/format";
 import { ablationKeysOf, isAblation, methodStyle, shortLabel, sortMethods } from "@/lib/methods";
-import { SEED_PCT, compare, describeComparison, runCaveats } from "@/lib/narrative";
+import { inputNames, inputUse } from "@/lib/inputs";
+import { ablationFindings, methodList, runCaveats, yearStability, yearsOf } from "@/lib/narrative";
 import { useUrlState } from "@/state/router";
 import { useRunContext } from "@/state/runContext";
 import { ProductSection, ReportSection } from "./ReportSection";
@@ -26,6 +27,9 @@ const CONFIG_LABELS: Record<string, string> = {
   depth: "Transformer layers",
   heads: "Attention heads",
   mlp_ratio: "MLP ratio",
+  arch: "Architecture",
+  input_groups: "Input groups used",
+  main_init: "Encoder initialisation",
   stem_channels: "Stem channels",
   n_depths: "Output depth levels",
   epochs: "Epochs (maximum)",
@@ -53,6 +57,8 @@ function gainText(pct: number | null | undefined): string {
 export default function Experiments() {
   const { run, detail } = useRunContext();
   const exp = useExperiments(run.name, run.artefacts.metrics_glorys);
+  const glorys = useGlorysMetrics(run.name, run.artefacts.metrics_glorys);
+  const argo = useArgoMetrics(run.name, run.artefacts.metrics_argo);
 
   return (
     <div className="experiments">
@@ -78,7 +84,7 @@ export default function Experiments() {
         </div>
         {run.artefacts.metrics_glorys ? (
           <QueryState query={exp} what="The experiments table" height={260}>
-            {(e) => <MethodsTable exp={e} />}
+            {(e) => <MethodsTable exp={e} glorys={glorys.data} argo={argo.data} />}
           </QueryState>
         ) : (
           <Empty title="This run has not been evaluated yet" height={140}>
@@ -141,13 +147,100 @@ export default function Experiments() {
 
 // ---- methods table ----------------------------------------------------------------------------
 
-function MethodsTable({ exp }: { exp: ExperimentsResponse }) {
+/** Pooled RMSE of every method in each test year, against GLORYS and against Argo, next to the whole period. */
+function YearTable({ glorys, argo }: { glorys: MetricsResponse; argo: MetricsResponse | undefined }) {
+  const { styleOf } = useRunContext();
+  const years = yearsOf(glorys);
+  const stability = yearStability(glorys);
+  if (years.length < 2) return null;
+  const argoYears = yearsOf(argo);
+  const methods = methodList(argo ?? glorys);
+  const range = glorys.pooled_range_m.length >= 2 ? `${fmt(glorys.pooled_range_m[0], 0)}–${fmt(glorys.pooled_range_m[1], 0)} m` : "pooled";
+  const cell = (v: number | null | undefined) => <td className="num right">{fmt(v)}</td>;
+  return (
+    <Panel
+      className="gap-top"
+      title="Year by year"
+      subtitle={`pooled RMSE over ${range} in °C, each test year and the whole test period · the same methods against GLORYS and against Argo`}
+    >
+      <div className="tablewrap" tabIndex={0} role="region" aria-label="Pooled RMSE by test year">
+        <table className="table">
+          <caption className="visually-hidden">Pooled RMSE by method and test year, against GLORYS and against Argo</caption>
+          <thead>
+            <tr>
+              <th scope="col" rowSpan={2}>
+                Method
+              </th>
+              <th scope="colgroup" colSpan={years.length + 1} className="right table__group">
+                against GLORYS
+              </th>
+              {argo && (
+                <th scope="colgroup" colSpan={argoYears.length + 1} className="right table__group">
+                  against Argo
+                </th>
+              )}
+            </tr>
+            <tr>
+              {years.map((y) => (
+                <th key={`g${y}`} scope="col" className="num right">
+                  {y}
+                </th>
+              ))}
+              <th scope="col" className="num right">
+                all
+              </th>
+              {argo &&
+                argoYears.map((y) => (
+                  <th key={`a${y}`} scope="col" className="num right">
+                    {y}
+                  </th>
+                ))}
+              {argo && (
+                <th scope="col" className="num right">
+                  all
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {methods.map((m) => (
+              <tr key={m.key} className={m.key === "model" ? "is-lead" : undefined}>
+                <th scope="row">
+                  <span className="methodcell">
+                    <Swatch style={styleOf(m.key)} width={26} />
+                    {m.key === "glorys" ? `${m.short} (the floor against Argo)` : m.short}
+                  </span>
+                </th>
+                {years.map((y) => (
+                  <td key={`g${y}`} className="num right">
+                    {fmt(glorys.per_year?.[y]?.pooled?.[m.key]?.rmse)}
+                  </td>
+                ))}
+                {cell(glorys.pooled[m.key]?.rmse)}
+                {argo &&
+                  argoYears.map((y) => (
+                    <td key={`a${y}`} className="num right">
+                      {fmt(argo.per_year?.[y]?.pooled?.[m.key]?.rmse)}
+                    </td>
+                  ))}
+                {argo && cell(argo.pooled?.[m.key]?.rmse)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {stability && <p className="caption gap-top-sm">Against GLORYS: {stability.replace(/^It /, "OceanEmbed ")}</p>}
+    </Panel>
+  );
+}
+
+function MethodsTable({ exp, glorys, argo }: { exp: ExperimentsResponse; glorys: MetricsResponse | undefined; argo: MetricsResponse | undefined }) {
   const { styleOf, labelOf, caveats } = useRunContext();
   const rows = useMemo(() => sortRows(exp.rows), [exp.rows]);
   const range = exp.pooled_range_m.length >= 2 ? `${fmt(exp.pooled_range_m[0], 0)}–${fmt(exp.pooled_range_m[1], 0)} m` : "pooled";
   const candidates = rows.filter((r) => r.glorys_pooled?.rmse != null);
   const bestPooled = candidates.length ? candidates.reduce((a, b) => ((a.glorys_pooled!.rmse as number) <= (b.glorys_pooled!.rmse as number) ? a : b)).method : null;
-  const model = rows.find((r) => r.method === "model");
+  const findings = glorys ? ablationFindings(glorys) : [];
 
   const columns: Column<ExperimentRow>[] = [
     {
@@ -159,7 +252,7 @@ function MethodsTable({ exp }: { exp: ExperimentsResponse }) {
           <span>
             {r.label}
             {r.kind === "reanalysis" && <span className="chip">reference</span>}
-            {isAblation(r.method) && <span className="chip">ablation</span>}
+            {(r.kind === "ablation" || isAblation(r.method)) && <span className="chip">ablation</span>}
           </span>
         </span>
       ),
@@ -188,7 +281,6 @@ function MethodsTable({ exp }: { exp: ExperimentsResponse }) {
     { key: "epoch", label: "Epoch", align: "right", title: "Epoch of the kept checkpoint", render: (r) => (r.epoch != null ? String(r.epoch) : fmt(null)) },
   ];
 
-  const ablations = rows.filter((r) => isAblation(r.method) && r.glorys_pooled?.rmse != null && model?.glorys_pooled?.rmse != null);
   const bars = candidates.map((r) => ({
     key: r.method,
     label: labelOf(r.method),
@@ -203,35 +295,17 @@ function MethodsTable({ exp }: { exp: ExperimentsResponse }) {
       <Panel title="Comparison table" subtitle={`RMSE in °C against GLORYS unless stated · pooled range ${range} · best pooled RMSE underlined · hover a column head for its definition`}>
         <DataTable columns={columns} rows={rows} rowKey={(r) => r.method} caption="Methods and ablations" rowClass={(r) => (r.method === "model" ? "is-lead" : undefined)} />
       </Panel>
+      {glorys && <YearTable glorys={glorys} argo={argo} />}
       <div className="twocol gap-top">
         <Panel title={`Pooled RMSE, ${range}`} subtitle="against GLORYS · lower is better">
           <MethodBars rows={bars} unit="°C" label={`Pooled RMSE over ${range} by method`} />
         </Panel>
         <div className="rightcol">
-        {ablations.map((a) => {
-          const c = compare(model!.glorys_pooled!.rmse, a.glorys_pooled!.rmse);
-          if (!c) return null;
-          const scratch = a.pretrained === false;
-          const verdict =
-            c.direction === "same" || Math.abs(c.pct) < SEED_PCT
-              ? scratch
-                ? "No measurable gain from pretraining in this run"
-                : "No measurable difference in this run"
-              : c.direction === "lower"
-                ? scratch
-                  ? "Pretraining helps in this run"
-                  : "The main model is ahead in this run"
-                : scratch
-                  ? "Pretraining does not help in this run"
-                  : "The main model is behind in this run";
-          return (
-            <Note key={a.method} kind="honesty" title={`Ablation: ${a.label}`}>
-              <strong>{verdict}.</strong> Pooled RMSE of the main model is {describeComparison(c, a.label)} ({fmt(model!.glorys_pooled!.rmse)} vs{" "}
-              {fmt(a.glorys_pooled!.rmse)} °C). Each was trained once; a difference under {SEED_PCT} % is within what a different training
-              seed can produce.
-            </Note>
-          );
-        })}
+        {findings.map((f) => (
+          <Note key={f.key} kind="honesty" title={`Ablation: ${f.label}`}>
+            {f.sentence}
+          </Note>
+        ))}
         {exp.notes
           .filter((n) => !(caveats.synthetic && /synthetic/i.test(n)))
           .map((n) => (
@@ -391,6 +465,8 @@ function CompareBody({ runs, summaries }: { runs: CompareRun[]; summaries: RunSu
 function DataSection() {
   const { detail } = useRunContext();
   const m = detail.model;
+  const use = inputUse(detail);
+  const scratch = m.main_init === "scratch";
   const columns: Column<DataProduct>[] = [
     {
       key: "var",
@@ -398,6 +474,9 @@ function DataSection() {
       render: (p) => (
         <span>
           {p.long_name} <span className="chip">{p.role}</span>
+          {p.role === "input" && use.partial && (
+            <span className={`chip ${p.used_by_model !== false ? "chip--lead" : ""}`}>{p.used_by_model !== false ? "used by the model" : "available, not used"}</span>
+          )}
         </span>
       ),
     },
@@ -418,19 +497,26 @@ function DataSection() {
     Object.entries(obj ?? {}).map(([k, v]) => (
       <div key={k}>
         <dt>{CONFIG_LABELS[k] ?? k.replace(/_/g, " ")}</dt>
-        <dd className="num">{typeof v === "number" ? (Number.isInteger(v) ? String(v) : String(Number(v.toPrecision(4)))) : String(v)}</dd>
+        <dd className="num">{typeof v === "number" ? (Number.isInteger(v) ? String(v) : String(Number(v.toPrecision(4)))) : Array.isArray(v) ? v.join(", ") : String(v)}</dd>
       </div>
     ));
   return (
     <>
-      <Panel title="Data products" subtitle="inputs, training target and validation data of this run">
+      <Panel
+        title="Data products"
+        subtitle={
+          use.partial
+            ? `the model uses ${use.used.length} of the ${use.all.length} surface products (${inputNames(use.used)}); the others are harmonised and shown, but not fed to it`
+            : `the ${use.all.length} surface inputs, the training target and the validation data of this run`
+        }
+      >
         <DataTable columns={columns} rows={detail.products} rowKey={(p) => p.variable} caption="Data products" />
       </Panel>
       <div className="trio gap-top">
-        <Panel title="Encoder" subtitle="CNN stem + Transformer, shared by pretraining and reconstruction">
+        <Panel title="Encoder" subtitle={`CNN stem + Transformer${scratch ? ", trained from scratch in the main model" : ", shared by pretraining and reconstruction"}`}>
           <dl className="kv">{kv(m.model as Record<string, unknown>)}</dl>
         </Panel>
-        <Panel title="Pretraining" subtitle="masked reconstruction of the surface fields">
+        <Panel title="Pretraining" subtitle={`masked reconstruction of the surface fields${scratch ? " · used by the pretrained ablation only, not by the main model" : ""}`}>
           <dl className="kv">{kv(m.pretrain as Record<string, unknown>)}</dl>
         </Panel>
         <Panel title="Reconstruction training" subtitle="supervised, anomaly from climatology at every depth">

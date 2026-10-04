@@ -110,12 +110,26 @@ export interface MetricsMetadata {
   [key: string]: unknown;
 }
 
-export type MetricsResponse = Omit<S["MetricsResponse"], "per_basin" | "daily_rmse" | "daily" | "metadata" | "per_depth"> & {
+/** One calendar year of a test period that spans several: shaped like the whole-period fields. */
+export interface YearMetrics extends BasinMetrics {
+  start?: string;
+  end?: string;
+  /** against GLORYS */
+  n_days?: number;
+  /** against Argo */
+  n_profiles?: number;
+  n_matchups?: number;
+  per_basin?: Record<string, BasinMetrics>;
+}
+
+export type MetricsResponse = Omit<S["MetricsResponse"], "per_basin" | "daily_rmse" | "daily" | "metadata" | "per_depth" | "per_year"> & {
   metadata: MetricsMetadata;
   per_depth: PerDepth;
   per_basin: Record<string, BasinMetrics>;
   daily_rmse?: DailyRmse | null;
   daily?: DailyMetrics | null;
+  /** null unless the evaluated period spans several calendar years */
+  per_year?: Record<string, YearMetrics> | null;
 };
 
 export interface ModelConfig {
@@ -127,6 +141,7 @@ export interface ModelConfig {
     heads?: number;
     stem_channels?: number;
     n_depths?: number;
+    arch?: string;
   };
   pretrain?: { epochs?: number; batch_size?: number; lr?: number; mask_ratio?: number; block?: number };
   train?: {
@@ -137,7 +152,12 @@ export interface ModelConfig {
     patience?: number;
     vertical_grad_weight?: number;
   };
+  /** surface variables the model uses (a subset of the input products) */
   inputs?: string[];
+  input_groups?: string[];
+  dropped_input_groups?: string[];
+  /** how the main model's encoder starts: "pretrained" or "scratch" */
+  main_init?: string;
   output?: string;
 }
 

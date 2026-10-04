@@ -19,6 +19,7 @@ import { rgbCss } from "@/lib/colormaps";
 import { fmtDate, nearestDateIndex } from "@/lib/dates";
 import { componentFieldCorrelation, cumulative, decodeEmbedding, decodeSimilarity, type EmbeddingMap } from "@/lib/embedding";
 import { fmt, fmtInt, fmtLatLon, fmtPct, fmtSigned } from "@/lib/format";
+import { inputNames, inputUse, panelUsed } from "@/lib/inputs";
 import { cellAt, cellCentre } from "@/lib/geo";
 import { methodStyle } from "@/lib/methods";
 import type { GeoWindow, LinkedView } from "@/state/linkedView";
@@ -50,6 +51,7 @@ export default function Representation() {
   const surface = useSurface(run.name, embDate);
   const map = useMemo(() => (emb.data ? decodeEmbedding(emb.data) : null), [emb.data]);
   const m = detail.model;
+  const use = useMemo(() => inputUse(detail), [detail]);
 
   return (
     <div className="repr">
@@ -63,7 +65,7 @@ export default function Representation() {
           {hasEmb && <ZoomControls link={link} />}
         </div>
         <p className="caption">
-          The encoder compresses each day's surface state into {m.model?.emb_dim ? `${fmtInt(m.model.emb_dim)} learned numbers` : "a set of learned numbers"}
+          The encoder compresses each day's {use.partial ? inputNames(use.used) : "surface state"} into {m.model?.emb_dim ? `${fmtInt(m.model.emb_dim)} learned numbers` : "a set of learned numbers"}
           {map ? ` in each cell of a ${map.ny} × ${map.nx} map` : ""}. Nobody chose what they mean; these figures show what they turned out to hold
           {embDate && embDate !== date ? ` (${fmtDate(embDate)}, the nearest day with an embedding)` : ""}.
         </p>
@@ -89,6 +91,7 @@ function Body(props: { map: EmbeddingMap; link: LinkedView; surface: SurfaceData
   const { map, link, surface, date, pending } = props;
   const { run, geom, mask, detail, point, setPoint } = useRunContext();
   const [url, setUrl] = useUrlState();
+  const use = useMemo(() => inputUse(detail), [detail]);
   const explained = map.explained;
   const cum = useMemo(() => cumulative(explained), [explained]);
   const shown = cum[Math.min(2, cum.length - 1)] ?? 0;
@@ -125,8 +128,8 @@ function Body(props: { map: EmbeddingMap; link: LinkedView; surface: SurfaceData
     if (!surface) return null;
     const keys = Object.keys(surface.fields);
     const fields = keys.map((k) => ({ data: surface.fields[k].data, nx: surface.nx, ny: surface.ny }));
-    return { keys, names: keys.map((k) => surface.fields[k].longName), r: componentFieldCorrelation(map, fields) };
-  }, [surface, map]);
+    return { keys, names: keys.map((k) => surface.fields[k].longName), used: keys.map((k) => use.usedKeys.has(k)), r: componentFieldCorrelation(map, fields) };
+  }, [surface, map, use]);
 
   const valueAtEmb = (lat: number, lon: number) => {
     const c = cellAt(map.geom, lat, lon);
@@ -259,6 +262,9 @@ function Body(props: { map: EmbeddingMap; link: LinkedView; surface: SurfaceData
           {corr ? <CorrelationTable corr={corr} /> : <Empty title="Surface fields are loading or missing" height={160} />}
           <p className="caption gap-top-sm">
             ±1: the component is, on this day, a copy of that field. Several moderate values in a row: a learned mixture of fields.
+            {use.partial
+              ? ` The encoder only saw ${inputNames(use.used)}. A correlation with a field marked “unused” was not built in: it shows how far the ocean ties that field to the ones the encoder did see.`
+              : ""}
           </p>
         </Panel>
       </div>
@@ -293,8 +299,8 @@ function Body(props: { map: EmbeddingMap; link: LinkedView; surface: SurfaceData
 
       <Panel
         className="gap-top"
-        title="The surface fields it encodes"
-        subtitle={`the inputs of ${fmtDate(date)} on the ${detail.grid.resolution}° grid · the box is the footprint of the selected embedding cell`}
+        title={use.partial ? "The surface fields, used and not used" : "The surface fields it encodes"}
+        subtitle={`${use.partial ? `the encoder reads ${inputNames(use.used)}; the other fields are shown for comparison` : "the inputs"} · ${fmtDate(date)} on the ${detail.grid.resolution}° grid · the box is the footprint of the selected embedding cell`}
       >
         {panels.length > 0 ? (
           <div className="mapgrid mapgrid--surface">
@@ -305,7 +311,7 @@ function Body(props: { map: EmbeddingMap; link: LinkedView; surface: SurfaceData
                 link={link}
                 size="sm"
                 title={p.title}
-                subtitle={p.subtitle.split(" · ")[0]}
+                subtitle={use.partial ? (panelUsed(p.key, use) ? "model input" : "not an input") : p.subtitle.split(" · ")[0]}
                 raster={p.raster}
                 vectors={p.vectors ?? null}
                 coastHalo={p.coversLand}
@@ -325,7 +331,8 @@ function Body(props: { map: EmbeddingMap; link: LinkedView; surface: SurfaceData
   );
 }
 
-function CorrelationTable({ corr }: { corr: { keys: string[]; names: string[]; r: number[][] } }) {
+function CorrelationTable({ corr }: { corr: { keys: string[]; names: string[]; used: boolean[]; r: number[][] } }) {
+  const partial = corr.used.some((u) => !u);
   return (
     <div className="tablewrap">
       <table className="table corrtable">
@@ -334,8 +341,9 @@ function CorrelationTable({ corr }: { corr: { keys: string[]; names: string[]; r
           <tr>
             <th scope="col">Component</th>
             {corr.names.map((n, i) => (
-              <th key={corr.keys[i]} scope="col" className="right" title={n}>
+              <th key={corr.keys[i]} scope="col" className={`right ${partial && !corr.used[i] ? "corrtable__unused" : ""}`} title={partial ? `${n}: ${corr.used[i] ? "model input" : "not an input of this model"}` : n}>
                 {corr.keys[i].toUpperCase()}
+                {partial && <span className="corrtable__flag">{corr.used[i] ? "input" : "unused"}</span>}
               </th>
             ))}
           </tr>
@@ -392,14 +400,18 @@ function Pretraining() {
   if (!hasLog) return null;
   const names = new Map(detail.products.map((p) => [p.variable, p.long_name]));
   const mask = detail.model.pretrain?.mask_ratio;
+  const scratch = detail.model.main_init === "scratch";
   const block = detail.model.pretrain?.block;
   return (
     <section className="section" aria-labelledby="h-pretrain">
       <div className="section__head">
         <h2 id="h-pretrain" className="h2">
-          How the embedding was learned
+          {scratch ? "The pretraining task (ablation only)" : "How the embedding was learned"}
         </h2>
         <p className="caption">
+          {scratch
+            ? "The main model's encoder, whose embedding is shown above, was trained from scratch together with the decoder. This masked-surface task was run only for the pretrained ablation. "
+            : ""}
           Pretraining uses the surface fields alone
           {mask != null && block != null ? `: ${Math.round(mask * 100)} % of the map is hidden in ${block} × ${block} cell blocks and must be filled in from the rest` : ""}
           . The bars show how much of each hidden field's variance is recovered on validation days, against filling the hole with the mean.

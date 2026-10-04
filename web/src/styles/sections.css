@@ -97,7 +97,7 @@
 }
 .argo {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: var(--s5);
   align-items: start;
 }
@@ -126,7 +126,7 @@
 }
 .table--pick th,
 .table--pick td {
-  padding: 4px 7px;
+  padding: 4px 6px;
 }
 .table--pick tbody tr {
   cursor: pointer;
@@ -567,4 +567,39 @@
 .mapgrid .mapfig__stats {
   white-space: normal;
   min-width: 0;
+}
+
+/* inputs the model does not use: flagged in the correlation table */
+.corrtable__flag {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.corrtable__unused,
+.corrtable__unused .corrtable__flag {
+  color: var(--ink3);
+}
+.table__group {
+  border-bottom: 1px solid var(--rule) !important;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro) !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.table__sub {
+  color: var(--ink2);
+}
+.toolbar__status {
+  color: var(--ink3);
+}
+.skill__scope {
+  margin-bottom: calc(-1 * var(--s2));
+}
+.mapfig__title .chip {
+  font-weight: 500;
 }

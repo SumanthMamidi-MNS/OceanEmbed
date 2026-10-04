@@ -961,6 +961,10 @@
 .table--dense td {
   padding: 4px 10px;
 }
+.table--snug th,
+.table--snug td {
+  padding: 7px 8px;
+}
 .table tbody tr:hover {
   background: color-mix(in srgb, var(--sunken) 60%, transparent);
 }

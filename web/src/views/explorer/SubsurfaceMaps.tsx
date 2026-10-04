@@ -210,7 +210,8 @@ export function CompareMaps(props: SubsurfaceProps & { methods: readonly string[
     const cur = acc ? fields.find((x) => x.method === acc)?.f.diffStats?.rms : undefined;
     return cur == null || f.diffStats.rms < cur ? method : acc;
   }, null);
-  const cols = { ["--n" as string]: methods.length + 1 };
+  // at most four maps in a row: five or more wrap into rows of three, so each stays readable
+  const cols = { ["--n" as string]: methods.length + 1 > 4 ? 3 : methods.length + 1 };
 
   return (
     <div className="cmp">

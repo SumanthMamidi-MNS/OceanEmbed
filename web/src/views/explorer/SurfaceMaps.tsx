@@ -13,6 +13,7 @@ import { MapFigure } from "@/components/map/MapFigure";
 import { QueryState } from "@/components/ui/primitives";
 import type { ColormapName } from "@/lib/colormaps";
 import { fmtDepth, prettyUnits } from "@/lib/format";
+import { inputUse, panelUsed } from "@/lib/inputs";
 import { magnitude, quantile } from "@/lib/stats";
 import type { LinkedView } from "@/state/linkedView";
 import { useRunContext } from "@/state/runContext";
@@ -105,6 +106,7 @@ export function SurfaceMaps(props: { day: DayVolumes; link: LinkedView; componen
     () => (surface.data ? surfacePanels(surface.data, components, productOf) : []),
     [surface.data, components, productOf],
   );
+  const use = useMemo(() => inputUse(detail), [detail]);
 
   // the reconstruction at the selected depth closes the grid: inputs on the surface, output below
   const reconRaster = useMemo<RasterLayer>(() => {
@@ -131,7 +133,12 @@ export function SurfaceMaps(props: { day: DayVolumes; link: LinkedView; componen
             <MapFigure
               key={p.key}
               {...common}
-              title={p.title}
+              title={
+                <>
+                  {p.title}
+                  {use.partial && <span className={`chip ${panelUsed(p.key, use) ? "chip--lead" : ""}`}>{panelUsed(p.key, use) ? "model input" : "not used by the model"}</span>}
+                </>
+              }
               subtitle={p.subtitle}
               raster={p.raster}
               vectors={p.vectors ?? null}

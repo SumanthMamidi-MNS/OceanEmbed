@@ -275,7 +275,7 @@
 }
 .skill__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--s4);
   align-items: stretch;
 }

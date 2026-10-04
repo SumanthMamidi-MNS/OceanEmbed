@@ -11,6 +11,13 @@ export function markerPath(shape: MarkerShape, r: number): string {
       return `M0,${-r * 1.15}L${r * 1.1},${r * 0.85}L${-r * 1.1},${r * 0.85}z`;
     case "triangle-down":
       return `M0,${r * 1.15}L${r * 1.1},${-r * 0.85}L${-r * 1.1},${-r * 0.85}z`;
+    case "pentagon": {
+      const pts = [0, 1, 2, 3, 4].map((i) => {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+        return `${(Math.cos(a) * r * 1.18).toFixed(2)},${(Math.sin(a) * r * 1.18).toFixed(2)}`;
+      });
+      return `M${pts.join("L")}z`;
+    }
     case "cross":
       return `M${-r},${-r}L${r},${r}M${-r},${r}L${r},${-r}`;
     case "circle":

@@ -75,7 +75,7 @@ function MethodMap({ metric, method, link }: { metric: string; method: string; l
 }
 
 export function MapsSection() {
-  const { run, geom, depths, depthIndex } = useRunContext();
+  const { run, geom, depths, depthIndex, scoped, scope } = useRunContext();
   const [url, setUrl] = useUrlState();
   const link = useLinkedView(geom);
   const index = useMapsIndex(run.name, run.artefacts.maps);
@@ -87,14 +87,14 @@ export function MapsSection() {
         const metric = available.includes(url.opts.metric) ? url.opts.metric : available[0];
         if (!metric) return <ErrorState error={new Error("maps_glorys.nc has no metric variables")} what="The error maps" />;
         // the climatology's skill against itself is zero everywhere: a blank map says nothing
-        const stored = sortMethods(idx.metrics[metric]);
+        const stored = scoped(sortMethods(idx.metrics[metric]));
         const methods = metric === "skill_vs_clim" ? stored.filter((m) => m !== "climatology") : stored;
         const meta = metricMeta(metric);
-        const nAll = idx.metrics.rmse?.length ?? 0;
+        const nAll = scoped(idx.metrics.rmse ?? []).length;
         return (
           <Panel
             title={`${meta.label} at ${fmtDepth(depths[depthIndex])}, at every grid point`}
-            subtitle={`over the whole test period at each cell · ${meta.explain} One colour scale for all methods.`}
+            subtitle={`over the whole test period at each cell · ${meta.explain} One colour scale for ${scope === "research" ? "all methods" : "every map"}.`}
             actions={
               <>
                 <Select
@@ -121,7 +121,7 @@ export function MapsSection() {
                   ? "Climatology is the reference of this score: its own skill is zero everywhere, so it has no map. Skill is at most 1 and unbounded below; the scale is symmetric about zero and clips the most negative cells, as noted under each map."
                   : metric === "corr_anom"
                     ? "Climatology has no anomaly correlation: its anomaly is zero by definition."
-                    : `${meta.label} maps are stored for ${methods.length === 1 ? "the main model only" : "these methods only"}; the per-depth profiles above cover every method.`}
+                    : `${meta.label} maps are stored for ${methods.length === 1 ? "the main model only" : "these methods only"}; the per-depth profiles above cover ${scope === "research" ? "every method" : "the climatology too"}.`}
               </p>
             )}
           </Panel>

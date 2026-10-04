@@ -1,22 +1,51 @@
 /**
- * Validation: how the reconstruction scores against the GLORYS target and against Argo profiles,
- * always next to ridge regression and climatology, by depth, by basin, in space and in time.
+ * Accuracy: how far to trust a value. The reconstruction scored on days it never saw, against the
+ * GLORYS reanalysis and against Argo float profiles, by depth, by basin, per test year, in space
+ * and in time, next to the seasonal climatology: the estimate a user has without this product.
+ *
+ * The same sections serve the Research area (route /research/scores), where every method of the
+ * run is shown; which methods appear comes from the run context (`scope`, `scoped`).
  */
+import { useMemo } from "react";
 import { useGlorysMetrics } from "@/api/queries";
+import type { MetricsResponse } from "@/api/types";
 import { SelectionBar } from "@/components/controls/SelectionBar";
 import { runLabel } from "@/components/shell/Shell";
 import { Empty, Note, QueryState } from "@/components/ui/primitives";
 import { fmtSpan } from "@/lib/dates";
 import { fmtInt, prettyText } from "@/lib/format";
-import { climatologyText } from "@/lib/narrative";
+import { accuracyHeadline, climatologyName, climatologyText, trustLimits } from "@/lib/narrative";
 import { useRunContext } from "@/state/runContext";
 import { ArgoSection } from "./ArgoSection";
 import { DailySection } from "./DailySection";
 import { GlorysSection } from "./GlorysSection";
 import { MapsSection } from "./MapsSection";
 
-export default function Validation() {
-  const { run, detail, caveats } = useRunContext();
+export default function Accuracy() {
+  return <AccuracyBody />;
+}
+
+/** The answer before the tables: how large the error is, and where not to rely on it. */
+function Verdict({ metrics }: { metrics: MetricsResponse }) {
+  const { run } = useRunContext();
+  const clim = climatologyName(run.n_harmonic_terms);
+  const head = useMemo(() => accuracyHeadline(metrics, clim), [metrics, clim]);
+  const trust = useMemo(() => trustLimits(metrics, clim), [metrics, clim]);
+  return (
+    <div className="verdict gap-bottom">
+      <p className={`verdict__lead ${head.beatsClimatology ? "" : "is-negative"}`}>{head.sentence}</p>
+      {(trust.use || trust.limit) && (
+        <p className="verdict__limit">
+          {trust.use} {trust.limit && <strong>{trust.limit}</strong>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function AccuracyBody() {
+  const { run, detail, caveats, scope } = useRunContext();
+  const research = scope === "research";
   const metrics = useGlorysMetrics(run.name, run.artefacts.metrics_glorys);
   const md = detail.metrics_metadata;
   const test = run.split?.test;
@@ -24,18 +53,21 @@ export default function Validation() {
 
   return (
     <div className="validation">
-      <SelectionBar />
+      <SelectionBar estimate={research} />
       <header className="viewhead">
-        <p className="overline">Validation · {runLabel(run)}</p>
-        <h1 className="h1">Scored on days the model never saw</h1>
+        <p className="overline">
+          {research ? "Every score, every method" : "Accuracy"} · {runLabel(run)}
+        </p>
+        <h1 className="h1">{research ? "Every method on the same test days" : "How far to trust it"}</h1>
         <p className="caption">
-          Test period {fmtSpan(test?.start, test?.end)}
-          {run.n_test_days != null ? ` (${fmtInt(run.n_test_days)} days)` : ""}, always next to ridge regression and climatology. Reference:{" "}
-          {prettyText(md?.reference ?? "GLORYS reanalysis on the model grid")}. Climatology: {climatologyText(run.n_harmonic_terms)}, fitted on the{" "}
-          {fmtInt(run.n_train_days)} training days{clim?.train_start ? ` (${fmtSpan(clim.train_start, clim.train_end)})` : ""}.
+          Scored on {run.n_test_days != null ? `${fmtInt(run.n_test_days)} days` : "days"} the model never saw ({fmtSpan(test?.start, test?.end)}), against{" "}
+          {prettyText(md?.reference ?? "the GLORYS reanalysis on the model grid")} and against Argo floats,{" "}
+          {research ? "next to ridge regression, the other baselines and the ablation" : `next to ${climatologyName(run.n_harmonic_terms)}: what you would use without this product`}. Climatology:{" "}
+          {climatologyText(run.n_harmonic_terms)} of each cell, fitted on the {fmtInt(run.n_train_days)} training days
+          {clim?.train_start ? ` (${fmtSpan(clim.train_start, clim.train_end)})` : ""}.
         </p>
         <nav className="subnav" aria-label="Sections of this view">
-          <a href="#glorys">Against GLORYS</a>
+          <a href="#glorys">By depth and basin</a>
           <a href="#where">Where: error maps</a>
           <a href="#when">When: daily error</a>
           <a href="#argo">Against Argo floats</a>
@@ -50,10 +82,12 @@ export default function Validation() {
         </Note>
       )}
 
+      {!research && metrics.data && <Verdict metrics={metrics.data} />}
+
       <section id="glorys" className="section" aria-labelledby="h-glorys">
         <div className="section__head">
           <h2 id="h-glorys" className="h2">
-            Against the GLORYS target
+            Against the GLORYS reanalysis
           </h2>
           <p className="caption">The reanalysis the model was trained to reproduce: every cell, every depth, every test day.</p>
         </div>
@@ -73,7 +107,7 @@ export default function Validation() {
           <h2 id="h-where" className="h2">
             Where the error is
           </h2>
-          <p className="caption">The same metrics at every grid point, over the test period. The maps are linked.</p>
+          <p className="caption">The same scores at every grid point, over the test period. The maps are linked; click one to move the water column.</p>
         </div>
         {run.artefacts.maps ? (
           <MapsSection />

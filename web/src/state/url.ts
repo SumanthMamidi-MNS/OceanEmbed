@@ -5,15 +5,47 @@
  */
 import { isIsoDate } from "@/lib/dates";
 
+/**
+ * The Live view (same-day reconstruction) has its position and route reserved; it is listed and
+ * routed only when this is on, so there is never a dead link.
+ */
+export const LIVE_ENABLED = false;
+
+/**
+ * Every route. `group` says where a view is linked from: the primary navigation (what a user of
+ * the product needs) or the Research area (how the model was chosen), which is reached from the
+ * footer and from Data & downloads, never from the primary navigation.
+ */
 export const VIEWS = [
-  { key: "overview", path: "/", label: "Overview" },
-  { key: "explore", path: "/explore", label: "Explorer" },
-  { key: "validation", path: "/validation", label: "Validation" },
-  { key: "representation", path: "/representation", label: "Representation" },
-  { key: "experiments", path: "/experiments", label: "Experiments" },
+  { key: "overview", path: "/", label: "Overview", group: "primary" },
+  { key: "explore", path: "/explore", label: "Explorer", group: "primary" },
+  { key: "live", path: "/live", label: "Live", group: "primary" },
+  { key: "accuracy", path: "/accuracy", label: "Accuracy", group: "primary" },
+  { key: "data", path: "/data", label: "Data & downloads", group: "primary" },
+  { key: "research", path: "/research", label: "Methods", group: "research" },
+  { key: "research_scores", path: "/research/scores", label: "Every score", group: "research" },
+  { key: "research_maps", path: "/research/maps", label: "On the map", group: "research" },
+  { key: "research_embedding", path: "/research/embedding", label: "Embedding", group: "research" },
 ] as const;
 
 export type ViewKey = (typeof VIEWS)[number]["key"];
+
+/** Views of the primary navigation, in order (the Live slot only when it is enabled). */
+export const PRIMARY_VIEWS = VIEWS.filter((v) => v.group === "primary" && (v.key !== "live" || LIVE_ENABLED));
+
+/** Sub-pages of the Research area, in order. */
+export const RESEARCH_VIEWS = VIEWS.filter((v) => v.group === "research");
+
+export function isResearchView(view: ViewKey): boolean {
+  return view.startsWith("research");
+}
+
+/** Paths of the earlier five-view layout: old links and bookmarks keep working. */
+const LEGACY_PATHS: Readonly<Record<string, ViewKey>> = {
+  "/validation": "accuracy",
+  "/experiments": "research",
+  "/representation": "research_embedding",
+};
 
 export interface UrlState {
   view: ViewKey;
@@ -24,7 +56,10 @@ export interface UrlState {
   depth: number | null;
   lat: number | null;
   lon: number | null;
-  /** the estimate shown where one method is shown: `model`, `ridge` or an ablation key (null = the main model) */
+  /**
+   * the estimate shown where one method is shown: `model`, `ridge` or an ablation key (null = the
+   * main model). Only the Research views compare methods, so it exists only there.
+   */
   est: string | null;
   /** per-view options (tab, metric, basin, ...), plain strings */
   opts: Readonly<Record<string, string>>;
@@ -40,7 +75,8 @@ const OPT_KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 function viewFromPath(pathname: string): ViewKey {
   const clean = pathname.replace(/\/+$/, "") || "/";
   const hit = VIEWS.find((v) => v.path === clean);
-  return hit ? hit.key : "overview";
+  if (hit) return hit.key === "live" && !LIVE_ENABLED ? "overview" : hit.key;
+  return LEGACY_PATHS[clean] ?? "overview";
 }
 
 function num(value: string | null, lo: number, hi: number): number | null {
@@ -61,15 +97,20 @@ export function parseUrl(pathname: string, search: string): UrlState {
   for (const [k, v] of q) {
     if (!SHARED.has(k) && OPT_KEY_RE.test(k) && v.length > 0 && v.length <= 120) opts[k] = v;
   }
+  let view = viewFromPath(pathname);
+  const estimate = est && METHOD_RE.test(est) ? est : null;
+  // an old Explorer link that compares methods or shows a baseline is a Research link now
+  if (view === "explore" && (opts.sbs === "1" || estimate)) view = "research_maps";
+  if (view !== "research_maps") delete opts.sbs;
   return {
-    view: viewFromPath(pathname),
+    view,
     run: run && RUN_RE.test(run) ? run : null,
     date: isIsoDate(date) ? date : null,
     depth: num(q.get("depth"), 0, 11000),
     // a point needs both coordinates
     lat: lat != null && lon != null ? lat : null,
     lon: lat != null && lon != null ? lon : null,
-    est: est && METHOD_RE.test(est) ? est : null,
+    est: isResearchView(view) ? estimate : null,
     opts,
   };
 }
@@ -112,6 +153,7 @@ export interface UrlPatch {
 /**
  * Apply a patch. Changing the view drops the per-view options (the shared selection survives);
  * changing the run drops the date, the estimate and the options, which belong to the old run.
+ * Leaving the Research area drops the estimate: the product views show the product.
  */
 export function applyPatch(state: UrlState, patch: UrlPatch): UrlState {
   const viewChanged = patch.view !== undefined && patch.view !== state.view;
@@ -138,6 +180,7 @@ export function applyPatch(state: UrlState, patch: UrlPatch): UrlState {
     next.lat = null;
     next.lon = null;
   }
+  if (!isResearchView(next.view)) next.est = null;
   return next;
 }
 

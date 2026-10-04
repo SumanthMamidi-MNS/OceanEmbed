@@ -109,8 +109,13 @@ describe("Shell honesty bands", () => {
     );
     expect(screen.queryAllByRole("note")).toHaveLength(0);
     const nav = screen.getByRole("navigation", { name: "Views" });
-    expect(nav.querySelectorAll("a")).toHaveLength(5);
+    // the product's views only; the Research area is linked from the colophon
+    expect([...nav.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Overview", "Explorer", "Accuracy", "Data & downloads"]);
     expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe("Overview");
+    expect(nav.textContent).not.toMatch(/Research|Live/);
+    const research = screen.getByRole("link", { name: /^Research/ });
+    expect(research.closest("footer")).not.toBeNull();
+    expect(research.getAttribute("href")).toMatch(/^\/research/);
     const select = screen.getByLabelText("Run") as HTMLSelectElement;
     expect(select.value).toBe("demo");
     // the selector shows the run's display name; its value stays the URL identifier

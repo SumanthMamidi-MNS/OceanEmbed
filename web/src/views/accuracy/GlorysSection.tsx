@@ -1,4 +1,8 @@
-/** Skill against the GLORYS target: tables, per-depth profiles of every metric, basin breakdown. */
+/**
+ * Skill against the GLORYS target: tables, per-depth profiles of every metric, basin breakdown.
+ * The methods are those of the view (run context `scoped`): the product and climatology on the
+ * Accuracy page, every method in the Research area.
+ */
 import { useMemo, useState } from "react";
 import type { MetricsResponse } from "@/api/types";
 import { Legend } from "@/components/charts/marks";
@@ -8,23 +12,23 @@ import { DataTable, Note, Panel, Segmented, Select, TableTwin, type Column } fro
 import { fmt, fmtDepth, fmtLat, fmtLon, fmtSigned } from "@/lib/format";
 import { METRIC_ORDER, metricDomain, metricMeta } from "@/lib/metricMeta";
 import { YearSwitch, useYear } from "@/components/controls/YearSwitch";
-import { methodList, scopeToYear, yearStability, yearsOf } from "@/lib/narrative";
+import { climatologyName, methodList, scopeToYear, yearStability, yearsOf } from "@/lib/narrative";
 import { useUrlState } from "@/state/router";
 import { useRunContext } from "@/state/runContext";
 
 export function GlorysSection({ metrics: whole }: { metrics: MetricsResponse }) {
-  const { detail, depths, depth, setDepthIndex, styleOf, labelOf } = useRunContext();
+  const { run, detail, depths, depth, setDepthIndex, styleOf, labelOf, scoped, scope } = useRunContext();
   const [url, setUrl] = useUrlState();
   // one test year at a time, or the whole period
   const years = yearsOf(whole);
   const year = useYear(years);
   const metrics = useMemo(() => scopeToYear(whole, year), [whole, year]);
-  const stability = useMemo(() => yearStability(whole), [whole]);
+  const stability = useMemo(() => yearStability(whole, scope === "research" ? "all" : "climatology", climatologyName(run.n_harmonic_terms)), [whole, scope, run.n_harmonic_terms]);
   const period = year ? `test days of ${year}` : "test period";
   const basins = detail.basins.filter((b) => metrics.per_basin[b.key]);
   const basin = basins.some((b) => b.key === url.opts.basin) ? url.opts.basin : "all";
   const source = basin === "all" ? metrics : metrics.per_basin[basin];
-  const methods = useMemo(() => methodList(metrics).map((m) => m.key), [metrics]);
+  const methods = useMemo(() => scoped(methodList(metrics).map((m) => m.key)), [metrics, scoped]);
   const legend = methods.map((k) => ({ key: k, label: labelOf(k), style: styleOf(k) }));
   const [twinMetric, setTwinMetric] = useState<string>("rmse");
   const range = metrics.pooled_range_m;

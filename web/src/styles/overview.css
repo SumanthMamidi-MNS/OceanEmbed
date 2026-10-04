@@ -460,3 +460,32 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ---- where not to trust it ---------------------------------------------------------------------- */
+
+.trust {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 20;
+  font-size: 1.1875rem;
+  line-height: 1.4;
+  max-width: 62ch;
+  text-wrap: pretty;
+  padding-left: var(--s4);
+  border-left: 3px solid var(--accent);
+}
+.trust.is-limited {
+  border-left-color: var(--ink);
+}
+.limits--stack {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+}
+.basins--stack {
+  grid-template-columns: minmax(0, 1fr);
+}
+.story > .nextviews {
+  margin-top: 0;
+}
+.story > .story__about {
+  margin-top: calc(-1 * var(--s3));
+}

@@ -69,7 +69,16 @@ describe("SelectionBar", () => {
     expect(currentUrlState().depth).toBe(200);
   });
 
-  it("offers only the estimates the run has, and none when there is a single one", () => {
+  it("offers no estimate on the product views, whatever methods the run has", () => {
+    renderBar(["model", "ridge", "mlp"]);
+    expect(screen.queryByRole("group", { name: "Estimate shown" })).toBeNull();
+    // a baseline cannot be selected from a product link either
+    navigate({ est: "ridge" });
+    expect(currentUrlState().est).toBeNull();
+  });
+
+  it("offers in the Research area only the estimates the run has, and none when there is a single one", () => {
+    navigate({ view: "research_maps" }, "push");
     const one = renderBar(["model"]);
     expect(screen.queryByRole("group", { name: "Estimate shown" })).toBeNull();
     one.unmount();
@@ -95,7 +104,7 @@ describe("SelectionBar", () => {
   });
 
   it("ignores an estimate the run does not have", () => {
-    navigate({ est: "model_other" });
+    navigate({ view: "research_scores", est: "model_other" }, "push");
     renderBar(["model", "ridge"]);
     const pressed = within(screen.getByRole("group", { name: "Estimate shown" })).getByRole("button", { pressed: true });
     expect(pressed.textContent).toBe("OceanEmbed");

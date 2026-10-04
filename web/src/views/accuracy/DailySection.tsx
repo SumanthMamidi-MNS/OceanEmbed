@@ -46,7 +46,7 @@ function flat(m: (number | null)[][]): number[] {
 }
 
 export function DailySection({ metrics }: { metrics: MetricsResponse }) {
-  const { depths, depthIndex, setDepthIndex, styleOf, labelOf, dates, date, setDateIndex, estimate } = useRunContext();
+  const { depths, depthIndex, setDepthIndex, styleOf, labelOf, dates, date, setDateIndex, estimate, scoped, scope } = useRunContext();
   const [url, setUrl] = useUrlState();
   const daily = metrics.daily;
   // runs evaluated before the daily block existed only have the RMSE
@@ -63,7 +63,7 @@ export function DailySection({ metrics }: { metrics: MetricsResponse }) {
   const hasPooled = !!daily?.pooled_rmse;
   const pooledScope = hasPooled && url.opts.ds === "pooled";
   const series = (value: (m: string, t: number) => number | null | undefined, methods: readonly string[]): ChartSeries[] =>
-    sortMethods([...methods])
+    scoped(sortMethods([...methods]))
       .map((m) => ({ key: m, label: labelOf(m), style: styleOf(m), markers: false, points: dayList.map((_, t) => ({ x: ms[t], y: value(m, t) ?? null })) }))
       .filter((s2) => s2.points.some((p) => p.y != null));
   const atDepth = (block: DailyByDepth | undefined, skip: readonly string[] = []) =>
@@ -206,7 +206,7 @@ export function DailySection({ metrics }: { metrics: MetricsResponse }) {
         <Panel
           className="gap-top"
           title={`Every day, every depth: ${labelOf(heatMethod)}`}
-          subtitle="whole domain · click a cell to select that day and depth · the estimate is the one of the selection bar"
+          subtitle={`whole domain · click a cell to select that day and depth${scope === "research" ? " · the estimate is the one of the selection bar" : ""}`}
           actions={
             heatKeys.length > 1 && (
               <Segmented

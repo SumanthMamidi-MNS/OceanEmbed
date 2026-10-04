@@ -1,22 +1,28 @@
 /**
- * Experiments and results: the comparison table of methods and ablations, the same table across
- * runs, the training curves, the data that went in and the product and report that came out.
+ * Research · methods: why this model. The comparison table of methods and ablations with the
+ * computed verdicts, every method by depth, the test years, how the network works, the same table
+ * across runs, the training curves, the model configuration and the baseline and ablation fields.
+ * Nothing here is needed to use the product; it documents how the product was chosen.
  */
 import { useMemo } from "react";
 import { useArgoMetrics, useCompare, useExperiments, useGlorysMetrics } from "@/api/queries";
-import type { CompareRun, DataProduct, ExperimentRow, ExperimentsResponse, MetricsResponse, RunSummary } from "@/api/types";
-import { Swatch } from "@/components/charts/marks";
+import type { CompareRun, ExperimentRow, ExperimentsResponse, MetricsResponse, RunSummary } from "@/api/types";
+import { useDayVolumes } from "@/api/volumes";
+import { Legend, Swatch } from "@/components/charts/marks";
 import { MethodBars } from "@/components/charts/MethodBars";
+import { MetricProfile } from "@/components/charts/MetricProfile";
 import { DataTable, Empty, Note, Panel, QueryState, type Column } from "@/components/ui/primitives";
 import { runLabel } from "@/components/shell/Shell";
-import { daysInclusive, fmtSpan } from "@/lib/dates";
+import { daysInclusive, fmtDate, fmtSpan } from "@/lib/dates";
 import { fmt, fmtDepth, fmtInt, fmtSigned, prettyText } from "@/lib/format";
 import { ablationKeysOf, isAblation, methodStyle, shortLabel, sortMethods } from "@/lib/methods";
-import { inputNames, inputUse } from "@/lib/inputs";
-import { ablationFindings, methodList, runCaveats, yearStability, yearsOf } from "@/lib/narrative";
+import { methodList, runCaveats, yearStability, yearsOf } from "@/lib/narrative";
+import { ablationFindings, depthSkill, headline, mlpSentence } from "@/lib/research";
 import { useUrlState } from "@/state/router";
 import { useRunContext } from "@/state/runContext";
-import { ProductSection, ReportSection } from "./ReportSection";
+import { ProductSection } from "../data/ReportSection";
+import { MethodDiagram } from "./MethodDiagram";
+import { ResearchHead } from "./ResearchHead";
 import { TrainingSection } from "./TrainingSection";
 
 /** Readable names for the configuration keys the API reports (unknown keys are shown as they are). */
@@ -54,7 +60,7 @@ function gainText(pct: number | null | undefined): string {
   return `${fmtSigned(-pct, 1)} %`;
 }
 
-export default function Experiments() {
+export default function Research() {
   const { run, detail } = useRunContext();
   const exp = useExperiments(run.name, run.artefacts.metrics_glorys);
   const glorys = useGlorysMetrics(run.name, run.artefacts.metrics_glorys);
@@ -62,16 +68,18 @@ export default function Experiments() {
 
   return (
     <div className="experiments">
+      <ResearchHead />
       <header className="viewhead">
-        <p className="overline">Experiments · {runLabel(run)}</p>
-        <h1 className="h1">Methods, runs and deliverables</h1>
-        {run.description && <p className="caption">{prettyText(run.description)}</p>}
+        <p className="overline">Methods · {runLabel(run)}</p>
+        <h1 className="h1">Why this model</h1>
         <nav className="subnav" aria-label="Sections of this view">
           <a href="#methods">Methods and ablations</a>
+          <a href="#depth">By depth</a>
+          <a href="#how">How it works</a>
           <a href="#runs">Across runs</a>
           <a href="#training">Training</a>
-          <a href="#data">Data and model</a>
-          <a href="#product">Product and report</a>
+          <a href="#config">Configuration</a>
+          <a href="#fields">Comparison fields</a>
         </nav>
       </header>
 
@@ -91,6 +99,28 @@ export default function Experiments() {
             Run “oceanembed evaluate” to produce the metrics this table is built from.
           </Empty>
         )}
+      </section>
+
+      {glorys.data && (
+        <section id="depth" className="section" aria-labelledby="h-depth">
+          <div className="section__head">
+            <h2 id="h-depth" className="h2">
+              Every method by depth
+            </h2>
+            <p className="caption">Against GLORYS over the test period. Every other score, map and day for every method is on the “Every score” page.</p>
+          </div>
+          <DepthSection metrics={glorys.data} />
+        </section>
+      )}
+
+      <section id="how" className="section" aria-labelledby="h-how">
+        <div className="section__head">
+          <h2 id="h-how" className="h2">
+            How the network works
+          </h2>
+          <p className="caption">From the day's surface fields to the temperature at every depth, with real fields of one test day.</p>
+        </div>
+        <MethodStrip />
       </section>
 
       <section id="runs" className="section" aria-labelledby="h-runs">
@@ -116,32 +146,76 @@ export default function Experiments() {
         <TrainingSection />
       </section>
 
-      <section id="data" className="section" aria-labelledby="h-data">
+      <section id="config" className="section" aria-labelledby="h-config">
         <div className="section__head">
-          <h2 id="h-data" className="h2">
-            Data and model
+          <h2 id="h-config" className="h2">
+            Model configuration
           </h2>
           <p className="caption">
-            Every product is regridded to the {detail.grid.resolution}° daily grid before the model sees it. Dataset identifiers are the
-            ones in this run's configuration.
+            As recorded in this run's configuration. The data products behind it are listed on Data &amp; downloads ({detail.grid.resolution}° daily grid).
           </p>
         </div>
-        <DataSection />
+        <ConfigSection />
       </section>
 
-      <section id="product" className="section" aria-labelledby="h-product">
+      <section id="fields" className="section" aria-labelledby="h-fields">
         <div className="section__head">
-          <h2 id="h-product" className="h2">
-            Product and report
+          <h2 id="h-fields" className="h2">
+            Baseline and ablation fields
           </h2>
-          <p className="caption">The gridded temperature product, the baseline and ablation fields for comparison, and the generated report.</p>
+          <p className="caption">The NetCDF fields of the other methods, written for comparison. The product itself is on Data &amp; downloads.</p>
         </div>
-        <ProductSection />
-        <div className="gap-top">
-          <ReportSection />
-        </div>
+        <ProductSection show="comparison" />
       </section>
     </div>
+  );
+}
+
+// ---- every method by depth, and the method strip ------------------------------------------------
+
+function DepthSection({ metrics }: { metrics: MetricsResponse }) {
+  const { depths, styleOf, labelOf } = useRunContext();
+  const keys = useMemo(() => methodList(metrics).map((m) => m.key), [metrics]);
+  const legend = keys.map((k) => ({ key: k, label: labelOf(k), style: styleOf(k) }));
+  const skill = useMemo(() => depthSkill(metrics), [metrics]);
+  const range = metrics.pooled_range_m?.length >= 2 ? `${fmt(metrics.pooled_range_m[0], 0)}–${fmt(metrics.pooled_range_m[1], 0)} m` : "pooled range";
+  return (
+    <>
+      <div className="twocol">
+        <Panel title="RMSE by depth" subtitle="against GLORYS, test period · lower is better">
+          <Legend items={legend} band={`pooled range ${range}`} />
+          <MetricProfile perDepth={metrics.per_depth} depths={depths} metric="rmse" methods={keys} styleOf={styleOf} labelOf={labelOf} pooledRange={metrics.pooled_range_m} reference="GLORYS" height={360} />
+        </Panel>
+        <Panel title="Skill against climatology by depth" subtitle="1 − MSE / MSE of climatology · right of the zero line beats climatology">
+          <Legend items={legend.filter((l) => l.key !== "climatology")} band={`pooled range ${range}`} />
+          <MetricProfile
+            perDepth={metrics.per_depth}
+            depths={depths}
+            metric="skill_vs_clim"
+            methods={keys.filter((k) => k !== "climatology")}
+            styleOf={styleOf}
+            labelOf={labelOf}
+            pooledRange={metrics.pooled_range_m}
+            reference="GLORYS"
+            height={360}
+          />
+        </Panel>
+      </div>
+      {skill.sentence && <p className="caption gap-top-sm">{skill.sentence}</p>}
+    </>
+  );
+}
+
+/** The method diagram on the selected day (the default day of the run when the link names none). */
+function MethodStrip() {
+  const { run, date, depthIndex, targetDates } = useRunContext();
+  const { day } = useDayVolumes(run.name, date, date ? targetDates.has(date) : false);
+  if (!date) return <Empty title="This run has no reconstruction yet" height={120} />;
+  return (
+    <>
+      <MethodDiagram day={day && day.date === date ? day : null} date={date} depthIndex={depthIndex} />
+      <p className="caption gap-top-sm">Fields of {fmtDate(date)}.</p>
+    </>
   );
 }
 
@@ -151,7 +225,7 @@ export default function Experiments() {
 function YearTable({ glorys, argo }: { glorys: MetricsResponse; argo: MetricsResponse | undefined }) {
   const { styleOf } = useRunContext();
   const years = yearsOf(glorys);
-  const stability = yearStability(glorys);
+  const stability = yearStability(glorys, "all");
   if (years.length < 2) return null;
   const argoYears = yearsOf(argo);
   const methods = methodList(argo ?? glorys);
@@ -235,8 +309,10 @@ function YearTable({ glorys, argo }: { glorys: MetricsResponse; argo: MetricsRes
 }
 
 function MethodsTable({ exp, glorys, argo }: { exp: ExperimentsResponse; glorys: MetricsResponse | undefined; argo: MetricsResponse | undefined }) {
-  const { styleOf, labelOf, caveats } = useRunContext();
+  const { styleOf, labelOf, caveats, detail } = useRunContext();
   const rows = useMemo(() => sortRows(exp.rows), [exp.rows]);
+  const head = useMemo(() => (glorys ? headline(glorys) : null), [glorys]);
+  const mlp = useMemo(() => (glorys ? mlpSentence(glorys, Object.fromEntries(detail.basins.map((b) => [b.key, b.label]))) : null), [glorys, detail.basins]);
   const range = exp.pooled_range_m.length >= 2 ? `${fmt(exp.pooled_range_m[0], 0)}–${fmt(exp.pooled_range_m[1], 0)} m` : "pooled";
   const candidates = rows.filter((r) => r.glorys_pooled?.rmse != null);
   const bestPooled = candidates.length ? candidates.reduce((a, b) => ((a.glorys_pooled!.rmse as number) <= (b.glorys_pooled!.rmse as number) ? a : b)).method : null;
@@ -293,6 +369,7 @@ function MethodsTable({ exp, glorys, argo }: { exp: ExperimentsResponse; glorys:
   return (
     <>
       <Panel title="Comparison table" subtitle={`RMSE in °C against GLORYS unless stated · pooled range ${range} · best pooled RMSE underlined · hover a column head for its definition`}>
+        {head && <p className={`skill__headline ${head.beatsBaselines ? "" : "is-negative"}`}>{head.sentence}</p>}
         <DataTable columns={columns} rows={rows} rowKey={(r) => r.method} caption="Methods and ablations" rowClass={(r) => (r.method === "model" ? "is-lead" : undefined)} />
       </Panel>
       {glorys && <YearTable glorys={glorys} argo={argo} />}
@@ -301,6 +378,11 @@ function MethodsTable({ exp, glorys, argo }: { exp: ExperimentsResponse; glorys:
           <MethodBars rows={bars} unit="°C" label={`Pooled RMSE over ${range} by method`} />
         </Panel>
         <div className="rightcol">
+        {mlp && (
+          <Note kind="honesty" title="What the spatial model adds">
+            {mlp}
+          </Note>
+        )}
         {findings.map((f) => (
           <Note key={f.key} kind="honesty" title={`Ablation: ${f.label}`}>
             {f.sentence}
@@ -460,39 +542,12 @@ function CompareBody({ runs, summaries }: { runs: CompareRun[]; summaries: RunSu
   );
 }
 
-// ---- data and model ---------------------------------------------------------------------------
+// ---- model configuration ------------------------------------------------------------------------
 
-function DataSection() {
+function ConfigSection() {
   const { detail } = useRunContext();
   const m = detail.model;
-  const use = inputUse(detail);
   const scratch = m.main_init === "scratch";
-  const columns: Column<DataProduct>[] = [
-    {
-      key: "var",
-      label: "Variable",
-      render: (p) => (
-        <span>
-          {p.long_name} <span className="chip">{p.role}</span>
-          {p.role === "input" && use.partial && (
-            <span className={`chip ${p.used_by_model !== false ? "chip--lead" : ""}`}>{p.used_by_model !== false ? "used by the model" : "available, not used"}</span>
-          )}
-        </span>
-      ),
-    },
-    {
-      key: "product",
-      label: "Product and dataset identifiers",
-      render: (p) => (
-        <span>
-          {prettyText(p.product)}
-          {p.dataset_ids.length > 0 && <span className="mono ids">{p.dataset_ids.join(", ")}</span>}
-        </span>
-      ),
-    },
-    { key: "res", label: "Native resolution", render: (p) => prettyText(p.native_resolution) },
-    { key: "regrid", label: "Brought to the grid by", render: (p) => prettyText(p.regridding) },
-  ];
   const kv = (obj: Record<string, unknown> | undefined) =>
     Object.entries(obj ?? {}).map(([k, v]) => (
       <div key={k}>
@@ -502,17 +557,7 @@ function DataSection() {
     ));
   return (
     <>
-      <Panel
-        title="Data products"
-        subtitle={
-          use.partial
-            ? `the model uses ${use.used.length} of the ${use.all.length} surface products (${inputNames(use.used)}); the others are harmonised and shown, but not fed to it`
-            : `the ${use.all.length} surface inputs, the training target and the validation data of this run`
-        }
-      >
-        <DataTable columns={columns} rows={detail.products} rowKey={(p) => p.variable} caption="Data products" />
-      </Panel>
-      <div className="trio gap-top">
+      <div className="trio">
         <Panel title="Encoder" subtitle={`CNN stem + Transformer${scratch ? ", trained from scratch in the main model" : ", shared by pretraining and reconstruction"}`}>
           <dl className="kv">{kv(m.model as Record<string, unknown>)}</dl>
         </Panel>

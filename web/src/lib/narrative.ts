@@ -1,11 +1,17 @@
 /**
- * Metric-to-sentence helpers. Every statement of a finding in the interface is produced here from
- * the run's own metrics, so the text can never disagree with the numbers and nothing is
- * pre-written: when the model loses to a baseline, the sentence says so.
+ * Metric-to-sentence helpers for the product views (Overview, Accuracy). Every statement of a
+ * result in the interface is produced from the run's own metrics, so the text can never disagree
+ * with the numbers and nothing is pre-written: when the reconstruction is no better than the
+ * seasonal climatology, the sentence says so.
+ *
+ * What a user needs is here: how large the error is against the climatology (the estimate one has
+ * without this product), where not to trust it, the basins, the test years, the Argo floats.
+ * Sentences that compare methods (ridge regression, the per-pixel network, pretraining) are in
+ * lib/research.ts and appear only in the Research area.
  */
 import type { MetricBlock, MetricsResponse, RunSummary } from "@/api/types";
 import { fmt, fmtDepth, fmtInt } from "./format";
-import { isAblation, shortLabel, sortMethods } from "./methods";
+import { shortLabel, sortMethods } from "./methods";
 
 /** Differences smaller than this (in % of the reference RMSE) are reported as "about the same". */
 export const TIE_PCT = 1;
@@ -34,12 +40,12 @@ export function describeComparison(c: Comparison, referenceName: string): string
   return `${fmt(Math.abs(c.pct), 0)}\u00A0% ${c.direction} than ${referenceName}`;
 }
 
-function rmseOf(block: MetricBlock | undefined): number | null {
+export function rmseOf(block: MetricBlock | undefined): number | null {
   const v = block?.rmse;
   return v != null && Number.isFinite(v) ? v : null;
 }
 
-function rangeText(range: readonly number[] | undefined): string {
+export function rangeText(range: readonly number[] | null | undefined): string {
   if (!range || range.length < 2) return "the pooled depth range";
   return `${fmt(range[0], 0)}–${fmt(range[1], 0)}\u00A0m`;
 }
@@ -75,50 +81,116 @@ export function scopeToYear(metrics: MetricsResponse, year: string | null | unde
   };
 }
 
-export interface Headline {
+/** What the climatology is called in a sentence when it has a seasonal cycle. */
+const SEASONAL = "the seasonal climatology";
+
+/**
+ * The climatology's name in the product's sentences: "seasonal" only when the fit has a seasonal
+ * cycle (a run trained on less than a year has a constant mean, which must not be called seasonal).
+ */
+export function climatologyName(terms: number | null | undefined): string {
+  return terms != null && terms <= 1 ? "the mean climatology" : SEASONAL;
+}
+
+export interface Accuracy {
   /** pooled depth range, e.g. "50–200 m" */
   range: string;
   model: number | null;
-  ridge: number | null;
   climatology: number | null;
   vsClimatology: Comparison | null;
-  vsRidge: Comparison | null;
-  /** the model beats both baselines by more than the tie threshold */
-  beatsBaselines: boolean;
+  /** the reconstruction's error is below the climatology's by more than the tie threshold */
+  beatsClimatology: boolean;
   sentence: string;
 }
 
-/** The headline skill statement over the pooled (thermocline) depth range. */
-export function headline(metrics: MetricsResponse, referenceName = "GLORYS"): Headline {
+/**
+ * How accurate, in the simplest truthful form: the error over the pooled (thermocline) range
+ * against the reference, each test year, and how it compares with the seasonal climatology.
+ */
+export function accuracyHeadline(metrics: MetricsResponse, clim: string = SEASONAL, referenceName = "GLORYS reanalysis"): Accuracy {
   const range = rangeText(metrics.pooled_range_m);
   const model = rmseOf(metrics.pooled.model);
-  const ridge = rmseOf(metrics.pooled.ridge);
   const climatology = rmseOf(metrics.pooled.climatology);
   const vsClimatology = compare(model, climatology);
-  const vsRidge = compare(model, ridge);
-  // each test year next to the pooled number, when the test period spans several
   const years = yearsOf(metrics)
     .map((y) => ({ y, v: rmseOf(metrics.per_year?.[y]?.pooled?.model) }))
     .filter((x) => x.v != null);
   const perYear = years.length >= 2 ? ` (${years.map((x) => `${fmt(x.v)} in ${x.y}`).join(", ")})` : "";
-  const parts: string[] = [];
-  if (vsClimatology) parts.push(`${describeComparison(vsClimatology, "climatology")} (${fmt(climatology)}\u00A0°C)`);
-  if (vsRidge) parts.push(`${describeComparison(vsRidge, "ridge regression")} (${fmt(ridge)}\u00A0°C)`);
   const sentence =
     model == null
-      ? `No pooled metrics are available for ${range}.`
-      : `Between ${range}, OceanEmbed's RMSE against ${referenceName} is ${fmt(model)}\u00A0°C${perYear}` +
-        (parts.length ? `: ${parts.join(" and ")}.` : ".");
-  return {
-    range,
-    model,
-    ridge,
-    climatology,
-    vsClimatology,
-    vsRidge,
-    beatsBaselines: vsClimatology?.direction === "lower" && vsRidge?.direction === "lower",
-    sentence,
-  };
+      ? `No scores are available for ${range}.`
+      : `Between ${range} the reconstruction differs from the ${referenceName} by ${fmt(model)}\u00A0°C RMSE${perYear}` +
+        (vsClimatology ? `: ${describeComparison(vsClimatology, clim)} (${fmt(climatology)}\u00A0°C).` : ".");
+  return { range, model, climatology, vsClimatology, beatsClimatology: vsClimatology?.direction === "lower", sentence };
+}
+
+/** A skill against climatology below this is called marginal: the MSE is within 10 % of the climatology's. */
+export const CLEAR_SKILL = 0.1;
+
+export interface DepthClasses {
+  bestDepth: number | null;
+  bestSkill: number | null;
+  /** depths where the skill against climatology is at least {@link CLEAR_SKILL} */
+  clearDepths: number[];
+  /** depths where it is positive but below {@link CLEAR_SKILL} */
+  marginalDepths: number[];
+  /** depths where it is zero or negative */
+  noSkillDepths: number[];
+}
+
+/** The depth levels sorted by the reconstruction's skill against climatology: clear, marginal, none. */
+export function classifyDepths(metrics: MetricsResponse): DepthClasses {
+  const skill = metrics.per_depth.skill_vs_clim?.model ?? [];
+  const out: DepthClasses = { bestDepth: null, bestSkill: null, clearDepths: [], marginalDepths: [], noSkillDepths: [] };
+  metrics.depths.forEach((d, k) => {
+    const s = skill[k];
+    if (s == null || !Number.isFinite(s)) return;
+    if (out.bestSkill == null || s > out.bestSkill) {
+      out.bestSkill = s;
+      out.bestDepth = d;
+    }
+    if (s <= 0) out.noSkillDepths.push(d);
+    else if (s < CLEAR_SKILL) out.marginalDepths.push(d);
+    else out.clearDepths.push(d);
+  });
+  return out;
+}
+
+export interface TrustLimits extends DepthClasses {
+  /** where the reconstruction is worth using */
+  use: string | null;
+  /** where it is not: the note a user must read before using a value */
+  limit: string | null;
+  /** true when some depth has no skill or only a marginal one */
+  limited: boolean;
+}
+
+/**
+ * Where not to trust it, from the skill against the seasonal climatology at each depth: the levels
+ * where the reconstruction clearly improves on the climatology, and the levels where it does not
+ * (marginal or no skill), where the climatology is as good an estimate.
+ */
+export function trustLimits(metrics: MetricsResponse, clim: string = SEASONAL): TrustLimits {
+  const c = classifyDepths(metrics);
+  const levels = metrics.depths;
+  if (c.bestDepth == null || c.bestSkill == null) return { ...c, use: null, limit: null, limited: false };
+  if (c.clearDepths.length === 0) {
+    const any = c.marginalDepths.length > 0;
+    return {
+      ...c,
+      use: null,
+      limit: any
+        ? `The reconstruction is only marginally better than ${clim} (best skill ${fmt(c.bestSkill)} at ${fmtDepth(c.bestDepth)}): treat it as no more reliable than the climatology.`
+        : `The reconstruction does not beat ${clim} at any depth (best skill ${fmt(c.bestSkill)} at ${fmtDepth(c.bestDepth)}): do not rely on it.`,
+      limited: true,
+    };
+  }
+  const use = `Use it at ${describeDepths(c.clearDepths, levels)}, where it clearly improves on ${clim} (most at ${fmtDepth(c.bestDepth)}, skill ${fmt(c.bestSkill)}).`;
+  if (c.marginalDepths.length + c.noSkillDepths.length === 0) return { ...c, use, limit: null, limited: false };
+  const parts: string[] = [];
+  if (c.noSkillDepths.length > 0) parts.push(`At ${describeDepths(c.noSkillDepths, levels)} it is no better than ${clim}`);
+  if (c.marginalDepths.length > 0) parts.push(`${parts.length ? "at" : "At"} ${describeDepths(c.marginalDepths, levels)} the gain is marginal (skill below ${fmt(CLEAR_SKILL, 1)})`);
+  return { ...c, use, limit: `${parts.join("; ")}: there the climatology is as good an estimate.`, limited: true };
 }
 
 /** Anomaly correlation next to the raw one, with the reason the raw one is inflated. */
@@ -134,82 +206,12 @@ export function correlationSentence(metrics: MetricsResponse): string | null {
   );
 }
 
-export interface AblationFinding {
-  key: string;
-  label: string;
-  model: number;
-  ablation: number;
-  /** positive = the main model is better */
-  comparison: Comparison;
-  sentence: string;
-}
-
 /**
- * Two trainings of the same network differ by a few percent from the random seed alone. A pooled
- * RMSE difference below this (in % of the ablation's RMSE) between the main model and an
- * ablation trained once is therefore reported as "no measurable gain", in either direction.
+ * Do the test years agree? One sentence: whether the reconstruction beats the seasonal climatology
+ * in each year, with each year's numbers. With `baselines = "all"` (the Research area) ridge
+ * regression is held to the same test. Null for a single-year test period.
  */
-export const SEED_PCT = 5;
-
-/** "level", or how far `value` is from `reference`, with the single-seed threshold. */
-export function versus(value: number | null | undefined, reference: number | null | undefined): { c: Comparison; level: boolean } | null {
-  const c = compare(value, reference);
-  return c ? { c, level: c.direction === "same" || Math.abs(c.pct) < SEED_PCT } : null;
-}
-
-/**
- * The main model against each ablation over the pooled range, stated as it is. When the two differ
- * in pretraining the sentence answers "does pretraining help?" whichever of them is the ablation
- * (the pretrained network can be the main model or the ablation, depending on the run).
- */
-export function ablationFindings(metrics: MetricsResponse): AblationFinding[] {
-  const model = rmseOf(metrics.pooled.model);
-  if (model == null) return [];
-  const main = metrics.methods.find((m) => m.key === "model");
-  const range = rangeText(metrics.pooled_range_m);
-  const out: AblationFinding[] = [];
-  for (const m of metrics.methods) {
-    if (!isAblation(m.key)) continue;
-    const abl = rmseOf(metrics.pooled[m.key]);
-    const c = compare(model, abl);
-    if (abl == null || !c) continue;
-    let sentence: string;
-    const aboutPretraining = main?.pretrained != null && m.pretrained != null && main.pretrained !== m.pretrained;
-    if (aboutPretraining) {
-      // read the pair as "with pretraining" against "without", whichever is the main model
-      const mainPretrained = main?.pretrained === true;
-      const withPre = mainPretrained ? model : abl;
-      const without = mainPretrained ? abl : model;
-      const v = versus(withPre, without)!;
-      const numbers = `${fmt(withPre)}\u00A0°C with the pretrained encoder, ${fmt(without)}\u00A0°C trained from scratch`;
-      const which = `the main model is the one ${mainPretrained ? "with pretraining" : "trained from scratch"}`;
-      if (v.level) {
-        sentence =
-          `No measurable gain from pretraining in this run: pooled RMSE (${range}) is ${numbers} (${which}). ` +
-          (v.c.direction === "same" ? "" : `The ${fmt(Math.abs(v.c.pct), 0)}\u00A0% between them is `) +
-          (v.c.direction === "same" ? "Each was trained once." : "within what a different training seed can produce; each was trained once.");
-      } else {
-        sentence =
-          `${v.c.direction === "lower" ? "Pretraining helps" : "Pretraining does not help"} in this run: pooled RMSE (${range}) is ` +
-          `${fmt(Math.abs(v.c.pct), 0)}\u00A0% ${v.c.direction} with the pretrained encoder (${numbers}; ${which}).`;
-      }
-    } else {
-      const v = versus(model, abl)!;
-      const numbers = `${fmt(model)} vs ${fmt(abl)}\u00A0°C`;
-      sentence = v.level
-        ? `No measurable difference in this run: pooled RMSE (${range}) is ${numbers} for ${m.label}, within what a different training seed can produce.`
-        : `The main model is ${v.c.direction === "lower" ? "ahead" : "behind"} in this run: its pooled RMSE (${range}) is ${fmt(Math.abs(v.c.pct), 0)}\u00A0% ${v.c.direction} than ${m.label} (${numbers}).`;
-    }
-    out.push({ key: m.key, label: m.label, model, ablation: abl, comparison: c, sentence });
-  }
-  return out;
-}
-
-/**
- * Do the test years agree? One sentence: whether the model beats climatology and ridge regression
- * in each year, with each year's numbers. Null for a single-year test period.
- */
-export function yearStability(metrics: MetricsResponse): string | null {
+export function yearStability(metrics: MetricsResponse, baselines: "climatology" | "all" = "climatology", clim: string = SEASONAL): string | null {
   const years = yearsOf(metrics);
   if (years.length < 2) return null;
   const rows = years
@@ -217,60 +219,22 @@ export function yearStability(metrics: MetricsResponse): string | null {
       const p = metrics.per_year?.[y]?.pooled ?? {};
       const model = rmseOf(p.model);
       const clim = rmseOf(p.climatology);
-      const ridge = rmseOf(p.ridge);
+      const ridge = baselines === "all" ? rmseOf(p.ridge) : null;
       return { y, model, clim, ridge, beatsClim: compare(model, clim)?.direction === "lower", beatsRidge: ridge == null || compare(model, ridge)?.direction === "lower" };
     })
     .filter((r) => r.model != null && r.clim != null);
   if (rows.length < 2) return null;
   const numbers = rows.map((r) => `${r.y}: ${fmt(r.model)} vs ${fmt(r.clim)}${r.ridge != null ? ` and ${fmt(r.ridge)}` : ""}\u00A0°C`).join("; ");
   const hasRidge = rows.every((r) => r.ridge != null);
-  const names = hasRidge ? "climatology and ridge regression" : "climatology";
+  const names = hasRidge ? "climatology and ridge regression" : baselines === "all" ? "climatology" : clim;
   const failing = rows.filter((r) => !r.beatsClim || !r.beatsRidge);
   if (failing.length === 0) return `It beats ${names} in each test year (${numbers}).`;
   const which = failing.map((r) => `${r.y} (${[!r.beatsClim ? "climatology" : null, !r.beatsRidge ? "ridge regression" : null].filter(Boolean).join(" and ")})`);
+  if (baselines !== "all") return `It does not beat ${clim} in every test year: not in ${joinList(failing.map((r) => r.y))} (${numbers}).`;
   return `It does not beat every baseline in every test year: not in ${joinList(which)} (${numbers}).`;
 }
 
-function lowerFirst(label: string): string {
-  return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
-}
-
-/**
- * The network against the per-pixel MLP (same inputs, no spatial context): what the spatial model
- * adds. Pooled, then basin by basin; a difference under the single-seed threshold reads "level".
- * Null when the run has no MLP baseline.
- */
-export function mlpSentence(metrics: MetricsResponse, labels: Readonly<Record<string, string>>): string | null {
-  const model = rmseOf(metrics.pooled.model);
-  const mlp = rmseOf(metrics.pooled.mlp);
-  const whole = versus(model, mlp);
-  if (!whole) return null;
-  const name = `the ${lowerFirst(metrics.methods.find((m) => m.key === "mlp")?.label ?? "per-pixel MLP")}`;
-  const say = (v: { c: Comparison; level: boolean }, a: number | null, b: number | null) =>
-    `${v.level ? "level" : `${fmt(Math.abs(v.c.pct), 0)}\u00A0% ${v.c.direction}`} (${fmt(a)} vs ${fmt(b)}\u00A0°C)`;
-  let s = `Against ${name}, which sees the same inputs one cell at a time, OceanEmbed's pooled RMSE over ${rangeText(metrics.pooled_range_m)} is ${say(whole, model, mlp)}`;
-  const basins = Object.entries(metrics.per_basin ?? {})
-    .map(([key, b]) => ({ label: labels[key] ?? key.replace(/_/g, " "), model: rmseOf(b.pooled?.model), mlp: rmseOf(b.pooled?.mlp) }))
-    .map((b) => ({ ...b, v: versus(b.model, b.mlp) }))
-    .filter((b) => b.v)
-    .sort((a, b) => (b.v!.c.pct ?? 0) - (a.v!.c.pct ?? 0));
-  if (basins.length >= 2) s += `; by basin: ${joinList(basins.map((b) => `${say(b.v!, b.model, b.mlp)} in the ${b.label}`))}`;
-  return `${s}. “Level” means within what a different training seed can produce.`;
-}
-
-export interface DepthSkill {
-  bestDepth: number | null;
-  bestSkill: number | null;
-  /** depths where the model's skill vs climatology is <= 0 */
-  noSkillDepths: number[];
-  /** depths where the skill is at least {@link CLEAR_SKILL} */
-  clearDepths: number[];
-  /** depths where ridge has a lower RMSE than the model (beyond the tie threshold) */
-  ridgeWinsDepths: number[];
-  sentence: string | null;
-}
-
-function joinList(parts: string[]): string {
+export function joinList(parts: string[]): string {
   if (parts.length <= 2) return parts.join(" and ");
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
@@ -311,55 +275,6 @@ export function describeDepths(selected: readonly number[], levels: readonly num
   );
 }
 
-/** A skill against climatology below this is called marginal: the MSE is within 10 % of the climatology's. */
-export const CLEAR_SKILL = 0.1;
-
-/** Where in the water column the skill is, and where it is not. */
-export function depthSkill(metrics: MetricsResponse): DepthSkill {
-  const skill = metrics.per_depth.skill_vs_clim?.model ?? [];
-  const rmseModel = metrics.per_depth.rmse?.model ?? [];
-  const rmseRidge = metrics.per_depth.rmse?.ridge ?? [];
-  const depths = metrics.depths;
-  let bestDepth: number | null = null;
-  let bestSkill: number | null = null;
-  const noSkillDepths: number[] = [];
-  const clearDepths: number[] = [];
-  const marginalDepths: number[] = [];
-  const ridgeWinsDepths: number[] = [];
-  depths.forEach((d, k) => {
-    const s = skill[k];
-    if (s != null && Number.isFinite(s)) {
-      if (bestSkill == null || s > bestSkill) {
-        bestSkill = s;
-        bestDepth = d;
-      }
-      if (s <= 0) noSkillDepths.push(d);
-      else if (s < CLEAR_SKILL) marginalDepths.push(d);
-      else clearDepths.push(d);
-    }
-    const c = compare(rmseModel[k], rmseRidge[k]);
-    if (c && c.direction === "higher") ridgeWinsDepths.push(d);
-  });
-  if (bestDepth == null || bestSkill == null) {
-    return { bestDepth, bestSkill, noSkillDepths, clearDepths, ridgeWinsDepths, sentence: null };
-  }
-  const parts: string[] = [];
-  if (bestSkill > 0) {
-    const clear = clearDepths.length > 0 && clearDepths.length < depths.length ? ` and at least ${fmt(CLEAR_SKILL, 1)} at ${describeDepths(clearDepths, depths)}` : "";
-    parts.push(`Skill against climatology is highest at ${fmtDepth(bestDepth)} (${fmt(bestSkill)})${clear}`);
-    if (marginalDepths.length > 0) parts.push(`it is marginal (below ${fmt(CLEAR_SKILL, 1)}) at ${describeDepths(marginalDepths, depths)}`);
-  } else {
-    parts.push(`The model does not beat climatology at any depth (best skill ${fmt(bestSkill)} at ${fmtDepth(bestDepth)})`);
-  }
-  if (bestSkill > 0 && noSkillDepths.length > 0) {
-    parts.push(`the model does not beat climatology at ${describeDepths(noSkillDepths, depths)}`);
-  }
-  if (ridgeWinsDepths.length > 0) {
-    parts.push(`ridge regression has the lower RMSE at ${describeDepths(ridgeWinsDepths, depths)}`);
-  }
-  return { bestDepth, bestSkill, noSkillDepths, clearDepths, ridgeWinsDepths, sentence: `${parts.join("; ")}.` };
-}
-
 /** Mean differences against Argo smaller than this (°C) are not called a bias. */
 export const BIAS_NOTE = 0.1;
 
@@ -369,10 +284,11 @@ function warmer(bias: number): string {
 
 /**
  * The Argo comparison in words, over the pooled depth range when the payload has it (else over all
- * depths): the model next to its baselines, GLORYS itself as the floor, and the mean difference
+ * depths): the reconstruction next to the climatology (and to ridge regression with
+ * `baselines = "all"`, the Research area), GLORYS itself as the floor, and the mean difference
  * that GLORYS and the model share, when there is one. Numbers only; no interpretation beyond them.
  */
-export function argoSentence(argo: MetricsResponse, scope: "pooled" | "overall" = "pooled"): string | null {
+export function argoSentence(argo: MetricsResponse, scope: "pooled" | "overall" = "pooled", baselines: "climatology" | "all" = "climatology"): string | null {
   const pooled = scope === "pooled" && rmseOf(argo.pooled?.model) != null;
   const blocks = pooled ? argo.pooled : argo.overall;
   const model = rmseOf(blocks.model);
@@ -381,7 +297,7 @@ export function argoSentence(argo: MetricsResponse, scope: "pooled" | "overall" 
   const matchups = pooled ? (blocks.model?.n ?? null) : (argo.metadata.n_matchups ?? blocks.model?.n ?? null);
   const where = pooled ? `between ${rangeText(argo.pooled_range_m)}` : "over all depths";
   const clim = rmseOf(blocks.climatology);
-  const ridge = rmseOf(blocks.ridge);
+  const ridge = baselines === "all" ? rmseOf(blocks.ridge) : null;
   const glorys = rmseOf(blocks.glorys);
   const bits: string[] = [];
   const vsClim = compare(model, clim);

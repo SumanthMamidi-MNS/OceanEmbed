@@ -108,7 +108,7 @@ export function MethodDiagram(props: { day: DayVolumes | null; /** day and level
         <p className="flow__text num">
           {m.model?.emb_dim != null ? `${fmtInt(m.model.emb_dim)} features` : "learned features"}
           {embMap ? ` · ${embMap.ny} × ${embMap.nx} map` : ""} · shown as its 3 leading components.{" "}
-          <ViewLink view="representation">Look inside</ViewLink>
+          <ViewLink view="research_embedding">Look inside</ViewLink>
         </p>
       </li>
       <li className="flow__link">
@@ -154,7 +154,7 @@ export function MethodDiagram(props: { day: DayVolumes | null; /** day and level
         <h3 className="flow__title">Scored on held-out days</h3>
         <p className="flow__text">
           Against the GLORYS reanalysis and against Argo float profiles, always next to ridge regression and climatology.{" "}
-          <ViewLink view="validation">See the scores</ViewLink>
+          <ViewLink view="research_scores">See the scores</ViewLink>
         </p>
       </li>
     </ol>

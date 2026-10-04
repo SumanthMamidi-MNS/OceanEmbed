@@ -16,12 +16,21 @@ class Router {
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    this.state = parseUrl(window.location.pathname, window.location.search);
+    this.state = this.read();
     window.addEventListener("popstate", () => {
       this.cancelPending();
-      this.state = parseUrl(window.location.pathname, window.location.search);
+      this.state = this.read();
       this.emit();
     });
+  }
+
+  /** Parse the address bar; a path of the earlier layout is rewritten in place to its new route. */
+  private read(): UrlState {
+    const state = parseUrl(window.location.pathname, window.location.search);
+    const here = window.location.pathname.replace(/\/+$/, "") || "/";
+    const canonical = formatUrl(state);
+    if (canonical.split("?")[0] !== here) window.history.replaceState(null, "", canonical + window.location.hash);
+    return state;
   }
 
   get = (): UrlState => this.state;

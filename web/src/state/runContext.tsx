@@ -12,6 +12,21 @@ import { ablationKeysOf, canonicalMethod, methodStyle, shortLabel, type MethodSt
 import { runCaveats, type RunCaveats } from "@/lib/narrative";
 import { nearestDepthIndex } from "@/lib/scales";
 import { useUrlState } from "./router";
+import { isResearchView } from "./url";
+
+/**
+ * Which methods a view shows. The product views show the product, the seasonal climatology (the
+ * user's no-skill reference) and the references it is scored against; the Research views show
+ * every method of the run (baselines, ablations).
+ */
+export type MethodScope = "product" | "research";
+
+const PRODUCT_METHODS: ReadonlySet<string> = new Set(["model", "climatology", "glorys", "obs"]);
+
+/** The methods of `keys` that belong on a view of this scope (order kept). */
+export function scopeMethods<T extends string>(keys: readonly T[], scope: MethodScope): T[] {
+  return scope === "research" ? [...keys] : keys.filter((k) => PRODUCT_METHODS.has(canonicalMethod(k)));
+}
 
 export interface RunContextValue {
   runs: RunSummary[];
@@ -32,7 +47,11 @@ export interface RunContextValue {
   point: { lat: number; lon: number } | null;
   pointIsDefault: boolean;
   caveats: RunCaveats;
-  /** methods whose day fields the API serves (`method=`), the main model first */
+  /** product views show the product against its references; Research views show every method */
+  scope: MethodScope;
+  /** the methods of a list that this view shows (see {@link scopeMethods}) */
+  scoped: <T extends string>(keys: readonly T[]) => T[];
+  /** methods whose day fields this view offers (`method=`), the main model first; only the product outside Research */
   fieldMethods: FieldMethod[];
   /** the estimate shown wherever a single method is shown (from the URL, else the main model) */
   estimate: string;
@@ -110,12 +129,15 @@ export function RunProvider(props: {
   const methods: MethodInfo[] = detail.methods;
   const ablations = useMemo(() => ablationKeysOf(methods.map((m) => m.key)), [methods]);
   const caveats = useMemo(() => runCaveats(run), [run]);
+  const scope: MethodScope = isResearchView(url.view) ? "research" : "product";
+  const scoped = useCallback(<T extends string>(keys: readonly T[]) => scopeMethods(keys, scope), [scope]);
   const fieldMethods = useMemo<FieldMethod[]>(() => {
     const listed = detail.field_methods ?? [];
-    if (listed.length > 0) return listed;
+    // outside the Research area only the product itself is offered as an estimate
+    if (listed.length > 0) return scope === "research" ? listed : listed.filter((m) => m.key === MAIN_METHOD || m.kind === "model").slice(0, 1);
     // a run described by an older API: only the main product is known to exist
     return [{ key: MAIN_METHOD, label: methods.find((m) => m.key === MAIN_METHOD)?.label ?? "OceanEmbed", kind: "model", n_days: dates.length, first: dates[0] ?? null, last: dates[dates.length - 1] ?? null }];
-  }, [detail.field_methods, methods, dates]);
+  }, [detail.field_methods, methods, dates, scope]);
 
   const styleOf = useCallback((key: string) => methodStyle(key, ablations), [ablations]);
   const labelOf = useCallback(
@@ -162,6 +184,8 @@ export function RunProvider(props: {
     point: urlPoint ?? defaultPoint,
     pointIsDefault: !urlPoint,
     caveats,
+    scope,
+    scoped,
     fieldMethods,
     estimate,
     ablations,

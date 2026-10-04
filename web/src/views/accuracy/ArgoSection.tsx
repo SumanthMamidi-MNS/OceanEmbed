@@ -48,12 +48,12 @@ export function ArgoSection() {
 }
 
 function ArgoBody({ metrics: whole }: { metrics: MetricsResponse }) {
-  const { run, depths, styleOf, labelOf } = useRunContext();
+  const { run, depths, styleOf, labelOf, scoped } = useRunContext();
   const years = yearsOf(whole);
   const year = useYear(years);
   const metrics = useMemo(() => scopeToYear(whole, year), [whole, year]);
   const md = metrics.metadata;
-  const methods = useMemo(() => methodList(metrics).map((m) => m.key), [metrics]);
+  const methods = useMemo(() => scoped(methodList(metrics).map((m) => m.key)), [metrics, scoped]);
   const legend = methods.map((k) => ({ key: k, label: labelOf(k), style: styleOf(k) }));
   const matchups = useMatchups(run.name, 20000, run.artefacts.argo_matchups);
   const dropped = Object.entries(md.dropped_profiles ?? {}).filter(([, n]) => n > 0);
@@ -118,7 +118,7 @@ function ArgoBody({ metrics: whole }: { metrics: MetricsResponse }) {
         </div>
       </div>
 
-      <Panel className="gap-top" title="Against Argo, by depth" subtitle={`same matchups for every method${year ? ` · ${year}` : ""} · the shaded band is the pooled range`}>
+      <Panel className="gap-top" title="Against Argo, by depth" subtitle={`same matchups for every line${year ? ` · ${year}` : ""} · the shaded band is the pooled range`}>
         <Legend items={legend} band={`pooled range ${rangeText}`} />
         <div className="multiples multiples--4">
           {ARGO_METRICS.filter((k) => metrics.per_depth[k]).map((k) => (
@@ -164,7 +164,7 @@ export function rmseMethods(rmse: Record<string, number | null> | null | undefin
  * match on canvas; one profile at a time is opened against every estimate.
  */
 function ProfileBrowser() {
-  const { run, geom, mask, detail, estimate, labelOf } = useRunContext();
+  const { run, geom, mask, detail, estimate, labelOf, scoped, scope } = useRunContext();
   const [url, setUrl] = useUrlState();
   const link = useLinkedView(geom);
   const startId = useId();
@@ -221,7 +221,7 @@ function ProfileBrowser() {
   const nTotal = pageQ.data?.n_total ?? all.data?.n_total ?? 0;
   const nPages = Math.max(1, Math.ceil(nMatch / ARGO_PAGE));
   const filtered = !!(basin || start || end);
-  const methods = rmseMethods(rows[0]?.rmse ?? list[0]?.rmse);
+  const methods = scoped(rmseMethods(rows[0]?.rmse ?? list[0]?.rmse));
   // with many methods the table keeps its RMSE columns and drops the level count (it is on the opened profile)
   const showLevels = methods.length <= 5;
 
@@ -237,7 +237,7 @@ function ProfileBrowser() {
   return (
     <Panel
       title="Profile by profile"
-      subtitle={`one dot per Argo profile, coloured by the RMSE of ${labelOf(estimate)} over that profile (the estimate of the selection bar) · click a dot or a row to open it`}
+      subtitle={`one dot per Argo profile, coloured by the RMSE of ${labelOf(estimate)} over that profile${scope === "research" ? " (the estimate of the selection bar)" : ""} · click a dot or a row to open it`}
       actions={<ZoomControls link={link} />}
     >
       <div className="toolbar argo__filters" role="group" aria-label="Filter and order the Argo profiles">
@@ -332,7 +332,7 @@ function ProfileBrowser() {
             <div className={`argo__list ${pageQ.isPlaceholderData ? "is-pending" : ""}`}>
               <div className="tablewrap" tabIndex={0} role="region" aria-label="Argo profiles">
                 <table className="table table--dense table--pick">
-                  <caption className="visually-hidden">Argo profiles matching the filters, with the RMSE of every method over each profile in °C</caption>
+                  <caption className="visually-hidden">Argo profiles matching the filters, with the RMSE of each estimate over each profile in °C</caption>
                   <thead>
                     <tr>
                       <th scope="col">Profile</th>
@@ -415,10 +415,10 @@ function ProfileBrowser() {
 }
 
 function ProfileChart({ profile, pending, rmse }: { profile: ArgoProfileDetail; pending: boolean; rmse: Record<string, number | null> | null }) {
-  const { depths, styleOf, labelOf, detail } = useRunContext();
+  const { depths, styleOf, labelOf, detail, scoped } = useRunContext();
   // the API repeats the climatology under its legacy key `clim`: draw it once
   const all = Object.keys(profile.series);
-  const keys = sortMethods(all.includes("climatology") ? all.filter((k) => k !== "clim") : all);
+  const keys = scoped(sortMethods(all.includes("climatology") ? all.filter((k) => k !== "clim") : all));
   const series: ChartSeries[] = [
     ...keys.map((k) => ({
       key: k,
@@ -455,7 +455,7 @@ function ProfileChart({ profile, pending, rmse }: { profile: ArgoProfileDetail; 
       {rmse && (
         <p className="caption num">
           RMSE over this profile:{" "}
-          {rmseMethods(rmse)
+          {scoped(rmseMethods(rmse))
             .map((k) => `${labelOf(canonicalMethod(k))} ${fmt(rmse[k])}`)
             .join(" · ")}{" "}
           °C

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { MetricsResponse, RunSummary } from "@/api/types";
 import {
-  ablationFindings,
+  accuracyHeadline,
+  climatologyName,
   argoSentence,
   basinSentence,
   chooseEvidence,
@@ -9,17 +10,16 @@ import {
   compare,
   correlationSentence,
   defaultRun,
-  depthSkill,
   describeComparison,
   describeDepths,
-  headline,
   methodList,
-  mlpSentence,
   scopeToYear,
+  trustLimits,
   yearStability,
   yearsOf,
   runCaveats,
 } from "./narrative";
+import { ablationFindings, depthSkill, headline, mlpSentence } from "./research";
 
 function method(key: string, label: string, extra: Record<string, unknown> = {}) {
   return { key, label, kind: key.startsWith("model") ? "model" : "baseline", in_glorys_metrics: true, in_argo_metrics: true, ...extra };
@@ -80,7 +80,54 @@ describe("compare", () => {
   });
 });
 
-describe("headline", () => {
+describe("accuracy headline (product views)", () => {
+  it("states the error against the seasonal climatology and never names another method", () => {
+    const a = accuracyHeadline(metrics({ model: 2.28, ridge: 2.64, mlp: 2.3, climatology: 3.39 }));
+    expect(a.beatsClimatology).toBe(true);
+    expect(a.sentence).toBe(
+      "Between 50–200\u00A0m the reconstruction differs from the GLORYS reanalysis by 2.28\u00A0°C RMSE: 33\u00A0% lower than the seasonal climatology (3.39\u00A0°C).",
+    );
+    expect(a.sentence).not.toMatch(/ridge|MLP|pretrain/i);
+  });
+
+  it("says so when the reconstruction is no better than the climatology", () => {
+    const a = accuracyHeadline(metrics({ model: 3.0, climatology: 2.9 }));
+    expect(a.beatsClimatology).toBe(false);
+    expect(a.sentence).toContain("3\u00A0% higher than the seasonal climatology");
+    expect(accuracyHeadline(metrics({ model: 1.53, climatology: 1.535 })).sentence).toContain("about the same as the seasonal climatology");
+    expect(accuracyHeadline(metrics({})).sentence).toMatch(/No scores/);
+  });
+});
+
+describe("where not to trust it", () => {
+  const depths = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000];
+  const at = (skill: number[]) => metrics({ model: 1, climatology: 1.4 }, { depths, per_depth: { skill_vs_clim: { model: skill } } });
+
+  it("names the depths to use and the depths where the climatology is as good (the real run's shape)", () => {
+    const t = trustLimits(at([0.479, 0.488, 0.482, 0.421, 0.369, 0.39, 0.493, 0.456, 0.364, 0.319, 0.219, 0.045, -0.034, -0.056, -0.152]));
+    expect(t.limited).toBe(true);
+    expect(t.use).toBe("Use it at 0–200\u00A0m, where it clearly improves on the seasonal climatology (most at 75\u00A0m, skill 0.49).");
+    expect(t.limit).toBe(
+      "At 500\u00A0m and below it is no better than the seasonal climatology; at 300\u00A0m the gain is marginal (skill below 0.1): there the climatology is as good an estimate.",
+    );
+    expect(t.noSkillDepths).toEqual([500, 700, 1000]);
+  });
+
+  it("has no limit when every depth is clearly better, and says it plainly when none is", () => {
+    const good = trustLimits(at(depths.map(() => 0.4)));
+    expect(good.limited).toBe(false);
+    expect(good.limit).toBeNull();
+    expect(good.use).toContain("Use it at every depth");
+    const none = trustLimits(at(depths.map(() => -0.2)));
+    expect(none.use).toBeNull();
+    expect(none.limit).toMatch(/^The reconstruction does not beat the seasonal climatology at any depth .*do not rely on it\.$/);
+    const marginal = trustLimits(at(depths.map(() => 0.04)));
+    expect(marginal.limit).toMatch(/only marginally better/);
+    expect(trustLimits(metrics({ model: 1 })).limit).toBeNull();
+  });
+});
+
+describe("headline (Research)", () => {
   it("states the gain over both baselines when the model wins", () => {
     const h = headline(metrics({ model: 2.28, ridge: 2.64, climatology: 3.39 }));
     expect(h.beatsBaselines).toBe(true);
@@ -195,10 +242,21 @@ describe("test years", () => {
     expect(scopeToYear(two, "1999")).toBe(two);
   });
 
-  it("says whether both years beat both baselines, with the numbers", () => {
-    expect(yearStability(two)).toBe("It beats climatology and ridge regression in each test year (2023: 0.97 vs 1.52 and 1.28\u00A0°C; 2024: 0.99 vs 1.39 and 1.15\u00A0°C).");
+  it("says for the user whether each year beats the seasonal climatology, without naming other methods", () => {
+    expect(yearStability(two)).toBe("It beats the seasonal climatology in each test year (2023: 0.97 vs 1.52\u00A0°C; 2024: 0.99 vs 1.39\u00A0°C).");
+    expect(accuracyHeadline(two).sentence).toContain("by 0.98\u00A0°C RMSE (0.97 in 2023, 0.99 in 2024): 33\u00A0% lower than the seasonal climatology");
+    const bad = metrics({ model: 1 }, { per_year: { "2023": year(0.97, 1.28, 1.52), "2024": year(1.45, 1.15, 1.39) } });
+    expect(yearStability(bad)).toMatch(/^It does not beat the seasonal climatology in every test year: not in 2024 /);
+    // losing to ridge regression is a Research matter
+    const ridgeOnly = metrics({ model: 1 }, { per_year: { "2023": year(0.97, 1.28, 1.52), "2024": year(1.2, 1.15, 1.39) } });
+    expect(yearStability(ridgeOnly)).toMatch(/^It beats the seasonal climatology in each test year/);
+  });
+
+  it("says in the Research area whether both years beat both baselines, with the numbers", () => {
+    expect(yearStability(two, "all")).toBe("It beats climatology and ridge regression in each test year (2023: 0.97 vs 1.52 and 1.28\u00A0°C; 2024: 0.99 vs 1.39 and 1.15\u00A0°C).");
     const mixed = metrics({ model: 1 }, { per_year: { "2023": year(0.97, 1.28, 1.52), "2024": year(1.2, 1.15, 1.39) } });
-    expect(yearStability(mixed)).toMatch(/^It does not beat every baseline in every test year: not in 2024 \(ridge regression\)/);
+    expect(yearStability(mixed, "all")).toMatch(/^It does not beat every baseline in every test year: not in 2024 \(ridge regression\)/);
+    expect(yearStability(metrics({ model: 1 }), "all")).toBeNull();
     expect(yearStability(metrics({ model: 1 }))).toBeNull();
   });
 });
@@ -300,6 +358,9 @@ describe("Argo sentence", () => {
     const s = argoSentence(m)!;
     expect(s).toContain("Against 2\u202F826 Argo profiles, between 50–200\u00A0m (16\u202F241 profile–depth matchups), OceanEmbed's RMSE is 1.42\u00A0°C");
     expect(s).toContain("15\u00A0% lower than climatology (1.67\u00A0°C)");
+    // ridge regression is named only when the Research area asks for every baseline
+    expect(s).not.toContain("ridge");
+    expect(argoSentence(m, "pooled", "all")).toContain("8\u00A0% lower than ridge regression (1.53\u00A0°C)");
     expect(s).toContain("GLORYS itself differs from the same profiles by 1.08\u00A0°C: that is the floor");
     expect(s).toContain("GLORYS is on average 0.49\u00A0°C warmer than Argo there, and the reconstruction 0.64\u00A0°C warmer.");
   });
@@ -418,5 +479,17 @@ describe("method list", () => {
     const m = metrics({ glorys: 0.2, climatology: 3, ridge: 2.5, model_scratch: 2.1, model: 2 });
     expect(methodList(m).map((x) => x.key)).toEqual(["model", "model_scratch", "ridge", "climatology", "glorys"]);
     expect(methodList(m).map((x) => x.short)).toEqual(["OceanEmbed", "No pretraining", "Ridge", "Climatology", "GLORYS"]);
+  });
+});
+
+describe("the climatology's name", () => {
+  it("is called seasonal only when its fit has a seasonal cycle", () => {
+    expect(climatologyName(5)).toBe("the seasonal climatology");
+    expect(climatologyName(3)).toBe("the seasonal climatology");
+    expect(climatologyName(null)).toBe("the seasonal climatology");
+    expect(climatologyName(1)).toBe("the mean climatology");
+    const a = accuracyHeadline(metrics({ model: 1.31, climatology: 1.53 }), climatologyName(1));
+    expect(a.sentence).toContain("lower than the mean climatology (1.53");
+    expect(a.sentence).not.toContain("seasonal");
   });
 });

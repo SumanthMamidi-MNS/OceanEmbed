@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_STATE, applyPatch, formatUrl, parseUrl, viewHref, type UrlState } from "./url";
+import { EMPTY_STATE, LIVE_ENABLED, PRIMARY_VIEWS, RESEARCH_VIEWS, VIEWS, applyPatch, formatUrl, isResearchView, parseUrl, viewHref, type UrlState } from "./url";
 
 describe("URL state", () => {
   it("parses a full deep link", () => {
@@ -17,7 +17,7 @@ describe("URL state", () => {
   });
 
   it("round-trips through formatUrl", () => {
-    const url = "/validation?run=poc_trial&date=2024-03-02&depth=75&lat=10.375&lon=88.125&est=model_scratch&basin=bay_of_bengal&metric=bias";
+    const url = "/research/scores?run=poc_trial&date=2024-03-02&depth=75&lat=10.375&lon=88.125&est=model_scratch&basin=bay_of_bengal&metric=bias";
     const [path, query] = url.split("?");
     expect(formatUrl(parseUrl(path, `?${query}`))).toBe(url);
   });
@@ -53,30 +53,74 @@ describe("URL state", () => {
 
   it("keeps the shared selection and drops the options when the view changes", () => {
     const s = parseUrl("/explore", "?run=poc&date=2024-03-16&depth=100&lat=15&lon=60&q=anom");
-    const next = applyPatch(s, { view: "validation" });
-    expect(next.view).toBe("validation");
+    const next = applyPatch(s, { view: "accuracy" });
+    expect(next.view).toBe("accuracy");
     expect([next.run, next.date, next.depth, next.lat, next.lon]).toEqual(["poc", "2024-03-16", 100, 15, 60]);
     expect(next.opts).toEqual({});
-    expect(viewHref(s, "validation")).toBe("/validation?run=poc&date=2024-03-16&depth=100&lat=15&lon=60");
+    expect(viewHref(s, "accuracy")).toBe("/accuracy?run=poc&date=2024-03-16&depth=100&lat=15&lon=60");
   });
 
-  it("keeps the selected estimate across views and drops a malformed one", () => {
-    const s = parseUrl("/explore", "?run=poc&est=ridge&q=anom");
+  it("keeps the selected estimate inside the Research area and drops it on the product views", () => {
+    const s = parseUrl("/research/maps", "?run=poc&est=ridge&q=anom");
     expect(s.est).toBe("ridge");
-    expect(applyPatch(s, { view: "validation" }).est).toBe("ridge");
-    expect(viewHref(s, "validation")).toBe("/validation?run=poc&est=ridge");
-    expect(formatUrl(applyPatch(s, { est: null }))).toBe("/explore?run=poc&q=anom");
-    expect(parseUrl("/explore", "?est=../x").est).toBeNull();
+    expect(applyPatch(s, { view: "research_scores" }).est).toBe("ridge");
+    expect(viewHref(s, "research_scores")).toBe("/research/scores?run=poc&est=ridge");
+    // the product views show the product: no estimate in their links
+    expect(applyPatch(s, { view: "accuracy" }).est).toBeNull();
+    expect(viewHref(s, "explore")).toBe("/explore?run=poc");
+    expect(parseUrl("/accuracy", "?est=ridge").est).toBeNull();
+    expect(applyPatch(parseUrl("/explore", "?run=poc"), { est: "ridge" }).est).toBeNull();
+    expect(formatUrl(applyPatch(s, { est: null }))).toBe("/research/maps?run=poc&q=anom");
+    expect(parseUrl("/research/maps", "?est=../x").est).toBeNull();
   });
 
   it("drops the date, the estimate and the options when the run changes, because they belong to the old run", () => {
-    const s = parseUrl("/explore", "?run=a&date=2024-03-16&depth=100&est=ridge&q=anom");
+    const s = parseUrl("/research/maps", "?run=a&date=2024-03-16&depth=100&est=ridge&q=anom");
+    expect(s.est).toBe("ridge");
     const next = applyPatch(s, { run: "b" });
     expect(next.run).toBe("b");
     expect(next.est).toBeNull();
     expect(next.date).toBeNull();
     expect(next.depth).toBe(100);
     expect(next.opts).toEqual({});
+  });
+
+  it("routes the product views and the Research pages", () => {
+    expect(parseUrl("/accuracy", "").view).toBe("accuracy");
+    expect(parseUrl("/data", "").view).toBe("data");
+    expect(parseUrl("/research", "").view).toBe("research");
+    expect(parseUrl("/research/scores/", "").view).toBe("research_scores");
+    expect(parseUrl("/research/maps", "").view).toBe("research_maps");
+    expect(parseUrl("/research/embedding", "").view).toBe("research_embedding");
+    expect(PRIMARY_VIEWS.map((v) => v.label)).toEqual(LIVE_ENABLED ? ["Overview", "Explorer", "Live", "Accuracy", "Data & downloads"] : ["Overview", "Explorer", "Accuracy", "Data & downloads"]);
+    expect(RESEARCH_VIEWS.map((v) => v.path)).toEqual(["/research", "/research/scores", "/research/maps", "/research/embedding"]);
+    expect(RESEARCH_VIEWS.every((v) => isResearchView(v.key))).toBe(true);
+    expect(PRIMARY_VIEWS.some((v) => isResearchView(v.key))).toBe(false);
+  });
+
+  it("keeps the links of the earlier layout working", () => {
+    const redirect = (path: string, search = "") => formatUrl(parseUrl(path, search));
+    expect(redirect("/validation", "?run=final&depth=100&metric=bias&yr=2023")).toBe("/accuracy?run=final&depth=100&metric=bias&yr=2023");
+    expect(redirect("/validation/", "?run=final&prof=5906527_112")).toBe("/accuracy?run=final&prof=5906527_112");
+    expect(redirect("/experiments", "?run=final&cmp=final.poc")).toBe("/research?run=final&cmp=final.poc");
+    expect(redirect("/representation", "?run=final&date=2024-06-10&lat=15.125&lon=61.625&sim=rel")).toBe(
+      "/research/embedding?run=final&date=2024-06-10&lat=15.125&lon=61.625&sim=rel",
+    );
+    // an Explorer link that compared methods, or showed a baseline, is a Research link now
+    expect(redirect("/explore", "?run=final&depth=100&sbs=1")).toBe("/research/maps?run=final&depth=100&sbs=1");
+    expect(redirect("/explore", "?run=final&est=ridge&q=anom")).toBe("/research/maps?run=final&est=ridge&q=anom");
+    // a plain Explorer link stays where it was
+    expect(redirect("/explore", "?run=final&date=2024-06-10&depth=100&q=anom")).toBe("/explore?run=final&date=2024-06-10&depth=100&q=anom");
+  });
+
+  it("reserves the Live route without exposing a dead link", () => {
+    expect(VIEWS.map((v) => v.key).indexOf("live")).toBe(2);
+    if (!LIVE_ENABLED) {
+      expect(parseUrl("/live", "?run=final").view).toBe("overview");
+      expect(PRIMARY_VIEWS.some((v) => v.key === "live")).toBe(false);
+    } else {
+      expect(parseUrl("/live", "").view).toBe("live");
+    }
   });
 
   it("merges options and removes the ones set to null", () => {

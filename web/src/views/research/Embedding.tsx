@@ -1,5 +1,5 @@
 /**
- * Representation: the satellite embedding made tangible. Its three leading principal components
+ * Research · embedding: the satellite embedding made tangible. Its three leading principal components
  * as an RGB map; how much of the embedding those (and the next) components carry; which places
  * the encoder treats alike (cosine similarity over all features, from the API); which surface
  * field each component follows; and how well the pretraining task can be solved.
@@ -14,6 +14,7 @@ import type { RasterLayer, RgbaLayer } from "@/components/map/MapCanvas";
 import { MapFigure } from "@/components/map/MapFigure";
 import { ZoomControls } from "@/components/map/ZoomControls";
 import { runLabel } from "@/components/shell/Shell";
+import { ResearchHead } from "./ResearchHead";
 import { Empty, Note, Panel, QueryState, Segmented } from "@/components/ui/primitives";
 import { rgbCss } from "@/lib/colormaps";
 import { fmtDate, nearestDateIndex } from "@/lib/dates";
@@ -38,7 +39,7 @@ function pcName(i: number): string {
   return i < 3 ? `Component ${i + 1} (${PC_CHANNEL[i]})` : `Component ${i + 1}`;
 }
 
-export default function Representation() {
+export default function Embedding() {
   const ctx = useRunContext();
   const { run, embeddingDates, date, geom, detail } = ctx;
   const link = useLinkedView(geom);
@@ -55,11 +56,12 @@ export default function Representation() {
 
   return (
     <div className="repr">
+      <ResearchHead />
       {hasEmb && <SelectionBar depth={false} estimate={false} days={embeddingDates} />}
       <header className="viewhead">
         <div className="viewhead__row">
           <div>
-            <p className="overline">Representation · {runLabel(run)}</p>
+            <p className="overline">Embedding · {runLabel(run)}</p>
             <h1 className="h1">Inside the satellite embedding</h1>
           </div>
           {hasEmb && <ZoomControls link={link} />}
@@ -439,7 +441,7 @@ function Pretraining() {
               <Note title="Reading the bars">
                 A field filled in well is one the encoder can infer from its surroundings and from the other fields; near zero it is, to the
                 encoder, noise. No subsurface data is used here. Whether pretraining then helps the reconstruction is answered by the ablation
-                on the Experiments view, whichever way it turns out.
+                on the Methods page, whichever way it turns out.
               </Note>
             </div>
           ) : (

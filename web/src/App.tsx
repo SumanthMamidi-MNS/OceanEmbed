@@ -9,24 +9,36 @@ import type { ViewKey } from "@/state/url";
 
 const Overview = lazy(() => import("@/views/overview/Overview"));
 const Explorer = lazy(() => import("@/views/explorer/Explorer"));
-const Validation = lazy(() => import("@/views/validation/Validation"));
-const Representation = lazy(() => import("@/views/representation/Representation"));
-const Experiments = lazy(() => import("@/views/experiments/Experiments"));
+const Accuracy = lazy(() => import("@/views/accuracy/Accuracy"));
+const Data = lazy(() => import("@/views/data/Data"));
+const Research = lazy(() => import("@/views/research/Research"));
+const ResearchScores = lazy(() => import("@/views/research/ResearchScores"));
+const ResearchMaps = lazy(() => import("@/views/research/ResearchMaps"));
+const Embedding = lazy(() => import("@/views/research/Embedding"));
 
 const VIEW_COMPONENTS: Record<ViewKey, React.LazyExoticComponent<() => React.JSX.Element>> = {
   overview: Overview,
   explore: Explorer,
-  validation: Validation,
-  representation: Representation,
-  experiments: Experiments,
+  // reserved: the route resolves to the Overview until the Live view ships (state/url LIVE_ENABLED)
+  live: Overview,
+  accuracy: Accuracy,
+  data: Data,
+  research: Research,
+  research_scores: ResearchScores,
+  research_maps: ResearchMaps,
+  research_embedding: Embedding,
 };
 
 const VIEW_TITLES: Record<ViewKey, string> = {
   overview: "Overview",
   explore: "Ocean explorer",
-  validation: "Validation",
-  representation: "Representation",
-  experiments: "Experiments",
+  live: "Live",
+  accuracy: "Accuracy",
+  data: "Data & downloads",
+  research: "Research · Methods",
+  research_scores: "Research · Every score",
+  research_maps: "Research · Methods on the map",
+  research_embedding: "Research · Embedding",
 };
 
 /** `,` `.` step the day and `[` `]` the depth on every view (the explorer adds the arrow keys). */

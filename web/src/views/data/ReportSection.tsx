@@ -1,4 +1,7 @@
-/** The run's deliverables: the NetCDF product files and the generated report with its figures. */
+/**
+ * The run's deliverables: the NetCDF product files and the generated report with its figures
+ * (Data & downloads), and the baseline and ablation fields written for comparison (Research).
+ */
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useProduct, useReport } from "@/api/queries";
 import type { FigureLike } from "./types";
@@ -6,6 +9,7 @@ import { DataTable, Empty, Icon, Loading, Panel, QueryState, TableTwin, type Col
 import type { ExtraProduct, ProductFile } from "@/api/types";
 import { fmtMonth, fmtSpan } from "@/lib/dates";
 import { fmtBytes, fmtInt, prettyText } from "@/lib/format";
+import { estimateRole } from "@/lib/methods";
 import { useRunContext } from "@/state/runContext";
 
 const ReportMarkdown = lazy(() => import("./ReportMarkdown"));
@@ -31,19 +35,25 @@ function fileColumns(): Column<ProductFile>[] {
 
 /** What an extra product is, stated on its panel so a downloaded file is never mistaken for the product. */
 function extraKind(p: ExtraProduct): { chip: string; text: string } {
+  const role = estimateRole(p.method);
   if (p.kind === "ablation") {
-    return { chip: "ablation", text: "The same network trained without the pretraining stage, written for comparison. It is not the product." };
+    return { chip: "ablation", text: `An ablation of the model${role ? ` (${role})` : ""}, written for comparison. It is not the product.` };
   }
   if (p.kind === "baseline") {
-    return { chip: "baseline", text: "The linear baseline on the same surface fields, written for comparison. It is not the product." };
+    return { chip: "baseline", text: `A baseline${role ? ` (${role})` : ""}, written for comparison. It is not the product.` };
   }
   return { chip: p.kind, text: "Written for comparison with the main product." };
 }
 
-export function ProductSection() {
+/**
+ * `show="product"`: the product a user downloads. `show="comparison"`: the baseline and ablation
+ * fields, each labelled as not the product (Research area).
+ */
+export function ProductSection({ show = "product" }: { show?: "product" | "comparison" }) {
   const { run, detail } = useRunContext();
   const product = useProduct(run.name, run.artefacts.n_product_files > 0);
   if (run.artefacts.n_product_files === 0) {
+    if (show === "comparison") return null;
     return (
       <Empty title="No product files yet" height={140}>
         “oceanembed predict” writes one CF-1.8 NetCDF file per month.
@@ -58,6 +68,38 @@ export function ProductSection() {
     <QueryState query={product} what="The product files" height={200}>
       {(p) => {
         const extras = p.extra_products ?? [];
+        if (show === "comparison") {
+          if (extras.length === 0) return <Empty title="This run wrote no baseline or ablation fields" height={120} />;
+          return (
+            <div className="extras">
+              <p className="extras__head">
+                <span className="caption">Same grid, days and format as the product, for comparison only. The monthly file names repeat across methods.</span>
+              </p>
+              <div className="twocol">
+                {extras.map((e) => {
+                  const kind = extraKind(e);
+                  return (
+                    <Panel
+                      key={e.method}
+                      title={
+                        <>
+                          {e.label}
+                          <span className="chip">{kind.chip}</span>
+                        </>
+                      }
+                      subtitle={`${count(e.files.length)}, ${fmtBytes(e.total_size)} in total`}
+                    >
+                      <TableTwin label={`Show the ${e.files.length} file${e.files.length === 1 ? "" : "s"}`}>
+                        <DataTable columns={columns} rows={e.files} rowKey={(f) => f.name} caption={`NetCDF files of ${e.label}`} dense />
+                      </TableTwin>
+                      <p className="caption gap-top-sm">{kind.text}</p>
+                    </Panel>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
         return (
           <>
             <Panel
@@ -74,36 +116,6 @@ export function ProductSection() {
                 the full configuration, so a file identifies the run that made it.
               </p>
             </Panel>
-            {extras.length > 0 && (
-              <div className="extras gap-top">
-                <p className="extras__head">
-                  <span className="overline">Baseline and ablation fields</span>
-                  <span className="caption">Same grid, days and format as the product, for comparison only. The monthly file names repeat across methods.</span>
-                </p>
-                <div className="twocol">
-                  {extras.map((e) => {
-                    const kind = extraKind(e);
-                    return (
-                      <Panel
-                        key={e.method}
-                        title={
-                          <>
-                            {e.label}
-                            <span className="chip">{kind.chip}</span>
-                          </>
-                        }
-                        subtitle={`${count(e.files.length)}, ${fmtBytes(e.total_size)} in total`}
-                      >
-                        <TableTwin label={`Show the ${e.files.length} file${e.files.length === 1 ? "" : "s"}`}>
-                          <DataTable columns={columns} rows={e.files} rowKey={(f) => f.name} caption={`NetCDF files of ${e.label}`} dense />
-                        </TableTwin>
-                        <p className="caption gap-top-sm">{kind.text}</p>
-                      </Panel>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </>
         );
       }}

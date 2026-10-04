@@ -1,8 +1,13 @@
 /**
- * Ocean explorer: one day, one depth, the selected estimate against GLORYS on linked maps (or every
- * estimate side by side), the surface inputs of the same day, and the water column under a chosen
- * point (profile, vertical section, time-depth). Volumes are cached client-side, so scrubbing
- * depth and stepping days only re-colours arrays that are already in memory.
+ * Ocean explorer: one day, one depth, the reconstruction against GLORYS on linked maps, the surface
+ * inputs of the same day, and the water column under a chosen point (profile, vertical section,
+ * time-depth). Volumes are cached client-side, so scrubbing depth and stepping days only re-colours
+ * arrays that are already in memory.
+ *
+ * The product's Explorer shows the product. In the Research area (route /research/maps) the same
+ * instrument offers every estimate of the run (ridge regression, the per-pixel network, the
+ * ablation) and opens in Compare, every estimate side by side; which of the two it is comes from
+ * the run context (`scope`, `fieldMethods`).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRunRanges } from "@/api/queries";
@@ -35,8 +40,12 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 export default function Explorer() {
+  return <ExplorerBody />;
+}
+
+export function ExplorerBody() {
   const ctx = useRunContext();
-  const { run, dates, dateIndex, date, depths, depthIndex, targetDates, geom, mask, estimate, fieldMethods, labelOf, styleOf } = ctx;
+  const { run, dates, dateIndex, date, depths, depthIndex, targetDates, geom, mask, estimate, fieldMethods, labelOf, styleOf, scope } = ctx;
   const [url, setUrl] = useUrlState();
   const link = useLinkedView(geom);
 
@@ -44,7 +53,8 @@ export default function Explorer() {
   const quantity: Quantity = url.opts.q === "anom" ? "anom" : "temp";
   const showBasins = url.opts.basins === "1";
   const canCompare = fieldMethods.length > 1;
-  const sideBySide = canCompare && url.opts.sbs === "1" && mode === "sub";
+  // Compare is the point of the Research page, so it is on there unless switched off
+  const sideBySide = canCompare && mode === "sub" && url.opts.sbs !== "0";
   const profileAll = url.opts.pall !== "0";
   const [playing, setPlaying] = useState(false);
   const [fixedRange, setFixedRange] = useState(false);
@@ -152,7 +162,7 @@ export default function Explorer() {
             aria-pressed={sideBySide}
             disabled={mode !== "sub"}
             title="Every estimate of this run beside GLORYS, on shared colour scales"
-            onClick={() => setUrl({ opts: { sbs: sideBySide ? null : "1" } })}
+            onClick={() => setUrl({ opts: { sbs: sideBySide ? "0" : null } })}
           >
             Compare
           </button>
@@ -162,7 +172,7 @@ export default function Explorer() {
       <header className="viewhead viewhead--tight">
         <div className="viewhead__row">
           <div>
-            <p className="overline">Explorer · {runLabel(run)}</p>
+            <p className="overline">{scope === "research" ? "Methods on the map" : "Explorer"} · {runLabel(run)}</p>
             <h1 className="h1">
               {fmtDate(date)} <span className="explorer__at">at</span> {fmtDepth(depth)}
             </h1>

@@ -1,6 +1,6 @@
 /**
- * Vertical temperature profile under the selected point: every estimate the run has (the
- * reconstruction, ridge regression, the ablation), GLORYS and the climatology, each with its fixed
+ * Vertical temperature profile under the selected point: the estimates the view offers (the
+ * reconstruction; in the Research area also ridge regression and the ablation), GLORYS and the climatology, each with its fixed
  * colour, dash and marker, and the values at the selected depth as a table.
  */
 import { useMemo } from "react";

@@ -1,4 +1,7 @@
-/** Application frame: sticky top bar (wordmark, views, run), honesty bands, selection bar, colophon. */
+/**
+ * Application frame: sticky top bar (wordmark, the product's views, run), honesty bands, selection
+ * bar, colophon. The Research area is linked from the colophon, not from the navigation.
+ */
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { RunSummary } from "@/api/types";
 import { SelectionBarSlot } from "@/components/controls/SelectionBar";
@@ -6,7 +9,7 @@ import { fmtSpan } from "@/lib/dates";
 import { fmtInt } from "@/lib/format";
 import type { RunCaveats } from "@/lib/narrative";
 import { useUrlState } from "@/state/router";
-import { VIEWS, viewHref, type UrlPatch, type ViewKey } from "@/state/url";
+import { PRIMARY_VIEWS, viewHref, type UrlPatch, type ViewKey } from "@/state/url";
 
 function Wordmark() {
   // three shortening strokes: the surface and the levels beneath it
@@ -95,7 +98,7 @@ export function Shell(props: {
               OceanEmbed
             </ViewLink>
             <nav className="nav" aria-label="Views">
-              {VIEWS.map((v) => (
+              {PRIMARY_VIEWS.map((v) => (
                 <ViewLink key={v.key} view={v.key} className="nav__link" current={url.view === v.key}>
                   {v.label}
                 </ViewLink>
@@ -155,8 +158,11 @@ export function Shell(props: {
       <footer className="colophon">
         <div className="colophon__inner">
           <span>
-            OceanEmbed · subsurface ocean temperature reconstructed from surface satellite fields · read-only view of{" "}
-            <a href="/api/docs">the data API</a>
+            OceanEmbed · subsurface ocean temperature reconstructed from surface satellite fields ·{" "}
+            <ViewLink view="research" className="colophon__link">
+              Research: how the model was chosen
+            </ViewLink>{" "}
+            · <a href="/api/docs">data API</a>
           </span>
           <span>
             <kbd>,</kbd> <kbd>.</kbd> previous / next day · <kbd>[</kbd> <kbd>]</kbd> shallower / deeper

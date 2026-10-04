@@ -595,3 +595,9 @@ kbd {
     position: static;
   }
 }
+.colophon__link {
+  color: var(--ink2);
+}
+.colophon__link:hover {
+  color: var(--ink);
+}

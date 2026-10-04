@@ -136,6 +136,14 @@ Paths are relative to `src/oceanembed/`. "-" = none.
 | [`research/r2.py`](../src/oceanembed/research/r2.py), [`r2_report.py`](../src/oceanembed/research/r2_report.py) | R2: long-period jobs (Transformer, MLP, ridge, climatology, learning curve), Argo scoring of two test years, report | `run_r2`, `plan_jobs`, `train_days`, `make_r2_report` | long config, Zarr, stats, memmap caches, Argo files | `research/r2/` |
 | [`infer/predict.py`](../src/oceanembed/infer/predict.py) | Checkpoint loading, predictors, degC conversion, CF-1.8 NetCDF writer | `load_recon_model`, `model_predictor`, `predict_batch`, `predict_to_netcdf`, `expected_product_files` | checkpoint, surface dataset | `predictions/**/oceanembed_T_YYYYMM.nc` |
 | [`infer/embed.py`](../src/oceanembed/infer/embed.py) | Embedding export | `export_embeddings`, `embedding_path` | encoder weights, split | `embeddings/embeddings.zarr` |
+| [`live/nrt.py`](../src/oceanembed/live/nrt.py) | Near-real-time catalogue probe and resumable per-day download (`data/raw_nrt/`) | `probe`, `fetch_days`, `runs_of_days`, `required_products`, `describe_dataset`, `subset_to_file` | CMEMS login (download only) | `raw_nrt/<product>/<product>_YYYYMMDD.nc`, ledger lines |
+| [`live/harmonise.py`](../src/oceanembed/live/harmonise.py) | Raw NRT days -> canonical grid with the batch rules; small live store | `harmonise_files`, `write_store` | raw day files | `data/processed/live.zarr` |
+| [`live/reconstruct.py`](../src/oceanembed/live/reconstruct.py) | Released weights -> reconstruction of chosen days; rolling monthly NetCDF (merge, prune) | `load_weights`, `reconstruct`, `write_days`, `read_predictions` | `models/final`, live store | `outputs/live/predictions/oceanembed_T_YYYYMM.nc` |
+| [`live/update.py`](../src/oceanembed/live/update.py) | `live update` / `live status`: availability, window, revision policy, provenance | `run_update`, `status`, `window_for`, `revision_set`, `revision_size` | catalogue, raw days | `live_state.json`, `live_days.parquet`, `first_published/`, `run_meta.json` |
+| [`live/verify.py`](../src/oceanembed/live/verify.py) | Running verification against Argo and the operational analysis (rolling record) | `run_verification`, `daily_rows`, `rolling_series`, `argo_matchups` | window, Argo (argopy), CMEMS analysis | `checks/verification/` |
+| [`live/shift.py`](../src/oceanembed/live/shift.py) | `live input-shift`: NRT vs reprocessed inputs, reconstruction difference, error vs GLORYS with paired bootstrap | `run_input_shift`, `summarise_shift`, `recon_sums` | reprocessed + NRT inputs, GLORYS | `checks/input_shift/` |
+| [`live/state.py`](../src/oceanembed/live/state.py) | Folders, state / provenance files, update lock | `live_paths`, `load_state`, `load_days`, `UpdateLock` | - | - |
+| [`research/benchmark.py`](../src/oceanembed/research/benchmark.py), [`benchmark_report.py`](../src/oceanembed/research/benchmark_report.py) | Phase 13: boosted trees, random forest, plain U-Net (and SST + sea level ridge / MLP) under the R2 protocol; one ranked report | `run_benchmark`, `plan_jobs`, `TreePredictor`, `make_benchmark_report` | long config, Zarr, stats, memmap caches, R2 / final-inputs jobs | `research/benchmark/` |
 | [`eval/metrics.py`](../src/oceanembed/eval/metrics.py) | Streaming sums-based metrics | `MetricAccumulator`, `metrics_from_sums`, `skill_score`, `point_metrics` | pred / ref arrays | metric dicts |
 | [`eval/evaluate.py`](../src/oceanembed/eval/evaluate.py) | All methods vs GLORYS on a split | `evaluate_split`, `load_methods`, `method_label` | checkpoints, Zarr | `metrics/metrics_glorys.json`, `maps_glorys.nc` |
 | [`eval/argo_validation.py`](../src/oceanembed/eval/argo_validation.py) | Argo interpolation, collocation, scoring, optional INCOIS | `validate_argo`, `interp_profile`, `collocate`, `max_gap` | Argo parquet, checkpoints | `metrics/metrics_argo.json`, `argo_matchups.parquet` |
@@ -481,6 +489,11 @@ All commands take `--config / -c <yaml>` (must exist) except `serve`. `--device`
 | `research final-inputs` | `--seeds`, `--experiments sst_sla_winds,sst_sla`, `--skip-existing/--no-skip-existing`, `--device` | long config, Zarr, stats, R2 `scratch` jobs | `research/final_inputs/scratch_<set>/seed<k>/` only |
 | `research final-inputs-report` | `--n-boot`, `--block-length`, `--seed` | `research/final_inputs/**`, R2 `scratch` / `climatology` | `research/final_inputs/summary.{json,md}` |
 | `research r2-report` | `--compare-config`, `--n-boot`, `--block-length`, `--seed` | `research/r2/**`, the compared run's `research/r1/**` (read only) | `research/r2/summary.{json,md}`, `figures/` |
+| `research benchmark` | `--seeds`, `--families rf,gbt,unet,mlp,ridge`, `--sets all7,sst_sla`, `--skip-existing/--no-skip-existing`, `--threads`, `--device` | long config, Zarr, stats, memmap caches | `research/benchmark/<family>_<set>/seed<k>/`, `research/benchmark/tuning/` only |
+| `research benchmark-report` | `--n-boot`, `--block-length`, `--seed` | `research/benchmark/**`, `research/r2/**`, `research/final_inputs/scratch_sst_sla` | `research/benchmark/summary.{json,md}`, `figures/` |
+| `live update` | `--config configs/live.yaml`, `--verify/--no-verify`, `--device` | catalogue, CMEMS login, `models/final`, Argo (verification) | `data/raw_nrt/`, `data/processed/live.zarr`, `outputs/live/` |
+| `live status` | `--config`, `--check` (ask the catalogue) | `outputs/live/` (local files) | nothing |
+| `live input-shift` | `--config`, `--download/--no-download`, `--recompute`, `--device` | reprocessed + NRT products, GLORYS, `models/final` | `data/raw_nrt/overlap_*`, `data/processed/live_shift*`, `outputs/live/checks/input_shift/` |
 | `serve` | `--host` (127.0.0.1), `--port` (8000), `--outputs-root`, `--reload` | `outputs/` (exit 2 if missing) | serves the API; sets `OCEANEMBED_API_OUTPUTS_ROOT` for `--reload` |
 
 `predict` argument rules: `--start` and `--end` together, not with `--split`; `--ridge` and `--tag` exclusive; tag `ridge` rejected.
@@ -595,6 +608,56 @@ computed with one matrix product per field (checked equal to `sums_from_arrays`)
   test years; never downloads). Every job scores the whole test split; the report slices it by year.
 - Neither stage writes under `checkpoints`, `metrics`, `predictions`, `embeddings`, `report.md` or any other stage's folder
   (R2 reads the first run's `research/r1` for the 2024 comparison).
+
+### Live nowcast (phase 11: `oceanembed live ...`)
+
+Reconstructs the same day from near-real-time (NRT) inputs with the released `models/final` weights, keeping a rolling
+window of the newest days. A **nowcast**, never a forecast: the inputs are daily maps published a day or two late.
+Details and the first measured numbers: [`research/live_nowcast.md`](research/live_nowcast.md); operation:
+[`runbook.md`](runbook.md) (Live mode). Nothing here touches an evaluated run.
+
+- **Inputs.** The model uses SST and sea level anomaly only, so only those have NRT products in `configs/live.yaml`
+  (OSTIA NRT `METOFFICE-GLO-SST-L4-NRT-OBS-SST-V2`, DUACS NRT `cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D`);
+  `required_products` refuses a model that needs an input without an NRT product. Salinity, currents and winds are not fetched.
+- **Availability.** A day is available when every input has a non-empty file for it; the window is `live.window_days` days ending
+  at the newest such day and never moves backwards. Days one product already has are reported as `pending`.
+- **Download.** One `copernicusmarine.subset` per run of consecutive days (at most `live.request_days`), split into per-day files
+  `data/raw_nrt/<product>/<product>_YYYYMMDD.nc` (temp file + rename, ledger line per request, retries). Files for days that left
+  the window are deleted; nothing outside `data/raw_nrt`, `data/processed/live*` and `outputs/live` is ever pruned.
+- **Update** (`live update`, under a lock file): probe the catalogue, fetch missing days, fetch the newest `live.revision_days`
+  reconstructed days again (`revision=True`: a file is replaced only if the field changed), harmonise the window with the batch
+  rules into `data/processed/live.zarr`, reconstruct new, changed and missing days, merge them into the monthly files, rewrite the
+  provenance table, prune, write state and `run_meta.json` (`data_source: "real"`, block `live: {nrt: true, window, last_day, ...}`),
+  then run the verification. An interrupted update is continued by the next one (everything is rebuilt from the day files).
+- **Provenance** (`live_days.parquet`, one row per day): dataset and version of each input, product version, age of each input
+  when first used, first / last update time, number of checks and revisions, size of the revision against the first-published
+  version (`rev_sst_rmse`, `rev_sla_rmse`, `rev_recon_rmse_50_200`, `rev_recon_maxabs`), input digest, checkpoint, device.
+  `first_published/first_YYYYMMDD.npz` keeps the first-published inputs and reconstruction of each window day for that comparison.
+  `live_state.json` holds the window, per-input availability, pending days, the revision log and its statistics by age, the history
+  of updates (timings, bytes).
+- **Verification** (`checks/verification/`): Argo profiles fetched for the window (newest 15 days re-fetched, older kept), collocated
+  and scored like `validate-argo` for model and climatology in three bands (0-30, 50-200, 300-1000 m); optionally the operational
+  analysis (`GLOBAL_ANALYSISFORECAST_PHY_001_024`, daily temperature) on the grid for the newest `rolling_days` days when the
+  dry-run size estimate is below `analysis_max_mb`, otherwise skipped with the reason recorded. Stored as daily sums, so the
+  30-day rolling RMSE / bias is one sum; a verification failure never undoes the update.
+- **Input shift** (`live input-shift`): see [`research/live_nowcast.md`](research/live_nowcast.md); sums per day, depth and
+  basin in `sums.npz`, then the research block bootstrap for the paired change.
+
+### Comparison study (phase 13: `oceanembed research benchmark`)
+
+[`benchmark.py`](../src/oceanembed/research/benchmark.py) adds the families of the literature under the R2 protocol (same data,
+split, GLORYS reference, per-day `eval.npz` sums): per-pixel **boosted trees** (LightGBM, one regressor per depth, rounds by early
+stopping on the validation sample) and a **random forest** (scikit-learn, one multi-output forest, depths below the sea floor filled
+with the climatological anomaly 0), both with the 11 per-pixel features of the MLP and its training sample
+(`sample_points`: up to 1 M random train points, the seed draws them and seeds the model); and the **plain U-Net** on all seven
+inputs. Hyper-parameters come from small grids (`GBT_GRID` num_leaves 15 / 63 / 255; `RF_GRID` min_samples_leaf 5 / 20 / 60 x
+max_features 0.5 / 1.0) scored on the validation year only, on a smaller training sample, stored in `research/benchmark/tuning/`.
+Input sets: all seven inputs (beside the R2 Transformer, MLP, ridge, climatology) and SST + sea level (beside the final model of
+`research/final_inputs`; ridge and MLP are trained here for that set). Boosted-tree models are stored (`gbt.joblib`); the forest is
+not (large, refits in minutes). [`benchmark_report.py`](../src/oceanembed/research/benchmark_report.py) ranks every family by
+pooled 50-200 m RMSE for 2023, 2024 and both, by basin and depth, with the paired block bootstrap, the Transformer against each
+family and the best per-pixel family against the Transformer per basin, and a winner or tie (a difference is *established* only
+if the paired interval excludes 0 and the per-seed ranges do not overlap). Results: [`research/benchmark.md`](research/benchmark.md).
 
 ## 10. Data API
 

@@ -21,6 +21,19 @@ Version pins that matter (already in `pyproject.toml`): `zarr>=3`, `erddapy<3`, 
 erddapy 3), `streamlit>=1.64`. The project is OneDrive-synced: `.venv`, `data` and `outputs` can be several GB to
 tens of GB, so pause sync or exclude those folders.
 
+## One-click start (`start.bat`)
+
+`start.bat` in the project root is the entry point of the application (the dashboard served by `oceanembed serve`). Double-click it,
+or run it from the project root. It checks that Python 3.12 (`py -3.12`) is installed (Node.js / npm only when `web\dist` has to be
+built), creates or reuses `.venv`, installs what is missing there (the CUDA build of PyTorch first when `nvidia-smi` finds an NVIDIA
+GPU, the CPU build otherwise; then `pip install -e .`), builds `web\dist` when it is missing (`npm install`, `npm run build`),
+checks the released weights in `models\final` and whether a finished run exists under `outputs\` (if none, it says which command
+produces one and starts anyway: the page then explains what it needs), starts the server on the first free port from 8000 and opens
+the default browser at it. A missing prerequisite that needs you (Python, Node.js) is reported and the script stops; nothing outside
+the project folder is installed. It is safe to run again, also while another server is running (it takes the next free port).
+Close its window or press Ctrl+C to stop the server. `set OCEANEMBED_NO_BROWSER=1` skips opening the browser,
+`set OCEANEMBED_PORT=9000` changes the first port tried.
+
 ## Quick start on synthetic data (no logins)
 
 ```powershell
@@ -191,6 +204,30 @@ Every job scores the whole test split; the report splits it into 2023, 2024 and 
 `research/r2/summary.md`, `summary.json`, `figures/` (RMSE by depth per year, long vs first run on 2024, bias by depth and RMSE per
 year, learning curve, Argo by depth).
 
+## Live nowcast and the comparison study
+
+```powershell
+# live nowcast: the released model on near-real-time SST and sea level (docs/research/live_nowcast.md, runbook "Live mode")
+.\.venv\Scripts\oceanembed.exe live update --config configs\live.yaml        # fetch new days, reconstruct, verify
+.\.venv\Scripts\oceanembed.exe live status --config configs\live.yaml        # window, newest day, age of each input (writes nothing)
+.\.venv\Scripts\oceanembed.exe live input-shift --config configs\live.yaml   # near-real-time vs reprocessed inputs, with error vs GLORYS
+# comparison study: boosted trees, random forest, plain U-Net under the R2 protocol (docs/research/benchmark.md)
+.\.venv\Scripts\oceanembed.exe research benchmark --config configs\poc_long.yaml
+.\.venv\Scripts\oceanembed.exe research benchmark-report --config configs\poc_long.yaml
+```
+
+| Command | Options |
+|---|---|
+| `live update` | `--config` (default `configs\live.yaml`), `--verify/--no-verify` (running verification against Argo and the operational analysis; default from the config), `--device` |
+| `live status` | `--config`, `--check` (also ask the catalogue what is published now) |
+| `live input-shift` | `--config`, `--download/--no-download`, `--recompute` (redo the model runs and scoring from the stored overlap data), `--device` |
+| `research benchmark` | `--seeds 0,1,2`, `--families rf,gbt,unet,mlp,ridge` (default all), `--sets all7,sst_sla` (default both), `--skip-existing/--no-skip-existing`, `--threads` (tree models, default all cores but two), `--device` |
+| `research benchmark-report` | `--n-boot 2000`, `--block-length` (default from the autocorrelation), `--seed 0` |
+
+`research benchmark` is resumable like R2 and writes only under `outputs/<run>/research/benchmark/`; the U-Net seeds (GPU) and the
+tree models (CPU) can run as two processes at once (`--families unet` and `--families ridge,mlp,gbt,rf`).
+Results: `research/benchmark/summary.md`, `summary.json`, `figures/` (ranking and RMSE by depth for each input set).
+
 ## The final run, results and weights
 
 `configs\final.yaml` is the project's main run (trained 2011-2021, validated 2022, tested 2023 and 2024; network trained from scratch; inputs chosen on the validation year). It reuses the data of `poc_long`:
@@ -209,9 +246,11 @@ See [`reproduce.md`](reproduce.md) for what can be deleted and how to come back 
 ## Project layout
 
 ```
-configs/      synthetic.yaml (demo), poc.yaml (real, 2018-2024), poc_trial.yaml (real, 3 months), test_tiny.yaml
+start.bat     one-click launcher (checks, .venv, dependencies, web build, server on a free port, browser)
+scripts/      live_update.cmd (the daily live update for Task Scheduler)
+configs/      synthetic.yaml (demo), poc.yaml (real, 2018-2024), poc_trial.yaml (real, 3 months), final.yaml, live.yaml, test_tiny.yaml
 src/oceanembed/   config, grid, runmeta, cli, data_access; api/ (FastAPI data API); data/ (providers, regrid, harmonize, stats, dataset);
-                  models/ (encoder, mae, recon, baselines, pixel_mlp); train/; eval/; infer/; research/ (R1 runner, R4 ARMOR3D benchmark, R5 physical metrics, bootstrap, reports)
+                  models/ (encoder, mae, recon, baselines, pixel_mlp); train/; eval/; infer/; live/ (near-real-time nowcast); research/ (R1-R5, comparison study, bootstrap, reports)
 app/          Streamlit dashboard: Home.py, pages/, ui/ (theme, figures, views, data, components); data_access.py re-exports the package module
 web/          React dashboard (final): src/api (typed client), src/components (maps, charts, controls), src/views, src/lib; `npm run build` -> web/dist, served by `oceanembed serve`
 tests/        pytest suite (runs on a tiny synthetic grid)

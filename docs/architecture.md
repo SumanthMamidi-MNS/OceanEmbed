@@ -38,6 +38,7 @@ configs/
   poc_long.yaml         research / long run: 2011-2024, memmap cache
   final.yaml            the main run: from-scratch model, selected inputs, MLP baseline, pretrained
                         ablation; reuses poc_long's store (`paths.store`)
+  live.yaml             live nowcast: near-real-time SST + sea level, released weights, rolling window
   test_tiny.yaml        tiny grid / few days, used by pytest (test_tiny_final.yaml: final-style run)
 src/oceanembed/
   config.py             pydantic config models + YAML loader
@@ -91,7 +92,13 @@ src/oceanembed/
                         `r4_report.py`: ARMOR3D benchmark) and R5 (`physical.py`, `r5.py`, `r5_report.py`: derived
                         physical quantities, stratified skill), shared `common.py`; stage R3 (`inputs.py`, `r3.py`,
                         `r3_report.py`: variable groups / history / permutation importance) and R2 (`r2.py`,
-                        `r2_report.py`: long training period, two test years, learning curve, Argo)
+                        `r2_report.py`: long training period, two test years, learning curve, Argo); phase 13
+                        (`benchmark.py`, `benchmark_report.py`: boosted trees, random forest, plain U-Net and the
+                        ranked comparison of every family under the R2 protocol)
+  live/                 live nowcast (phase 11): `nrt.py` (catalogue probe, resumable per-day download), `harmonise.py`
+                        (batch rules on the raw NRT days), `reconstruct.py` (released weights, rolling monthly files),
+                        `update.py` (`live update` / `status`: window, revision policy, provenance), `verify.py` (running
+                        verification: Argo, operational analysis), `shift.py` (`live input-shift`), `state.py`
   data_access.py        read-only loaders shared by the Streamlit app and the HTTP API (no UI code, no Streamlit
                         import; documented below); `app/data_access.py` is a thin re-export of it
   api/                  read-only FastAPI data API (`oceanembed serve`), documented in docs/api.md
@@ -131,10 +138,13 @@ web/                    React single-page app (final dashboard); `web/dist` is s
                         controls/ (timeline, depth rail), shell/, ui/
   src/views/            overview/, explorer/, validation/, representation/, experiments/
   src/styles/           CSS (tokens that are not colours, layout)
+start.bat               one-click launcher: checks, .venv, dependencies, web build, free port, `oceanembed serve`, browser
 tests/                  pytest, runs entirely on synthetic tiny data (`conftest.tiny_run` = one full `run-all`)
-data/                   (git-ignored) raw/ (real), raw_synthetic/ (synthetic), processed/ ;
+data/                   (git-ignored) raw/ (real), raw_nrt/ (near-real-time, live mode only), raw_synthetic/ (synthetic),
+                        processed/ (live.zarr, live_shift*, live_analysis/ belong to the live mode);
                         root overridable via OCEANEMBED_DATA_ROOT (config `paths.raw_dir` picks the raw folder)
-outputs/                (git-ignored) <run_name>/ checkpoints, predictions, metrics, figures, report;
+outputs/                (git-ignored) <run_name>/ checkpoints, predictions, metrics, figures, report; `live/` is the
+                        rolling nowcast run (state, provenance table, checks/, logs/);
                         experiments/ holds archived tuning runs and their console logs
 docs/                   PRD, architecture, phases, decisions, memory (build log), design, runbook
 .venv/                  (git-ignored) project virtual env
@@ -420,5 +430,6 @@ Local only (Windows 11, RTX 3050 6 GB). `py -3.12 -m venv .venv`, CUDA torch whe
 `.\.venv\Scripts\streamlit.exe run app/Home.py` from the project root (Streamlit >= 1.64). The data API for the
 React dashboard: `.\.venv\Scripts\oceanembed.exe serve [--host 127.0.0.1] [--port 8000] [--outputs-root ...] [--reload]`
 (`/api/docs` is the OpenAPI page; the Vite dev server on :5173 is allowed by CORS). The React dashboard is built once
-with `cd web; npm install; npm run build` and is then served by the same command at `http://127.0.0.1:8000/`. Lint:
+with `cd web; npm install; npm run build` and is then served by the same command at `http://127.0.0.1:8000/`. The
+root-level `start.bat` does all of that in one click (environment, dependencies, web build, free port, browser). Lint:
 `ruff check .` and `ruff format --check .`. Tests: `pytest` (they use temp data / outputs roots via the env overrides).

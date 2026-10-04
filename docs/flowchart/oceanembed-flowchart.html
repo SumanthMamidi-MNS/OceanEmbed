@@ -211,6 +211,7 @@
   <div class="box tan">
     <h2>Baselines and ablation, always alongside</h2>
     <div class="chips"><span class="chip">climatology</span><span class="chip">ridge regression</span><span class="chip">per-pixel network</span><span class="chip">pretrained variant</span></div>
+    <div class="chips"><span class="chip">boosted trees</span><span class="chip">random forest</span><span class="chip">plain U-Net</span></div>
     <p class="small">a result only counts if it beats the simple alternatives on the same days</p>
   </div>
   <div class="stop">
@@ -218,6 +219,22 @@
     <div class="k">ABLATION RESULT</div>
     <h3>Pretraining did not help</h3>
     <p>five seeds each: 1.05 °C from scratch, 1.06 °C with masked pretraining (50–200 m) — reported, then dropped</p>
+  </div>
+</div>
+<div class="arrow"></div>
+
+<!-- 9b benchmark -->
+<div class="row">
+  <div class="box gate">
+    <span class="tag">BENCHMARK</span>
+    <h2>Seven model families, one protocol</h2>
+    <p>same data, split and test days · three training seeds · block-bootstrap intervals on paired differences</p>
+  </div>
+  <div class="stop">
+    <span class="lbl">a tie</span>
+    <div class="k">HONEST RANKING</div>
+    <h3>No family wins outright</h3>
+    <p>Transformer 0.989 &deg;C, boosted trees 0.990 &deg;C (50&ndash;200 m); the Transformer leads in the Bay of Bengal, the trees in the Arabian Sea</p>
   </div>
 </div>
 <div class="arrow"></div>
@@ -235,11 +252,25 @@
 </div>
 <div class="arrow"></div>
 
+<!-- 10b live -->
+<div class="row">
+  <div class="box blue">
+    <h2>Live nowcast</h2>
+    <p>near-real-time SST and sea level &rarr; the newest day, updated daily with the released model</p>
+    <div class="subs c2">
+      <div class="subbox"><b>Rolling 60-day window</b><span>the newest 7 days are re-fetched on every update, because near-real-time maps get corrected</span></div>
+      <div class="subbox"><b>Running check</b><span>each update is scored against newly published Argo profiles and the operational analysis</span></div>
+    </div>
+  </div>
+  <div class="note">A same-day reconstruction, <b>not a forecast</b>. Near-real-time inputs cost nothing measurable: <b>1.03 &deg;C</b> against 1.04 &deg;C with reprocessed inputs, over 182 days.</div>
+</div>
+<div class="arrow"></div>
+
 <!-- 11 dashboard -->
 <div class="row">
   <div class="box final">
     <h2>Explorer dashboard</h2>
-    <p>any day, depth and point · profiles and sections · validation · embeddings — FastAPI + React</p>
+    <p>any day, depth and point · the live day · accuracy · data and downloads · a research area — FastAPI + React, one click with start.bat</p>
   </div>
   <div></div>
 </div>

@@ -66,16 +66,21 @@ cd web; npm install; npm run build; cd ..        # writes web\dist
 cd web; npm run dev                              # http://localhost:5173, proxies /api to :8000
 ```
 
-Five views: Overview (the story with the selected run's own figures), Explorer (day and depth, linked maps, profile,
-section, time-depth), Validation (GLORYS and Argo), Representation (the embedding) and Experiments (methods, runs,
-training, data, NetCDF product, report). Run, day, depth and point are in the URL, so any state can be linked.
+Five product views: Overview (what it gives you, how accurate, where not to trust it), Explorer (day and depth, linked
+maps, profile, section, time-depth), Live (the latest day of the live run; listed only when a live run exists), Accuracy
+(error against GLORYS and Argo beside the seasonal climatology) and Data & downloads (inputs, grid, NetCDF product,
+released model, report). The research material (every method's scores, methods on the map, the embedding, training)
+is in a secondary Research area, linked from the page footer and from Data & downloads. Run, day, depth and point are
+in the URL, so any state can be linked.
 Design system: [`docs/design.md`](design.md). Checks: `npm run lint`, `npm run typecheck`, `npm test`,
 `npm run build`; after an API change run `npm run gen:api` (with the API running) to regenerate the typed client.
 
 ## Real-data run
 
 Follow [`docs/runbook.md`](runbook.md): create the free accounts, log in, try
-`configs/poc_trial.yaml` (3 months) first, then `configs/poc.yaml` (2018-2024).
+`configs/poc_trial.yaml` (3 months) first, then `configs/poc.yaml` (2018-2024). The main run of the project is
+`configs/final.yaml` on the 2011-2024 data built with `configs/poc_long.yaml`; sizes, times and the order of the steps
+are in [`docs/reproduce.md`](reproduce.md).
 
 ## CLI reference
 

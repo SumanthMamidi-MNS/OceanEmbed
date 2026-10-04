@@ -388,6 +388,10 @@ final React dashboard because Streamlit's rerun model and widget chrome cap the 
 Vite + React 19 + TypeScript (strict) single-page app; the only data source is the API above (same-origin `/api`;
 in development Vite on :5173 proxies `/api` to `http://127.0.0.1:8000`). Design system in `docs/design.md`.
 
+- Views: the primary navigation is the product (Overview `/`, Explorer `/explore`, Live `/live` when a live run exists,
+  Accuracy `/accuracy`, Data & downloads `/data`); the research material (`/research`, `/research/scores`,
+  `/research/maps`, `/research/embedding`) is a secondary area reached from the footer. The live run is never the
+  default run and is shown only in the Live view. Details in `docs/frontend.md`.
 - Runtime dependencies are kept to four: `react` / `react-dom`, `@tanstack/react-query` (request cache, loading and
   error states per endpoint), `markdown-to-jsx` (the generated report, loaded only when opened) and the bundled
   fonts (`@fontsource`: Newsreader, IBM Plex Sans, IBM Plex Mono; latin subsets). No chart, map or routing library:

@@ -2,6 +2,9 @@
 
 Living execution plan. Status: `[ ]` todo, `[~]` in progress, `[x]` done and verified.
 
+**State (2026-10-04): the build is complete.** Every phase below is done; the only open item is the optional
+Argo-aware correction (R6), which nothing else depends on. The manuscript is written separately.
+
 ## Phase 0 — Scaffold
 - [x] Git repo on feature branch, `.gitignore`, `pyproject.toml`, venv with CUDA PyTorch
 - [x] Config models + YAML configs, canonical grid module, Typer CLI skeleton

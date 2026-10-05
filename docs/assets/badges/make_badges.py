@@ -7,13 +7,13 @@ Run from anywhere: python docs/assets/badges/make_badges.py
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-CHAR_W = 6.35  # approx. advance width of 11.5px semibold system sans
+CHAR_W = 6.1  # approx. advance width of 11.5px semibold system sans
 
 
 def badge(slug, label, value, g0, g1, g2, border, icon, is_pulsing=False):
     label_w = len(label) * CHAR_W
-    value_w = round(len(value) * 6.95 + 18)
-    pill_x = round(32 + label_w + 10)
+    value_w = round(len(value) * 6.5 + 14)
+    pill_x = round(30 + label_w + 8)
     width = pill_x + value_w + 4
     cx = pill_x + value_w / 2
 
@@ -127,7 +127,7 @@ BADGES = [
     (
         "offline",
         "Hardware",
-        "6 GB Laptop GPU",
+        "6 GB GPU",
         "#FDBA74",
         "#EA580C",
         "#9A3412",
@@ -159,7 +159,7 @@ BADGES = [
     ),
     (
         "argo",
-        "In-Situ Check",
+        "In-Situ",
         "5,512 Argo Profiles",
         "#FBBF24",
         "#F59E0B",

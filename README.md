@@ -11,13 +11,13 @@
   <a href="https://pytorch.org/"><img src="docs/assets/badges/pytorch.svg" alt="PyTorch 2.x CUDA" height="30"></a>
   <a href="https://fastapi.tiangolo.com"><img src="docs/assets/badges/fastapi.svg" alt="FastAPI Data API" height="30"></a>
   <a href="web/"><img src="docs/assets/badges/dashboard.svg" alt="Dashboard: React 19 + TS" height="30"></a>
-  <a href="docs/backend.md#6-training"><img src="docs/assets/badges/offline.svg" alt="Hardware: 6 GB laptop GPU" height="30"></a>
+  <a href="docs/backend.md#6-training"><img src="docs/assets/badges/offline.svg" alt="Hardware: 6 GB GPU" height="30"></a>
   <br>
   <a href="docs/architecture.md"><img src="docs/assets/badges/model.svg" alt="Architecture: CNN + Transformer" height="30"></a>
   <a href="docs/backend.md"><img src="docs/assets/badges/resolution.svg" alt="Resolution: 0.25-deg Daily" height="30"></a>
-  <a href="docs/backend.md#7-evaluation"><img src="docs/assets/badges/argo.svg" alt="In-Situ Check: 5,512 Argo Profiles" height="30"></a>
-  <br>
+  <a href="docs/backend.md#7-evaluation"><img src="docs/assets/badges/argo.svg" alt="In-Situ: 5,512 Argo Profiles" height="30"></a>
   <a href="tests/"><img src="docs/assets/badges/tests.svg" alt="343 Py · 203 UI Passing" height="30"></a>
+  <br>
   <a href="LICENSE"><img src="docs/assets/badges/license.svg" alt="MIT License" height="30"></a>
 </p>
 

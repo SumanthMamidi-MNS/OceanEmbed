@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 258 32" width="258" height="32" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 239 32" width="239" height="32" fill="none">
   <defs>
     <linearGradient id="model-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#818CF8"/>
@@ -16,10 +16,10 @@
     .badge-label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11.5px; font-weight: 600; fill: #FFFFFF; stroke: none; }
     .badge-value { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11.5px; font-weight: 700; fill: #FFFFFF; stroke: none; }
   </style>
-  <rect x="0.5" y="0.5" width="257" height="31" rx="6" fill="#161B22" stroke="rgba(129, 140, 248, 0.45)" stroke-width="1"/>
+  <rect x="0.5" y="0.5" width="238" height="31" rx="6" fill="#161B22" stroke="rgba(129, 140, 248, 0.45)" stroke-width="1"/>
   <g transform="translate(8, 7)"><rect x="1.5" y="2.5" width="4.5" height="4.5" rx="1" fill="#818CF8"/><rect x="1.5" y="10.5" width="4.5" height="4.5" rx="1" fill="#818CF8"/><rect x="11.5" y="2.5" width="4.5" height="4.5" rx="1" fill="#A78BFA"/><rect x="11.5" y="10.5" width="4.5" height="4.5" rx="1" fill="#A78BFA"/><line x1="6" y1="4.8" x2="11.5" y2="4.8" stroke="#C4B5FD" stroke-width="1.1"/><line x1="6" y1="12.8" x2="11.5" y2="12.8" stroke="#C4B5FD" stroke-width="1.1"/><line x1="6" y1="4.8" x2="11.5" y2="12.8" stroke="#C4B5FD" stroke-width="1.1"/><line x1="6" y1="12.8" x2="11.5" y2="4.8" stroke="#C4B5FD" stroke-width="1.1"/></g>
   <text x="32" y="20" class="badge-label">Architecture</text>
-  <rect x="118" y="3.5" width="136" height="25" rx="4.5" fill="url(#model-grad)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
-  <rect x="118" y="3.5" width="136" height="25" rx="4.5" fill="url(#model-gloss)"/>
-  <text x="186.0" y="20" text-anchor="middle" class="badge-value">CNN + Transformer</text>
+  <rect x="111" y="3.5" width="124" height="25" rx="4.5" fill="url(#model-grad)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+  <rect x="111" y="3.5" width="124" height="25" rx="4.5" fill="url(#model-gloss)"/>
+  <text x="173.0" y="20" text-anchor="middle" class="badge-value">CNN + Transformer</text>
 </svg>

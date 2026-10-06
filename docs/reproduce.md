@@ -88,7 +88,7 @@ What remains is the repository: code, configs, docs, `results\` and `models\fina
 **Environment (about 20 min, about 5 GB).**
 
 ```powershell
-git clone <the repository> ; cd SIH-Project-4
+git clone <the repository> ; cd OceanEmbed
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"

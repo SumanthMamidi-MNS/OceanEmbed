@@ -200,7 +200,7 @@ def _month_dataset(
         method=method,
         input_variables=",".join(cfg.model.input_variables),
         history=f"{datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} created by oceanembed predict",
-        references="OceanEmbed PRD problem statement 26066",
+        references="OceanEmbed: subsurface temperature reconstructed from surface satellite fields",
         comment=comment,
         data_source=meta["data_source"],
         run_name=cfg.run_name,

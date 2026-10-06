@@ -71,7 +71,7 @@ Satellites do the opposite. They see every cell every day, but only its surface.
 what lies beneath: a raised sea level means a deeper thermocline and warmer water at 100 m; eddies, salinity fronts and
 wind mixing all leave marks.
 
-OceanEmbed learns that link. It answers Smart India Hackathon problem statement 26066: *estimate the three-dimensional
+OceanEmbed learns that link. The task: *estimate the three-dimensional
 ocean temperature using only surface satellite observations, daily, at 0.25°, and validate it against independent data.*
 
 ## What it does
@@ -398,7 +398,6 @@ models/final/       released weights, statistics, baselines and the model card
 
 ## Acknowledgements and license
 
-- **Smart India Hackathon** and the **Ministry of Earth Sciences (MoES) / INCOIS** for problem statement **SIH26066** (*Satellite Embedding-Based Deep Learning Framework for Reconstruction of Subsurface Ocean Temperature from Surface Satellite Observations*).
 - **[Copernicus Marine Service](https://marine.copernicus.eu)** (OSTIA, multi-observation salinity, DUACS, GLORYS12) for high-resolution satellite products and global ocean reanalysis.
 - **[NASA PO.DAAC](https://podaac.jpl.nasa.gov)** (OSCAR surface currents, CCMP winds) for physical surface observation datasets.
 - The international **[Argo Programme](https://argo.ucsd.edu)** and **[argopy](https://argopy.readthedocs.io/)** for global in-situ profiling float measurements.
@@ -408,6 +407,5 @@ Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
 <p align="center"><img src="docs/assets/divider.svg" width="100%" height="1" alt=""></p>
 
 <p align="center">
-  Designed &amp; Developed by <a href="https://github.com/SumanthMamidi-MNS">Sumanth Mamidi</a><br>
-  <sub>For Smart India Hackathon (SIH26066) &bull; Ministry of Earth Sciences (MoES) &bull; INCOIS</sub>
+  Designed &amp; Developed by <a href="https://github.com/SumanthMamidi-MNS">Sumanth Mamidi</a>
 </p>

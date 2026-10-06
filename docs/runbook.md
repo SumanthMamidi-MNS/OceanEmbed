@@ -3,7 +3,7 @@
 Plain-language steps to run OceanEmbed on **real** satellite data (Bay of Bengal / Arabian Sea, 2018-2024).
 The 3-month trial (`configs/poc_trial.yaml`) has been run end to end with real logins (2026-10-02); the sizes and
 times in section 3 are **measured on that trial and extrapolated** to the full period (labelled as such). Run every
-command from the project root (`SIH-Project-4`) in PowerShell.
+command from the project root (the cloned `OceanEmbed` folder) in PowerShell.
 
 ## 1. Create the two free accounts
 
